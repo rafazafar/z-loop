@@ -58,6 +58,6 @@ spec. Its scope contract is law.
    - Repro steps (stack-up + exercise).
 2. Write `state/sessions/<id>.result`: PR URL, summary, adjacent findings,
    open questions for the decision desk (if any).
-3. Touch `state/sessions/<id>.done`.
+3. Do not touch `state/sessions/<id>.done`. `run/spawn-exec` owns completion.
 
 The task is the verdict. A green suite with an unproven criterion is not done.

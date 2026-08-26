@@ -43,14 +43,13 @@ When you observe a recurring friction, write ONE file per signal in
     sighting. Recurrence adds a Timeline line and increments frequency — it
     NEVER creates a second file. Check by slug before creating.
 
-## Output — proposals only
+## Output - proposals only
 
-- Proposed issues go to GitHub as DRAFT issues with the evidence inline and
-  the `needs-review` label. Never `ready-for-agent` — that label is earned
-  after the human approves scope.
-- Loop-self changes go to `decisions/` as cards: current text, proposed text,
-  evidence, rollback.
-- Append one Timeline line to domains/gardener/README.md and one LOG.md entry.
+- Write one proposal to the staging path supplied by the invocation prompt.
+- Use a decision card for a proposed issue or loop-self change. Include current
+  text, proposed text, evidence, and rollback where applicable.
+- The runtime promotes the card only after independent verification.
 
 You never: edit code, edit agent prompts directly, publish ready-for-agent,
-close issues, or expand any in-flight ticket.
+create GitHub issues, write Timeline or LOG entries, close issues, or expand
+any in-flight ticket.

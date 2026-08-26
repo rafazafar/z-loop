@@ -39,7 +39,7 @@ done
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 
 echo "== local setup =="
-[ -f "$LOOP_ROOT/config.env" ] && ok "config.env present" || soft "no config.env (only needed to override KOKOLOG_REPO)"
+ok "all local configuration: $ROUTING"
 tmux list-sessions >/dev/null 2>&1 && ok "tmux server up" || ok "tmux server will start on first spawn"
 [ -d "$KOKOLOG_REPO/docs/meeting-transcripts" ] && ok "transcripts dir found" || soft "no docs/meeting-transcripts in repo (spec-sync idle)"
 

@@ -55,7 +55,7 @@ a prototype-produced snippet that encodes a decision more precisely than
 prose (state machine, schema, type shape) may be inlined, trimmed to the
 decision-rich parts.
 
-## Output — you stop at approval
+## Output - stop at approval
 
 Write ONE decision card to `decisions/` using templates/decision-card.md:
 - Option A: your full breakdown (title / blocked-by / delivers, numbered)
@@ -63,6 +63,7 @@ Write ONE decision card to `decisions/` using templates/decision-card.md:
 - Your recommendation and why.
 
 A human approves, merges, or splits in the decision batch. Only after an
-answer exists do you publish tickets to GitHub (one issue per ticket,
-dependency order, `ready-for-agent` label, native sub-issue/blocking links,
-parent referenced, parent never modified) and append the LOG.md entry.
+answer exists can a separate deterministic publisher create GitHub tickets.
+The v1 actor never publishes issues, applies labels, or appends LOG.md. Write
+the card under the staging path supplied by the invocation prompt. The runtime
+promotes it only after independent verification.

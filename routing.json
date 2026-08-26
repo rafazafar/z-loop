@@ -1,5 +1,9 @@
 {
-  "$comment": "Single source of truth for model routing and policy. Alias models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. TUNE THESE to your catalog. All scripts read this file via run/common.sh; never hardcode models or variants elsewhere.",
+  "$comment": "Single source of truth for local loop configuration. Alias models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. All scripts read this file via run/common.sh.",
+  "project": {
+    "$comment": "The GitHub repository is derived from this checkout's origin remote.",
+    "repo_path": "/Users/zafar/dev/kokolog-monitor"
+  },
   "aliases": {
     "code-max": {
       "model": "openai/gpt-5.6-luna",

@@ -10,6 +10,10 @@ continues later. Read this file before acting.
   docs, QMS updates). No BLE-touching tickets before the bench flow is proven.
 - Repo: /Users/zafar/dev/kokolog-monitor (Flutter monorepo, melos, JIS T 2304
   / IEC 62304 posture, docs in controlled Japanese, ISO 24620-4 style).
+- Execution model: one top-level OpenCode agent runs each non-implementation
+  domain cycle. The implementation domain keeps its deterministic maker-checker.
+- Every domain declares Goal, Trigger, Discover, Act, Verify, Persist, and Exit.
+  Runtime code owns locks, isolation, timeouts, and result validation.
 
 ## Shared rules — every role
 
@@ -29,12 +33,17 @@ continues later. Read this file before acting.
    never in your memory. Next session knows only what files say.
 8. For the client repo: follow its AGENTS.md, its ARD decisions, and its
    controlled-Japanese doc rules. Never commit loop internals there.
+9. Runtime code is the sole owner of session `.done` files and domain Timeline
+   entries. Agents write complete result artifacts atomically and never signal
+   their own completion.
+10. A question that requires human judgment must become a decision card. Do not
+    leave a human gate only as prose in a result file.
 
 ## Output contract (all roles)
 
-Write `state/sessions/<id>.result` (plain text, short): what you did, what you
-proved, what you could not, open questions for the decision desk. Then touch
-`state/sessions/<id>.done`. These two files are how the loop sees you finished.
+Write `state/sessions/<id>.result` atomically (plain text, short): what you did,
+what you proved, what you could not, and open questions for the decision desk.
+`run/spawn-exec` writes the `.done` sentinel only after OpenCode exits.
 
 ## Conventions
 

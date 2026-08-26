@@ -1,6 +1,6 @@
 #!/bin/bash
-# decision-batch — assemble the human decision queue (async, via decision-desk
-# agent). Run manually anytime; launchd runs it 09:00/17:00 once enabled.
+# decision-batch - avoid model work when the decision domain has nothing to do,
+# then run one blocking decision-desk cycle.
 set -euo pipefail
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
@@ -8,24 +8,11 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 cards="$( { grep -l '^status: *open' "$LOOP_ROOT"/decisions/*.card.md 2>/dev/null || true; } | wc -l | tr -d ' ')"
 parked="$( { ls "$STATE"/*.parked 2>/dev/null || true; } | wc -l | tr -d ' ')"
-echo "open cards: $cards · parked tickets: $parked"
+echo "open cards: $cards; parked tickets: $parked"
 if [ "$cards" = "0" ] && [ "$parked" = "0" ]; then
   echo "nothing to decide; no queue this batch"
   timeline decision-desk "batch | nothing to decide"
   exit 0
 fi
 
-sid="desk-$(date +%Y%m%d-%H%M)"
-pf="$SESSIONS/$sid.prompt"
-{
-  printf 'You are the Decision Desk. Read ~/.kokolog-loop/agents/decision-desk.md and obey it fully.\n'
-  printf 'Assemble ONE queue file for this batch. Sources: decisions/*.card.md (open),\n'
-  printf 'state/*.parked (read matching .result files for reasons), recent sessions/*.result\n'
-  printf 'open questions. Cap 7 cards, newest first. Write decisions/%s-queue.md\n' "$(date +%F-%H%M)"
-  printf 'with kind: queue, status: open frontmatter, then cards per templates/decision-card.md.\n'
-  printf 'Result file: %s.result, then touch %s.done (under state/sessions/).\n' "$SESSIONS/$sid" "$SESSIONS/$sid"
-} > "$pf"
-
-"$LOOP_ROOT/run/spawn" start "$sid" "$(route_model decision-desk)" \
-  "$(route_variant decision-desk)" "$LOOP_ROOT" "$pf"
-echo "queue assembly spawned; watch: run/spawn peek $sid"
+exec "$LOOP_ROOT/run/domain-loop" decision-desk

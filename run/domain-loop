@@ -1,0 +1,293 @@
+#!/bin/bash
+# domain-loop - run one bounded OpenCode-orchestrated cycle for one domain.
+# Runtime owns locks, isolation, timeout, verification, and durable cycle state.
+set -uo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+usage() {
+  echo "usage: domain-loop <spec-sync|ticket-factory|gardener|decision-desk> [--dry-run] [context ...]" >&2
+  exit 64
+}
+
+domain="${1:-}"
+[ -n "$domain" ] || usage
+shift
+
+dry_run=0
+if [ "${1:-}" = "--dry-run" ]; then
+  dry_run=1
+  shift
+fi
+context="$*"
+operation_hint=""
+if [[ "$context" =~ operation:\ ([^\;\ ]+) ]]; then
+  operation_hint="${BASH_REMATCH[1]}"
+fi
+
+case "$domain" in
+  spec-sync) role=distiller ;;
+  ticket-factory) role=ticketer ;;
+  gardener) role=gardener ;;
+  decision-desk) role=decision-desk ;;
+  *) usage ;;
+esac
+
+contract="$LOOP_ROOT/domains/$domain/README.md"
+for field_name in goal trigger discover act verify persist exit; do
+  grep -Eq "^${field_name}: .+" "$contract" || {
+    echo "$domain contract missing $field_name" >&2
+    exit 78
+  }
+done
+
+domain_active "$domain" || { echo "$domain paused"; exit 75; }
+[ "$domain" != "spec-sync" ] || [ -n "$operation_hint" ] || {
+  echo "spec-sync requires a trigger-provided operation key" >&2
+  exit 78
+}
+
+model="$(route_model "$role")"
+variant="$(route_variant "$role")"
+verify_model="$(route_model reviewer)"
+verify_variant="$(route_variant reviewer)"
+[ -n "$model" ] && [ -n "$variant" ] && [ -n "$verify_model" ] && [ -n "$verify_variant" ] || {
+  echo "missing model route for $domain" >&2
+  exit 78
+}
+
+stamp="$(date +%Y%m%d-%H%M%S)"
+sid="loop-${domain}-${stamp}"
+actor_prompt="$SESSIONS/$sid.prompt"
+actor_result="$SESSIONS/$sid.result"
+verifier_sid="$sid-verify"
+verifier_prompt="$SESSIONS/$verifier_sid.prompt"
+verifier_result="$SESSIONS/$verifier_sid.result"
+workdir="$LOOP_ROOT"
+clone=""
+stage="$STATE/staging/$sid"
+
+if [ "$domain" = "spec-sync" ]; then
+  clone="$CLONES/$sid"
+  workdir="$clone"
+fi
+
+if [ "$dry_run" = 1 ]; then
+  printf 'domain=%s\nrole=%s\nmodel=%s\nvariant=%s\nverifier_model=%s\nverifier_variant=%s\nworkdir=%s\nstage=%s\noperation=%s\ncontext=%s\n' \
+    "$domain" "$role" "$model" "$variant" "$verify_model" "$verify_variant" "$workdir" "$stage" "${operation_hint:-agent-derived}" "${context:-none}"
+  exit 0
+fi
+
+mkdir -p "$SESSIONS" "$STATE/cycles" "$STATE/locks" "$STATE/staging" "$CLONES"
+lockdir="$STATE/locks/domain-runtime"
+lock_token="$sid-$$"
+if ! mkdir "$lockdir" 2>/dev/null; then
+  if [ -f "$lockdir" ]; then
+    owner_pid="$(cat "$lockdir" 2>/dev/null || true)"
+  else
+    owner_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
+  fi
+  if [ -z "$owner_pid" ] || kill -0 "$owner_pid" 2>/dev/null; then
+    echo "another domain cycle holds the artifact lock"
+    exit 75
+  fi
+  stale="$lockdir.stale.$lock_token"
+  if ! mv "$lockdir" "$stale" 2>/dev/null || ! mkdir "$lockdir" 2>/dev/null; then
+    echo "cannot replace stale domain lock" >&2
+    exit 75
+  fi
+  rm -rf "$stale"
+fi
+printf '%s\n' $$ > "$lockdir/pid"
+printf '%s\n' "$lock_token" > "$lockdir/token"
+mkdir -p "$stage/decisions" "$stage/signals"
+
+active_session=""
+cleanup() {
+  if [ -n "$active_session" ]; then
+    "$LOOP_ROOT/run/spawn" stop "$active_session" >/dev/null 2>&1 || true
+  fi
+  if [ "$(cat "$lockdir/token" 2>/dev/null || true)" = "$lock_token" ]; then
+    rm -rf "$lockdir"
+  fi
+  if [ -n "$clone" ] && [ "${clone#"$CLONES/"}" != "$clone" ]; then
+    rm -rf "$clone"
+  fi
+  if [ -n "$stage" ] && [ "${stage#"$STATE/staging/"}" != "$stage" ]; then
+    rm -rf "$stage"
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+started="$(date -u +%FT%TZ)"
+cycle_file="$STATE/cycles/$sid.json"
+write_cycle() { # state outcome summary work-unit operation actor verifier
+  local state_name="$1" outcome_name="$2" summary_text="$3" work_unit="$4" operation="$5" actor="$6" verifier="$7"
+  local temporary="$cycle_file.tmp"
+  jq -n \
+    --arg id "$sid" --arg domain "$domain" --arg state "$state_name" \
+    --arg outcome "$outcome_name" --arg summary "$summary_text" \
+    --arg workUnit "$work_unit" --arg operation "$operation" \
+    --arg actor "$actor" --arg verifier "$verifier" \
+    --arg started "$started" --arg updated "$(date -u +%FT%TZ)" \
+    '{id:$id,domain:$domain,state:$state,outcome:$outcome,summary:$summary,work_unit:$workUnit,operation:$operation,actor_session:$actor,verifier_session:$verifier,started_at:$started,updated_at:$updated}' \
+    > "$temporary" && mv "$temporary" "$cycle_file" || {
+      echo "cannot persist cycle state: $cycle_file" >&2
+      exit 1
+    }
+}
+
+terminal() { # outcome summary work-unit operation exit-code
+  local outcome_name="$1" summary_text="$2" work_unit="$3" operation="$4" exit_code="$5"
+  local safe_summary
+  safe_summary="$(printf '%s' "$summary_text" | tr '\\|' '//')"
+  write_cycle terminal "$outcome_name" "$summary_text" "$work_unit" "$operation" "$sid" "${verifier_sid:-}"
+  timeline "$domain" "cycle $sid | $outcome_name: $safe_summary" || {
+    echo "cannot persist $domain Timeline" >&2
+    exit 1
+  }
+  touch "$SESSIONS/$sid.harvested"
+  [ -f "$SESSIONS/$verifier_sid.done" ] && touch "$SESSIONS/$verifier_sid.harvested"
+  printf 'OUTCOME: %s\nSUMMARY: %s\nCYCLE: %s\n' "$outcome_name" "$summary_text" "$sid"
+  exit "$exit_code"
+}
+
+if [ -n "$clone" ]; then
+  git clone -q "$KOKOLOG_REPO" "$clone" || terminal FAIL "client clone failed" none none 1
+  client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
+  [ -n "$client_remote" ] || terminal FAIL "client GitHub remote unavailable" none none 1
+  git -C "$clone" remote set-url origin "$client_remote" || terminal FAIL "client remote setup failed" none none 1
+  git -C "$clone" checkout -q -b "loop/$sid" || terminal FAIL "client branch failed" none none 1
+fi
+
+case "$domain" in
+  ticket-factory) boundary="Draft one breakdown decision card. Do not publish GitHub tickets; human approval and a future deterministic publisher are required." ;;
+  gardener) boundary="Write proposals to loop artifacts only. Do not edit code or prompts and do not create GitHub issues in this v1 cycle." ;;
+  decision-desk) boundary="Assemble one queue only. Never apply answered decisions or move ticket state; approval application requires a deterministic command." ;;
+  *) boundary="Stop at every human decision. Any PR must be a draft and include the stable operation key. Reconcile an existing PR or card before creating a new one." ;;
+esac
+
+{
+  printf 'You are the %s and the top-level actor for exactly one %s loop cycle.\n' "$role" "$domain"
+  printf 'Read %s/AGENTS.md, %s/agents/%s.md, and %s. Obey the domain contract when instructions conflict.\n' \
+    "$LOOP_ROOT" "$LOOP_ROOT" "$role" "$contract"
+  printf 'Follow Goal, Trigger, Discover, Act, Persist, and Exit in order. Select at most one work unit. The runtime launches an independent verifier after you exit.\n'
+  printf '%s\n' "$boundary"
+  if [ -n "$operation_hint" ]; then
+    printf 'The runtime claimed operation key %s before this actor started. Use exactly this key and reconcile live files and GitHub before any mutation.\n' "$operation_hint"
+  else
+    printf 'Derive a stable operation key from the source and reconcile live files before writing.\n'
+  fi
+  printf 'Write new loop artifacts only under %s, preserving their final decisions/ or signals/ relative path. Use one bash printf redirection command per staged file. Do not modify canonical loop artifacts.\n' "$stage"
+  printf 'Client-repo changes belong only under %s.\n' "$workdir"
+  [ -n "$context" ] && printf 'Trigger context: %s\n' "$context"
+  printf 'Write the complete result with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$actor_result" "$actor_result"
+  printf 'OUTCOME: PASS | NOOP | BLOCKED | FAIL\nSUMMARY: <one sentence>\nWORK_UNIT: <stable source id or none>\nOPERATION: <stable idempotency key or none>\nARTIFACTS: <paths and URLs or none>\n'
+  printf 'Do not touch any .done file. Do not append the domain Timeline. The runtime owns both.\n'
+} > "$actor_prompt"
+
+write_cycle actor-running "" "" "" "$operation_hint" "$sid" ""
+if ! "$LOOP_ROOT/run/spawn" start "$sid" "$model" "$variant" "$workdir" "$actor_prompt" >/dev/null; then
+  terminal FAIL "actor spawn failed" none none 1
+fi
+active_session="$sid"
+
+timeout_sec="$(rule session_timeout_sec)"
+if ! "$LOOP_ROOT/run/spawn" wait "$sid" "${timeout_sec:-3600}" >/dev/null; then
+  "$LOOP_ROOT/run/spawn" stop "$sid"
+  active_session=""
+  [ -s "$actor_result" ] || printf 'OUTCOME: FAIL\nSUMMARY: actor failed or timed out\nWORK_UNIT: none\nOPERATION: none\nARTIFACTS: none\n' > "$actor_result"
+  terminal FAIL "actor failed or timed out" none none 1
+fi
+active_session=""
+
+field_value() { grep -m1 "^$1:" "$2" 2>/dev/null | cut -d' ' -f2-; }
+field_once() { [ "$(grep -c "^$1:" "$2" 2>/dev/null || true)" = 1 ]; }
+
+actor_outcome="$(field_value OUTCOME "$actor_result")"
+actor_summary="$(field_value SUMMARY "$actor_result")"
+work_unit="$(field_value WORK_UNIT "$actor_result")"
+operation="$(field_value OPERATION "$actor_result")"
+artifacts="$(field_value ARTIFACTS "$actor_result")"
+actor_exit="$(cat "$SESSIONS/$sid.exit" 2>/dev/null || echo 1)"
+
+valid_actor=1
+for field_name in OUTCOME SUMMARY WORK_UNIT OPERATION ARTIFACTS; do
+  field_once "$field_name" "$actor_result" || valid_actor=0
+done
+case "$actor_outcome" in PASS|NOOP|BLOCKED|FAIL) ;; *) valid_actor=0 ;; esac
+[ -n "$actor_summary" ] && [ -n "$work_unit" ] && [ -n "$operation" ] && [ -n "$artifacts" ] || valid_actor=0
+case "$artifacts" in *../*) valid_actor=0 ;; esac
+[ -z "$operation_hint" ] || [ "$operation" = "$operation_hint" ] || valid_actor=0
+[ "$domain" != "spec-sync" ] || [ "$actor_outcome" = "NOOP" ] || [ "$operation" = "$operation_hint" ] || valid_actor=0
+[ "$valid_actor" = 1 ] || terminal FAIL "invalid actor result contract" "${work_unit:-none}" "${operation:-none}" 1
+
+write_cycle actor-complete "$actor_outcome" "$actor_summary" "$work_unit" "$operation" "$sid" ""
+[ "$actor_exit" = 0 ] || terminal FAIL "actor OpenCode exited $actor_exit" "$work_unit" "$operation" 1
+[ "$actor_outcome" != "FAIL" ] || terminal FAIL "$actor_summary" "$work_unit" "$operation" 1
+
+stage_count="$(find "$stage" -type f | wc -l | tr -d ' ')"
+[ -z "$(find "$stage" -type l -print -quit)" ] || terminal FAIL "staged symlinks are forbidden" "$work_unit" "$operation" 1
+case "$actor_outcome:$domain" in
+  NOOP:*) [ "$stage_count" = 0 ] || terminal FAIL "NOOP produced staged artifacts" "$work_unit" "$operation" 1 ;;
+  BLOCKED:*) [ "$stage_count" = 1 ] || terminal FAIL "BLOCKED must stage one decision card" "$work_unit" "$operation" 1 ;;
+  PASS:spec-sync) [ "$stage_count" -le 1 ] || terminal FAIL "spec-sync staged too many artifacts" "$work_unit" "$operation" 1 ;;
+  PASS:*) [ "$stage_count" = 1 ] || terminal FAIL "$domain must stage exactly one artifact" "$work_unit" "$operation" 1 ;;
+esac
+while IFS= read -r staged_file; do
+  relative="${staged_file#"$stage/"}"
+  case "$relative" in decisions/*|signals/*) ;; *) terminal FAIL "invalid staged artifact path" "$work_unit" "$operation" 1 ;; esac
+  [ ! -e "$LOOP_ROOT/$relative" ] || terminal FAIL "staged artifact already exists" "$work_unit" "$operation" 1
+done < <(find "$stage" -type f)
+
+{
+  printf 'You are a fresh read-only verifier for one %s cycle. Do not edit files, GitHub, state, or artifacts.\n' "$domain"
+  printf 'Read %s, %s, and the actor result %s.\n' \
+    "$LOOP_ROOT/AGENTS.md" "$contract" "$actor_result"
+  printf 'Actor session: %s. Work unit: %s. Operation: %s.\n' "$sid" "$work_unit" "$operation"
+  printf 'Independently inspect every listed artifact and the live source. Confirm the domain Verify field, the one-work-unit limit, the human boundary, and that the operation key did not duplicate a side effect.\n'
+  printf 'For NOOP, independently prove discovery is empty. For BLOCKED, prove a human decision is necessary and the parked artifact exists.\n'
+  printf 'Write the complete verdict with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$verifier_result" "$verifier_result"
+  printf 'VERDICT: PASS | FAIL\nACTOR: %s\nSUMMARY: <one sentence>\nEVIDENCE: <checked paths, URLs, and command exits>\n' "$sid"
+  printf 'Do not touch any .done file or append the domain Timeline.\n'
+} > "$verifier_prompt"
+
+write_cycle verifier-running "$actor_outcome" "$actor_summary" "$work_unit" "$operation" "$sid" "$verifier_sid"
+if ! "$LOOP_ROOT/run/spawn" start "$verifier_sid" "$verify_model" "$verify_variant" "$workdir" "$verifier_prompt" >/dev/null; then
+  terminal FAIL "verifier spawn failed" "$work_unit" "$operation" 1
+fi
+active_session="$verifier_sid"
+if ! "$LOOP_ROOT/run/spawn" wait "$verifier_sid" "${timeout_sec:-3600}" >/dev/null; then
+  "$LOOP_ROOT/run/spawn" stop "$verifier_sid"
+  active_session=""
+  terminal FAIL "verifier failed or timed out" "$work_unit" "$operation" 1
+fi
+active_session=""
+
+verdict="$(field_value VERDICT "$verifier_result")"
+verifier_actor="$(field_value ACTOR "$verifier_result")"
+verifier_summary="$(field_value SUMMARY "$verifier_result")"
+evidence="$(field_value EVIDENCE "$verifier_result")"
+verifier_exit="$(cat "$SESSIONS/$verifier_sid.exit" 2>/dev/null || echo 1)"
+valid_verifier=1
+for field_name in VERDICT ACTOR SUMMARY EVIDENCE; do
+  field_once "$field_name" "$verifier_result" || valid_verifier=0
+done
+case "$verdict" in PASS|FAIL) ;; *) valid_verifier=0 ;; esac
+[ "$verifier_actor" = "$sid" ] && [ -n "$verifier_summary" ] && [ -n "$evidence" ] || valid_verifier=0
+[ "$valid_verifier" = 1 ] || terminal FAIL "invalid verifier result contract" "$work_unit" "$operation" 1
+[ "$verifier_exit" = 0 ] || terminal FAIL "verifier OpenCode exited $verifier_exit" "$work_unit" "$operation" 1
+[ "$verdict" = PASS ] || terminal FAIL "$verifier_summary" "$work_unit" "$operation" 1
+
+if [ "$stage_count" = 1 ]; then
+  staged_file="$(find "$stage" -type f -print -quit)"
+  relative="${staged_file#"$stage/"}"
+  target="$LOOP_ROOT/$relative"
+  mkdir -p "${target%/*}"
+  mv "$staged_file" "$target" || terminal FAIL "artifact promotion failed" "$work_unit" "$operation" 1
+fi
+
+terminal "$actor_outcome" "$actor_summary" "$work_unit" "$operation" 0

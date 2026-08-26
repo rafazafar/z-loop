@@ -13,10 +13,8 @@ LOCK="$LOOP_ROOT/lock"
 LOGMD="$LOOP_ROOT/LOG.md"
 ROUTING="$LOOP_ROOT/routing.json"
 
-# --- config (secrets/overrides live in gitignored config.env) -------------
-KOKOLOG_REPO="${KOKOLOG_REPO:-/Users/zafar/dev/kokolog-monitor}"
-# shellcheck disable=SC1090
-[ -f "$LOOP_ROOT/config.env" ] && . "$LOOP_ROOT/config.env"
+# --- config ---------------------------------------------------------------
+KOKOLOG_REPO="$(jq -r '.project.repo_path // empty' "$ROUTING")"
 export KOKOLOG_REPO
 
 jqget() { jq -r "$1" "$ROUTING"; }
@@ -79,9 +77,8 @@ acquire_lock() {
 
 release_lock() { rm -f "$LOCK"; }
 
-# resolve GitHub owner/name for the client repo, cached
+# resolve GitHub owner/name from the configured checkout
 ghrepo() {
-  if [ -f "$STATE/ghrepo" ]; then cat "$STATE/ghrepo"; return 0; fi
   local url r
   url="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null)" || return 1
   # git@github.com:owner/name.git | https://github.com/owner/name.git | ssh://
@@ -90,7 +87,5 @@ ghrepo() {
     */*) ;;
     *) r="$( cd "$KOKOLOG_REPO" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null )" || return 1 ;;
   esac
-  mkdir -p "$STATE"
-  printf '%s\n' "$r" > "$STATE/ghrepo"
   printf '%s\n' "$r"
 }

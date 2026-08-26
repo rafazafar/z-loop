@@ -10,6 +10,7 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 result="$SESSIONS/$id.result"
 donef="$SESSIONS/$id.done"
+exitf="$SESSIONS/$id.exit"
 jsonlog="$LOGS/$id.jsonl"
 exit_code=0
 
@@ -18,14 +19,54 @@ finish() {
   if [ ! -s "$result" ]; then
     printf 'NO RESULT WRITTEN. Exit status: %s. See %s\n' "$exit_code" "$jsonlog" > "$result"
   fi
+  printf '%s\n' "$exit_code" > "$exitf.tmp" && mv "$exitf.tmp" "$exitf"
   touch "$donef"
 }
 trap 'finish' EXIT
+trap 'exit_code=143; exit 143' HUP TERM
+trap 'exit_code=130; exit 130' INT
 
 cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit_code=1; exit 1; }
 
 # providers (9router, openai, zai coding plan, ...) resolve from the user's
 # GLOBAL opencode config — deliberately no OPENCODE_CONFIG override here.
+readonly_output=""
+case "$id" in
+  *-verify) readonly_output="$result" ;;
+  *-rev-*) ticket="${id%%-rev-*}"; readonly_output="$VERDICTS/$ticket-verdict.md" ;;
+esac
+if [ -n "$readonly_output" ]; then
+  mv_pattern="mv *${readonly_output}"
+  write_pattern="printf * > ${readonly_output}.tmp"
+  export OPENCODE_PERMISSION
+  OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" '
+    {edit:{"*":"deny",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
+     bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
+           "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
+           "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow"}}')"
+else
+  case "$id" in
+    *-impl-*|loop-spec-sync-*)
+      edit_root="$workdir/**"
+      stage_root="$STATE/staging/$id/**"
+      export OPENCODE_PERMISSION
+      OPENCODE_PERMISSION="$(jq -cn --arg root "$edit_root" --arg stage "$stage_root" --arg output "$result" --arg temporary "$result.tmp" '
+        {edit:{"*":"deny",($root):"allow",($stage):"allow",($output):"allow",($temporary):"allow"},external_directory:"allow"}')"
+      ;;
+    loop-ticket-factory-*|loop-gardener-*|loop-decision-desk-*)
+      stage_root="$STATE/staging/$id/**"
+      mv_pattern="mv *${result}"
+      result_write_pattern="printf * > ${result}.tmp"
+      stage_write_pattern="printf * > $STATE/staging/$id/*"
+      export OPENCODE_PERMISSION
+      OPENCODE_PERMISSION="$(jq -cn --arg stage "$stage_root" --arg output "$result" --arg temporary "$result.tmp" --arg move "$mv_pattern" --arg resultWrite "$result_write_pattern" --arg stageWrite "$stage_write_pattern" '
+        {edit:{"*":"deny",($stage):"allow",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
+         bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
+               "gh pr view*":"allow","gh pr list*":"allow","gh issue view*":"allow","gh issue list*":"allow",
+               "shasum *":"allow",($resultWrite):"allow",($stageWrite):"allow",($move):"allow"}}')"
+      ;;
+  esac
+fi
 
 # one-line prompt discipline: task payload lives in the prompt file
 opencode run \
@@ -36,3 +77,4 @@ opencode run \
   "$(cat "$prompt_file")" 2>>"$LOGS/$id.stderr" | tee -a "$jsonlog"
 
 exit_code="${PIPESTATUS[0]}"
+exit "$exit_code"

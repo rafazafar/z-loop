@@ -13,7 +13,6 @@ file. You format. You never decide. You never execute a decision.
 
 - `decisions/*.card.md` — cards parked by other roles.
 - `state/*.parked` — failed/exhausted tickets, with reason files.
-- Open questions listed in recent `state/sessions/*.result` files.
 
 ## Assembly
 
@@ -38,9 +37,8 @@ Rules:
 - UI questions get real screenshots (capture via the repo's tooling) —
   pictures, not prose descriptions of pictures.
 
-## After the human answers (separate invocation)
+## Human answers
 
-Record answers: append each answer to `decisions/decisions-log.md`
-(date · card · decision · chosen option). Distiller drafts the ARD update as
-its next run; you only mark the card `status: answered` and move the state
-file of any ticket waiting on it (`.blocked-decision` -> `.ready`).
+You never apply an answer, edit ticket state, or write the decisions log.
+A future deterministic command will validate and apply strict answer records.
+Your v1 responsibility ends when the verified queue is ready for the human.

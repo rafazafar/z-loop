@@ -6,9 +6,9 @@ lock
 *.pid
 
 # secrets / local config
-config.env
 *.local.json
 .env*
 
 # OS noise
 .DS_Store
+.openchamber/

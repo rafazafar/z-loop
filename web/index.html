@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bench · kokolog-loop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#loops">Skip to loop controls</a>
+  <header class="mast">
+    <div class="identity"><span class="eyebrow">KOKOLOG-LOOP</span><h1>Bench</h1></div>
+    <div class="repo"><span class="label">MONITORED REPOSITORY</span><strong id="repo">Loading...</strong><small id="repoPath"></small></div>
+    <div class="counters" id="counters"></div>
+    <button class="primary" id="tick">Run tick</button>
+  </header>
+
+  <main>
+    <section class="board-section">
+      <header class="section-head"><div><span class="index">01</span><h2>System board</h2></div><p>Live artifact flow and control state</p></header>
+      <div class="board-wrap">
+        <div class="board" id="board">
+          <svg viewBox="0 0 1000 430" aria-hidden="true">
+            <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z"/></marker></defs>
+            <path d="M35 89 H65"/><path d="M235 89 H290"/>
+            <path class="future" d="M460 89 H520"/><path d="M690 89 H760"/>
+            <path d="M840 130 C840 315 710 315 620 270"/><path class="future" d="M600 245 V130"/>
+            <path class="feedback" d="M840 70 C900 20 900 155 840 110"/>
+          </svg>
+          <span class="artifact a-transcript">TRANSCRIPTS</span><span class="artifact a-spec">APPROVED SPEC</span><span class="artifact a-frontier">READY ISSUES</span><span class="artifact a-verdict">VERDICTS + SIGNALS</span>
+          <div id="graphNodes"></div>
+        </div>
+        <footer class="legend"><span><i class="line solid"></i> artifact flow</span><span><i class="line dashed"></i> planned path</span><span id="freshness">Reading state...</span></footer>
+      </div>
+    </section>
+
+    <section id="loops">
+      <header class="section-head"><div><span class="index">02</span><h2>Loop controls</h2></div><p>Run, pause, inspect</p></header>
+      <div class="loop-grid" id="loopGrid"></div>
+    </section>
+
+    <section>
+      <header class="section-head"><div><span class="index">03</span><h2>Role routing</h2></div><p>Runtime model assignments</p></header>
+      <div class="routing" id="routing"></div>
+    </section>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-hidden="true"><button class="close" id="closeDrawer" aria-label="Close">×</button><div id="drawerBody"></div></aside>
+  <div class="scrim" id="scrim"></div>
+  <dialog id="confirm"><form method="dialog"><span class="eyebrow">CONFIRM ACTION</span><h2 id="confirmTitle"></h2><p id="confirmText"></p><menu><button value="cancel">Cancel</button><button class="primary" value="confirm">Confirm</button></menu></form></dialog>
+  <dialog class="log-dialog" id="logDialog"><button class="close" id="closeLog" aria-label="Close">×</button><h2 id="logTitle">Log</h2><pre id="logText"></pre></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

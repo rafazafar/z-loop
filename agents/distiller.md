@@ -42,12 +42,11 @@ forks become decision cards.
 - An Accepted ARD that now conflicts with reality: you update the ARD or flag
   the conflict. You never leave them disagreeing.
 - No invented requirements. If the transcript is silent, the spec is silent.
-- Validation subagents: before finishing, re-read your own diff cold and
-  check every citation actually appears in the transcript. Correct, then
-  repeat once. That is your whole verification duty.
+- Check your work before returning it, but do not certify it. The runtime
+  launches a fresh read-only verifier after your actor session exits.
 
 ## Output contract
 
-Result file: PR URL, items extracted count, citations checked yes/no, cards
-parked. Then the done sentinel. Grammar for spec text: short sentences, one
-meaning each.
+Follow the strict result grammar in the invocation prompt. Write the result
+atomically. Do not touch a done sentinel or a domain Timeline. Grammar for spec
+text: short sentences, one meaning each.

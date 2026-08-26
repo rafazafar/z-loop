@@ -82,15 +82,23 @@ spawn_review() { # ticket pr
   local round=1
   [ -f "$STATE/$n.round" ] && round=$(( $(cat "$STATE/$n.round") + 1 ))
   printf '%s\n' "$round" > "$STATE/$n.round"
+  rm -f "$VERDICTS/$n-verdict.md"
+  local review_clone; review_clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+  [ -n "$review_clone" ] || {
+    st_set "$n" parked
+    timeline implement "ticket $n | parked: review clone missing"
+    return
+  }
   local pf="$SESSIONS/$n-rev-r${round}.prompt"
   {
     printf 'You are the Reviewer. Read ~/.kokolog-loop/agents/reviewer.md and obey it fully.\n'
     printf 'Issue: %s  PR: %s  Round: %s\n' "$n" "$pr" "$round"
-    printf 'Clone for inspection: %s\n' "$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+    printf 'Clone for inspection: %s\n' "$review_clone"
     printf 'Write your verdict to ~/.kokolog-loop/verdicts/%s-verdict.md (strict grammar).\n' "$n"
+    printf 'Use one bash printf redirection to %s.tmp, then a separate mv to %s.\n' "$VERDICTS/$n-verdict.md" "$VERDICTS/$n-verdict.md"
   } > "$pf"
   if "$LOOP_ROOT/run/spawn" start "$n-rev-r${round}" "$(route_model reviewer)" \
-    "$(route_variant reviewer)" "$KOKOLOG_REPO" "$pf" >/dev/null; then
+    "$(route_variant reviewer)" "$review_clone" "$pf" >/dev/null; then
     timeline implement "ticket $n | review round $round spawned"
   else
     st_set "$n" parked
@@ -138,15 +146,22 @@ harvest_review() { # ticket
         variant="$(alias_variant "$to_alias")"
       fi
       local pf="$SESSIONS/$n-impl-a${attempt}.prompt"
+      local fix_clone; fix_clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+      [ -n "$fix_clone" ] || {
+        st_set "$n" parked
+        timeline implement "ticket $n | parked: fix clone missing"
+        return
+      }
       {
         printf 'You are the Implementer. Read ~/.kokolog-loop/agents/implementer.md and obey it fully.\n'
         printf 'Issue: %s  This is attempt %s after review FAIL findings below.\n' "$n" "$attempt"
-        printf 'Existing clone+branch: %s\n' "$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+        printf 'Existing clone+branch: %s\n' "$fix_clone"
         printf 'Fix ONLY the findings. Do not expand scope. Same diff budget.\n\n'
         sed -n '/^findings:/,$p' "$v"
+        printf '\nWrite %s atomically. Do not touch its .done sentinel; spawn-exec owns completion.\n' "$SESSIONS/$n-impl-a${attempt}.result"
       } > "$pf"
       if "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$model" "$variant" \
-        "$KOKOLOG_REPO" "$pf" >/dev/null; then
+        "$fix_clone" "$pf" >/dev/null; then
         timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
       else
         st_set "$n" parked
@@ -167,6 +182,16 @@ for donef in "$SESSIONS"/*.done; do
   harvested="${donef%.done}.harvested"
   [ -e "$harvested" ] && continue
   touch "$harvested"  # before dispatch: a crash loses one transition, never duplicates it
+  run_exit="$(cat "$SESSIONS/$local_id.exit" 2>/dev/null || echo 1)"
+  if [ "$run_exit" != 0 ]; then
+    case "$local_id" in
+      *-impl-*) n="${local_id%%-impl-*}"; st_set "$n" parked; timeline implement "ticket $n | parked: implementer runtime exit $run_exit" ;;
+      *-rev-*)  n="${local_id%%-rev-*}";  st_set "$n" parked; timeline implement "ticket $n | parked: reviewer runtime exit $run_exit" ;;
+      dist-*)   timeline spec-sync "session $local_id | failed: runtime exit $run_exit" ;;
+      desk-*)   timeline decision-desk "session $local_id | failed: runtime exit $run_exit" ;;
+    esac
+    continue
+  fi
   case "$local_id" in
     *-impl-*) n="${local_id%%-impl-*}"; harvest_impl "$n" ;;
     *-rev-*)  n="${local_id%%-rev-*}";  harvest_review "$n" ;;
@@ -199,6 +224,12 @@ frontier() {
     # spawn implementer in a fresh clone
     clone="$CLONES/$n-a1"
     git clone -q "$KOKOLOG_REPO" "$clone" 2>/dev/null || continue
+    client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
+    if [ -z "$client_remote" ] || ! git -C "$clone" remote set-url origin "$client_remote"; then
+      rm -rf "$clone"
+      timeline implement "ticket $n | frontier clone remote failed; retry next tick"
+      continue
+    fi
     branch="loop/$n-$(date +%s)"
     git -C "$clone" checkout -q -b "$branch"
     budget="$(jq -c .rules.diff_budget "$ROUTING")"
@@ -208,8 +239,8 @@ frontier() {
       printf 'Issue number: %s (%s) in repo %s.\n' "$n" "$title" "$(ghrepo)"
       printf 'Your clone: %s (branch %s already created; work ONLY here).\n' "$clone" "$branch"
       printf 'Diff budget (hard stop): %s\n' "$budget"
-      printf 'When done: push, open ONE PR, then write %s and touch %s.\n' \
-        "$SESSIONS/$n-impl-a1.result" "$SESSIONS/$n-impl-a1.done"
+      printf 'When done: push, open ONE PR, then write %s atomically.\n' "$SESSIONS/$n-impl-a1.result"
+      printf 'Do not touch its .done sentinel; spawn-exec owns completion.\n'
     } > "$pf"
     if "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" \
       "$(route_variant implementer)" "$clone" "$pf" >/dev/null; then

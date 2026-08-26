@@ -9,8 +9,8 @@ directory is the brain.
 ```text
 AGENTS.md        operating context every agent session reads first
 LOG.md           global work feed (strict grammar, bottom-appended)
-routing.json     role -> model+variant alias + policy rules (single source of truth)
-agents/          six role prompts (passed per-session via prompt files)
+routing.json     project, model routing, and policy (single source of truth)
+agents/          domain-agent and bounded worker prompts
 templates/       subissue / spec / decision-card / device-protocol / verdict
 domains/         one charter per loop: focus, backlog, timeline, metrics
 verdicts/        reviewer verdicts (kind artifact, domain-tagged)
@@ -20,7 +20,7 @@ evals/           canned tickets for prompt regression tests
 state/           machine state (gitignored): tickets, sessions, sentinels
 logs/            run logs incl. raw opencode JSON events (gitignored)
 clones/          per-ticket git clones (gitignored)
-run/             tick engine, spawner, status, doctor, launchd install
+run/             domain runtime, tick engine, spawner, status, doctor, timers
 ```
 
 Agent prompts need no opencode install or config in this repo: each spawn
@@ -31,7 +31,11 @@ reference). Each alias also sets the OpenCode reasoning `variant` passed to
 `opencode run`. Nothing is written outside this directory and the client repo's
 GitHub.
 
-## Model routing
+## Configuration
+
+All local loop settings live in `routing.json`. Set `project.repo_path` to the
+client checkout. The loop derives the GitHub repository from that checkout's
+`origin` remote.
 
 Edit the objects under `aliases` in `routing.json`. `model` is the full
 OpenCode provider/model ID. `variant` is the provider-specific reasoning
@@ -40,19 +44,42 @@ effort passed with `--variant`. Roles and retry rules refer to the alias name.
 List installed models with `opencode models`. Inspect supported variants with
 `opencode models <provider> --verbose --pure`. Then run `run/doctor`.
 
+## Execution model
+
+Each domain README is an executable seven-field contract: Goal, Trigger,
+Discover, Act, Verify, Persist, and Exit. A scheduled run handles one bounded
+cycle and then stops. Durable files carry understanding into the next cycle.
+
+`implement` is a deterministic queue-drain and maker-checker workflow. Its
+implementer and reviewer are workers. The other domains run one top-level
+OpenCode actor that owns semantic discovery. The runtime then launches a fresh
+verifier session. New loop artifacts stay under `state/staging/` until that
+verifier passes. Runtime scripts own a single-flight domain lock, clone
+isolation, timeouts, strict result validation, durable cycle records, artifact
+promotion, and Timeline recording. There is no global LLM conductor; domains
+coordinate through GitHub and the shared artifact folders.
+
 ## Run it (manual first — timers stay OFF until each loop proves itself)
 
 ```bash
 run/doctor                  # preflight: binaries, gh auth, repo, routing
+run/dashboard               # local web overview and loop controls
 run/loop-tick --once        # one heartbeat: harvest, frontier check, reaping
+run/domain-loop <domain>    # one blocking non-implementation domain cycle
+run/domain-loop decision-desk --dry-run  # inspect resolved routing without a model call
 run/loop-status             # what the machine is doing right now
 run/decision-batch          # assemble the human decision queue
 run/spec-sync-trigger       # poll for new meeting transcripts (own timer)
 ```
 
-A tick is a gate, not a heartbeat that always works. No ready tickets, no
-transcripts, nothing parked -> it exits in seconds. Every tick is idempotent.
-Safe to re-run. Safe to run twice.
+A run is a gate, not a promise to produce work. Empty queues exit without a
+model call where deterministic discovery is available. One domain-runtime lock
+serializes non-implementation actors in v1 without blocking implementation
+harvesting. Every cycle selects at most one work unit and writes one terminal
+Timeline entry.
+
+`run/dashboard` opens Bench at `http://127.0.0.1:4177`. It binds to localhost
+only. Set `KOKOLOG_DASHBOARD_PORT` to use another port.
 
 Sessions run detached under tmux. Watch one live: `run/spawn peek <name>`.
 Truth is never the pane. Truth is the result file plus changed files.
@@ -83,6 +110,7 @@ README frontmatter. The tick respects it.
 | Webhook triggers via self-hosted runner | polling cadence becomes a bottleneck |
 | fswatch instead of 10-min poll for transcripts | poll latency actually hurts |
 | Parallel implementer sessions | single-flight proves too slow, AND clones stay collision-free |
+| Global LLM conductor | a real event cannot be routed to one domain deterministically |
 | Crabbox/cloud per-agent boxes | parallel sessions collide on broker/ports |
 | sqlite/vector index over artifacts | ripgrep gets slow past ~10k artifacts |
 | Reconcile daemon for signals | autonomous volume creates real duplicates |
