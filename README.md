@@ -31,6 +31,15 @@ reference). Each alias also sets the OpenCode reasoning `variant` passed to
 `opencode run`. Nothing is written outside this directory and the client repo's
 GitHub.
 
+## Model routing
+
+Edit the objects under `aliases` in `routing.json`. `model` is the full
+OpenCode provider/model ID. `variant` is the provider-specific reasoning
+effort passed with `--variant`. Roles and retry rules refer to the alias name.
+
+List installed models with `opencode models`. Inspect supported variants with
+`opencode models <provider> --verbose --pure`. Then run `run/doctor`.
+
 ## Run it (manual first — timers stay OFF until each loop proves itself)
 
 ```bash
