@@ -33,7 +33,8 @@ echo "== routing =="
 jq empty "$ROUTING" 2>/dev/null && ok "routing.json parses" || bad "routing.json invalid JSON"
 for role in implementer reviewer ticketer distiller gardener decision-desk; do
   m="$(route_model "$role")"
-  [ -n "$m" ] && ok "$role -> $m" || bad "$role has no resolvable model"
+  v="$(route_variant "$role")"
+  [ -n "$m" ] && [ -n "$v" ] && ok "$role -> $m ($v)" || bad "$role has no resolvable model and variant"
 done
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 

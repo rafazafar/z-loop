@@ -21,11 +21,11 @@ export KOKOLOG_REPO
 
 jqget() { jq -r "$1" "$ROUTING"; }
 
-route_model() { # role -> full provider/model string (hyphen-safe via --arg)
-  local alias
-  alias="$(jq -r --arg r "$1" '.roles[$r].model // empty' "$ROUTING")"
-  [ -n "$alias" ] && jq -r --arg a "$alias" '.aliases[$a] // empty' "$ROUTING"
-}
+role_alias() { jq -r --arg r "$1" '.roles[$r].model // empty' "$ROUTING"; }
+alias_model() { jq -r --arg a "$1" '.aliases[$a].model // empty' "$ROUTING"; }
+alias_variant() { jq -r --arg a "$1" '.aliases[$a].variant // empty' "$ROUTING"; }
+route_model() { alias_model "$(role_alias "$1")"; }
+route_variant() { alias_variant "$(role_alias "$1")"; }
 
 rule() { jq -r --arg k "$1" '.rules[$k]' "$ROUTING"; }
 

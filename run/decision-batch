@@ -26,5 +26,6 @@ pf="$SESSIONS/$sid.prompt"
   printf 'Result file: %s.result, then touch %s.done (under state/sessions/).\n' "$SESSIONS/$sid" "$SESSIONS/$sid"
 } > "$pf"
 
-"$LOOP_ROOT/run/spawn" start "$sid" "$(route_model decision-desk)" "$LOOP_ROOT" "$pf"
+"$LOOP_ROOT/run/spawn" start "$sid" "$(route_model decision-desk)" \
+  "$(route_variant decision-desk)" "$LOOP_ROOT" "$pf"
 echo "queue assembly spawned; watch: run/spawn peek $sid"

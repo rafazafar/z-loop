@@ -9,7 +9,7 @@ directory is the brain.
 ```text
 AGENTS.md        operating context every agent session reads first
 LOG.md           global work feed (strict grammar, bottom-appended)
-routing.json     role -> model alias + policy rules (single source of truth)
+routing.json     role -> model+variant alias + policy rules (single source of truth)
 agents/          six role prompts (passed per-session via prompt files)
 templates/       subissue / spec / decision-card / device-protocol / verdict
 domains/         one charter per loop: focus, backlog, timeline, metrics
@@ -27,7 +27,8 @@ Agent prompts need no opencode install or config in this repo: each spawn
 composes a per-session prompt file pointing the agent at its role file in
 agents/, and `--model` ids resolve against your existing GLOBAL opencode
 providers (9router, openai, zai coding plan — whatever routing.json aliases
-reference). Nothing is written outside this directory and the client repo's
+reference). Each alias also sets the OpenCode reasoning `variant` passed to
+`opencode run`. Nothing is written outside this directory and the client repo's
 GitHub.
 
 ## Run it (manual first — timers stay OFF until each loop proves itself)

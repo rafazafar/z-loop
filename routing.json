@@ -1,22 +1,51 @@
 {
-  "$comment": "Single source of truth for model routing and policy. Aliases are provider/model ids resolved by your GLOBAL opencode config (9router, openai, zai coding plan, ...). TUNE THESE to your catalog — any configured provider prefix works. All scripts read this file via run/common.sh; never hardcode models elsewhere.",
+  "$comment": "Single source of truth for model routing and policy. Alias models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. TUNE THESE to your catalog. All scripts read this file via run/common.sh; never hardcode models or variants elsewhere.",
   "aliases": {
-    "code-max": "9router/luna-max",
-    "code-mid": "9router/sol-medium",
-    "doc-xhigh": "9router/terra-xhigh",
-    "doc-fast": "9router/gemini-3.7-flash"
+    "code-max": {
+      "model": "openai/gpt-5.6-luna",
+      "variant": "max"
+    },
+    "code-mid": {
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
+    },
+    "doc-xhigh": {
+      "model": "zai-coding-plan/glm-5.3",
+      "variant": "max"
+    },
+    "doc-fast": {
+      "model": "zai-coding-plan/glm-5.3",
+      "variant": "max"
+    }
   },
   "roles": {
-    "implementer": { "model": "code-max" },
-    "reviewer": { "model": "code-mid" },
-    "ticketer": { "model": "code-mid" },
-    "distiller": { "model": "doc-xhigh" },
-    "gardener": { "model": "code-mid" },
-    "decision-desk": { "model": "code-mid" }
+    "implementer": {
+      "model": "code-max"
+    },
+    "reviewer": {
+      "model": "code-mid"
+    },
+    "ticketer": {
+      "model": "code-mid"
+    },
+    "distiller": {
+      "model": "doc-xhigh"
+    },
+    "gardener": {
+      "model": "code-mid"
+    },
+    "decision-desk": {
+      "model": "code-mid"
+    }
   },
   "rules": {
     "$comment_rules": "Policy executed by run/loop-tick in the fix-retry and reaper paths. Static policy, dynamic behavior.",
-    "retry_tier_up": { "$comment": "Fires only when the implementer is tuned DOWN to code-mid (cost mode): past N failures it escalates to code-max. With the default SOTA pin (code-max) it is correctly inert.", "after_failures": 2, "from": "code-mid", "to": "code-max" },
+    "retry_tier_up": {
+      "$comment": "Fires only when the implementer is tuned DOWN to code-mid (cost mode): past N failures it escalates to code-max. With the default SOTA pin (code-max) it is correctly inert.",
+      "after_failures": 2,
+      "from": "code-mid",
+      "to": "code-max"
+    },
     "max_verify_rounds": 3,
     "max_impl_attempts": 3,
     "diff_budget": {

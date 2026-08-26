@@ -90,7 +90,7 @@ spawn_review() { # ticket pr
     printf 'Write your verdict to ~/.kokolog-loop/verdicts/%s-verdict.md (strict grammar).\n' "$n"
   } > "$pf"
   if "$LOOP_ROOT/run/spawn" start "$n-rev-r${round}" "$(route_model reviewer)" \
-    "$KOKOLOG_REPO" "$pf" >/dev/null; then
+    "$(route_variant reviewer)" "$KOKOLOG_REPO" "$pf" >/dev/null; then
     timeline implement "ticket $n | review round $round spawned"
   else
     st_set "$n" parked
@@ -126,13 +126,16 @@ harvest_review() { # ticket
         return
       fi
       # tier-up policy from routing.json: past N failures, escalate model
-      local model after from to
+      local model variant after from_alias to_alias from
       model="$(route_model implementer)"
+      variant="$(route_variant implementer)"
       after="$(jq -r '.rules.retry_tier_up.after_failures // 2' "$ROUTING")"
-      from="$(jq -r --arg k "$(jq -r '.rules.retry_tier_up.from' "$ROUTING")" '.aliases[$k]' "$ROUTING")"
-      to="$(jq -r --arg k "$(jq -r '.rules.retry_tier_up.to' "$ROUTING")" '.aliases[$k]' "$ROUTING")"
+      from_alias="$(jq -r '.rules.retry_tier_up.from' "$ROUTING")"
+      to_alias="$(jq -r '.rules.retry_tier_up.to' "$ROUTING")"
+      from="$(alias_model "$from_alias")"
       if [ $((attempt - 1)) -ge "${after:-2}" ] && [ "$model" = "$from" ]; then
-        model="$to"
+        model="$(alias_model "$to_alias")"
+        variant="$(alias_variant "$to_alias")"
       fi
       local pf="$SESSIONS/$n-impl-a${attempt}.prompt"
       {
@@ -142,7 +145,8 @@ harvest_review() { # ticket
         printf 'Fix ONLY the findings. Do not expand scope. Same diff budget.\n\n'
         sed -n '/^findings:/,$p' "$v"
       } > "$pf"
-      if "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$model" "$KOKOLOG_REPO" "$pf" >/dev/null; then
+      if "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$model" "$variant" \
+        "$KOKOLOG_REPO" "$pf" >/dev/null; then
         timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
       else
         st_set "$n" parked
@@ -207,7 +211,8 @@ frontier() {
       printf 'When done: push, open ONE PR, then write %s and touch %s.\n' \
         "$SESSIONS/$n-impl-a1.result" "$SESSIONS/$n-impl-a1.done"
     } > "$pf"
-    if "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" "$clone" "$pf" >/dev/null; then
+    if "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" \
+      "$(route_variant implementer)" "$clone" "$pf" >/dev/null; then
       st_set "$n" in-progress
       timeline implement "ticket $n | implementer spawned (frontier)"
       say "spawned implementer for #$n: $title"
