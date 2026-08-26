@@ -1,0 +1,35 @@
+{
+  "$comment": "Single source of truth for model routing and policy. Aliases are 9router model ids — TUNE THESE to your router catalog. Provider prefix '9router' must match opencode.json. All scripts read this file via run/common.sh; never hardcode models elsewhere.",
+  "aliases": {
+    "code-max": "9router/luna-max",
+    "code-mid": "9router/sol-medium",
+    "doc-xhigh": "9router/terra-xhigh",
+    "doc-fast": "9router/gemini-3.7-flash"
+  },
+  "roles": {
+    "implementer": { "model": "code-max" },
+    "reviewer": { "model": "code-mid" },
+    "ticketer": { "model": "code-mid" },
+    "distiller": { "model": "doc-xhigh" },
+    "gardener": { "model": "code-mid" },
+    "decision-desk": { "model": "code-mid" }
+  },
+  "rules": {
+    "$comment_rules": "Policy executed by run/loop-tick. Static policy, dynamic behavior.",
+    "retry_tier_up": { "after_failures": 2, "from": "code-mid", "to": "code-max" },
+    "max_verify_rounds": 3,
+    "max_impl_attempts": 2,
+    "diff_budget": {
+      "$comment": "Exceeded => implementer must stop and park. Tune per scope later.",
+      "max_files": 12,
+      "max_insertions": 800,
+      "max_deletions": 400
+    },
+    "session_timeout_sec": 3600,
+    "clone_reap_days": 7
+  },
+  "github": {
+    "$comment": "ready-for-agent labels the frontier query. Create once: gh label create ready-for-agent",
+    "frontier_label": "ready-for-agent"
+  }
+}

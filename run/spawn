@@ -1,0 +1,47 @@
+#!/bin/bash
+# spawn — detached tmux session manager for loop agent runs.
+# start <name> <model> <workdir> <prompt-file> | list | peek <name> [lines]
+# result <name> | wait <name> [timeout-sec] | stop <name>
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+cmd="${1:-}"; shift || true
+sname() { printf '%s-%s' "$tmux_session_prefix" "$1"; }
+
+case "$cmd" in
+  start)
+    name="$1"; model="$2"; workdir="$3"; prompt_file="$4"
+    [ -f "$prompt_file" ] || { echo "no prompt file: $prompt_file" >&2; exit 1; }
+    mkdir -p "$SESSIONS" "$LOGS"
+    rm -f "$SESSIONS/$name.done" "$SESSIONS/$name.result"
+    tmux new-session -d -s "$(sname "$name")" \
+      "$LOOP_ROOT/run/spawn-exec" "$name" "$model" "$workdir" "$prompt_file"
+    echo "spawned $(sname "$name")"
+    ;;
+  list)
+    tmux list-sessions 2>/dev/null | grep "^$tmux_session_prefix-" || echo "(no sessions)"
+    ;;
+  peek)
+    tmux capture-pane -p -t "$(sname "$1")" 2>/dev/null | tail -n "${2:-25}" || echo "(no such session)"
+    ;;
+  result)
+    cat "$SESSIONS/$1.result" 2>/dev/null || echo "(no result yet: $1)"
+    ;;
+  wait)
+    name="$1"; timeout="${2:-3600}"
+    deadline=$(( $(date +%s) + timeout ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+      [ -f "$SESSIONS/$name.done" ] && { echo "done: $name"; exit 0; }
+      tmux has-session -t "$(sname "$name")" 2>/dev/null || { echo "session gone without sentinel: $name"; exit 2; }
+      sleep 10
+    done
+    echo "timeout after ${timeout}s: $name"; exit 124
+    ;;
+  stop)
+    tmux kill-session -t "$(sname "$1")" 2>/dev/null || true
+    ;;
+  *)
+    sed -n '2,4p' "$0"; exit 64 ;;
+esac

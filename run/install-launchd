@@ -1,0 +1,30 @@
+#!/bin/bash
+# install-launchd — copies plists into ~/Library/LaunchAgents with the real
+# loop root substituted. DOES NOT LOAD THEM. The prove-it gate comes first:
+# each domain must complete one real run manually before you bootstrap its
+# timer. Loading is a one-liner, printed below.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DEST="$HOME/Library/LaunchAgents"
+mkdir -p "$DEST"
+
+for src in "$LOOP_ROOT"/run/plists/*.plist; do
+  [ -e "$src" ] || { echo "no plists found"; exit 1; }
+  name="$(basename "$src")"
+  sed "s|__LOOP_ROOT__|$LOOP_ROOT|g" "$src" > "$DEST/$name"
+  echo "installed $DEST/$name (NOT loaded)"
+done
+
+cat <<'EOF'
+
+To load (only after the domain's prove-it run):
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.tick.plist
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.decisions.plist
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.specsync.plist
+
+To unload:
+  launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/<plist>
+
+Pause a single loop without launchd: set status: paused in that domain's
+domains/<name>/README.md — the tick respects it.
+EOF

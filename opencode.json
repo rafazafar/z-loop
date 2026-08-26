@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config/v1.json",
+  "$comment": "Provider definition only. Role prompts live in agents/ (symlinked into ~/.config/opencode/agent/ by run/install-launchd). Model selection per role comes from routing.json via --model flags. Set OPENCODE_9ROUTER_BASEURL in config.env (gitignored).",
+  "provider": {
+    "9router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "REPLACE_ME_SET_OPENCODE_9ROUTER_BASEURL_IN_config.env"
+      },
+      "models": {
+        "luna-max": {},
+        "sol-medium": {},
+        "terra-xhigh": {},
+        "gemini-3.7-flash": {}
+      }
+    }
+  }
+}

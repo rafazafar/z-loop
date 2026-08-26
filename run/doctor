@@ -1,0 +1,49 @@
+#!/bin/bash
+# doctor — preflight. Read-only checks; tells you exactly what to fix.
+set -uo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+fail=0; warn=0
+ok()   { printf '  ok    %s\n' "$1"; }
+bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
+soft() { printf '  warn  %s\n' "$1"; warn=$((warn+1)); }
+
+echo "== binaries =="
+for b in opencode gh git jq tmux; do
+  command -v "$b" >/dev/null 2>&1 && ok "$b ($(command -v $b))" || bad "$b missing from PATH"
+done
+
+echo "== client repo =="
+[ -d "$KOKOLOG_REPO/.git" ] && ok "repo: $KOKOLOG_REPO" || bad "not a git repo: $KOKOLOG_REPO (set KOKOLOG_REPO in config.env)"
+gh auth status >/dev/null 2>&1 && ok "gh authenticated" || bad "gh not authenticated: run gh auth login"
+GH_REPO="$(ghrepo 2>/dev/null)" && ok "github: $GH_REPO" || bad "cannot resolve GitHub repo (is origin set?)"
+
+echo "== github labels =="
+if [ -n "${GH_REPO:-}" ]; then
+  if gh label list -R "$GH_REPO" 2>/dev/null | grep -q "^$(jqget .github.frontier_label)"; then
+    ok "label $(jqget .github.frontier_label) exists"
+  else
+    soft "label $(jqget .github.frontier_label) missing -> gh label create $(jqget .github.frontier_label) -R $GH_REPO"
+  fi
+fi
+
+echo "== routing =="
+jq empty "$ROUTING" 2>/dev/null && ok "routing.json parses" || bad "routing.json invalid JSON"
+for role in implementer reviewer ticketer distiller gardener decision-desk; do
+  m="$(route_model "$role")"
+  [ -n "$m" ] && ok "$role -> $m" || bad "$role has no resolvable model"
+done
+grep -q 'REPLACE_ME' "$LOOP_ROOT/opencode.json" \
+  && soft "opencode.json baseURL is a placeholder — either set OPENCODE_9ROUTER_BASEURL in config.env (see config.env.example) or rely on your global opencode provider" \
+  || ok "opencode.json baseURL set"
+
+echo "== local setup =="
+[ -f "$LOOP_ROOT/config.env" ] && ok "config.env present" || soft "no config.env (fine if your global opencode already defines the 9router provider)"
+tmux list-sessions >/dev/null 2>&1 && ok "tmux server up" || ok "tmux server will start on first spawn"
+[ -d "$KOKOLOG_REPO/docs/meeting-transcripts" ] && ok "transcripts dir found" || soft "no docs/meeting-transcripts in repo (spec-sync idle)"
+
+echo
+[ "$fail" = 0 ] && echo "RESULT: ready (warns: $warn)" || echo "RESULT: $fail hard failure(s). Fix the FAIL lines above."
+exit "$fail"

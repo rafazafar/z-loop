@@ -1,0 +1,14 @@
+# machine layer — rebuilt from GitHub state on any tick
+state/
+logs/
+clones/
+lock
+*.pid
+
+# secrets / local config
+config.env
+*.local.json
+.env*
+
+# OS noise
+.DS_Store

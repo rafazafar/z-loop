@@ -1,0 +1,190 @@
+#!/bin/bash
+# loop-tick — the heartbeat. One idempotent pass:
+#   harvest finished sessions -> advance tickets
+#   work the ready-ticket frontier (spawn implementer, single-flight)
+#   check transcripts for spec-sync
+# A tick is a gate, not a heartbeat that always works. Never alarms.
+set -uo pipefail   # NOT -e: one failed branch must not kill the pass
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+acquire_lock || { echo "another tick holds the lock; exiting"; exit 0; }
+trap release_lock EXIT
+
+say() { printf '[%s] %s\n' "$(date +%T)" "$*"; }
+
+# ---------- preflight (soft) ------------------------------------------------
+have_bin() { command -v "$1" >/dev/null 2>&1; }
+if ! have_bin opencode || ! have_bin gh || ! have_bin jq || ! have_bin tmux; then
+  timeline implement "tick | skipped: missing binary (run run/doctor)"
+  exit 0
+fi
+GH_REPO="$(ghrepo)" || { say "cannot resolve gh repo"; exit 0; }
+LABEL="$(jqget .github.frontier_label)"
+
+# ---------- reap stray clones ------------------------------------------------
+reap_days="$(rule clone_reap_days)"
+find "$CLONES" -maxdepth 1 -type d -name '[0-9]*' -mtime "+${reap_days:-7}" -exec rm -rf {} + 2>/dev/null || true
+
+# ---------- harvest finished sessions ----------------------------------------
+# session ids: <ticket>-impl-aN   |   <ticket>-rev-rN   |   dist-<epoch>
+harvest_impl() { # ticket
+  local n="$1" res
+  # newest impl result for this ticket
+  res="$(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null | head -1)"
+  [ -n "${res:-}" ] && [ -s "$res" ] || res="/dev/null"
+  if grep -q 'DECOMPOSE' "$res" 2>/dev/null; then
+    st_set "$n" parked
+    timeline implement "ticket $n | parked: needs decomposition"
+    return
+  fi
+  local pr
+  pr="$(grep -o 'https://github.com/[^ )]*/pull/[0-9]*' "$res" 2>/dev/null | head -1)"
+  if [ -z "$pr" ]; then
+    st_set "$n" parked
+    timeline implement "ticket $n | parked: no PR in result"
+    return
+  fi
+  st_set "$n" review
+  printf '%s\n' "$pr" > "$STATE/$n.pr"
+  spawn_review "$n" "$pr"
+}
+
+spawn_review() { # ticket pr
+  local n="$1" pr="$2"
+  local round=1
+  [ -f "$STATE/$n.round" ] && round=$(( $(cat "$STATE/$n.round") + 1 ))
+  printf '%s\n' "$round" > "$STATE/$n.round"
+  local pf="$SESSIONS/$n-rev-r${round}.prompt"
+  {
+    printf 'You are the Reviewer. Read ~/.kokolog-loop/agents/reviewer.md and obey it fully.\n'
+    printf 'Issue: %s  PR: %s  Round: %s\n' "$n" "$pr" "$round"
+    printf 'Clone for inspection: %s\n' "$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+    printf 'Write your verdict to ~/.kokolog-loop/verdicts/%s-verdict.md (strict grammar).\n' "$n"
+  } > "$pf"
+  "$LOOP_ROOT/run/spawn" start "$n-rev-r${round}" "$(route_model reviewer)" \
+    "$KOKOLOG_REPO" "$pf" >/dev/null
+  timeline implement "ticket $n | review round $round spawned"
+}
+
+harvest_review() { # ticket
+  local n="$1"
+  local round; round="$(cat "$STATE/$n.round" 2>/dev/null || echo 1)"
+  local v="$VERDICTS/$n-verdict.md"
+  [ -f "$v" ] || { st_set "$n" parked; timeline implement "ticket $n | parked: no verdict file"; return; }
+  local verdict task
+  verdict="$(grep -m1 '^VERDICT:' "$v" | cut -d' ' -f2)"
+  task="$(grep -m1 '^TASK:' "$v" | cut -d' ' -f2)"
+  metric implement runs.jsonl "\"event\":\"verdict\",\"ticket\":$n,\"verdict\":\"${verdict:-?}\",\"task\":\"${task:-?}\",\"round\":$round"
+  if [ "$verdict" = "PASS" ]; then
+    st_set "$n" done
+    timeline implement "ticket $n | PASS round $round — PR awaits human merge"
+    log_append "ticket $n verified" implement "PASS at review round $round; PR ready for merge." "$v"
+  else
+    local maxr; maxr="$(rule max_verify_rounds)"
+    if [ "${round:-0}" -lt "${maxr:-3}" ]; then
+      # findings go back to a FRESH implementer session
+      st_set "$n" fix
+      local attempt; attempt=$(( $(ls "$SESSIONS/$n-impl"-a*.result 2>/dev/null | wc -l | tr -d ' ') + 1 ))
+      local pf="$SESSIONS/$n-impl-a${attempt}.prompt"
+      {
+        printf 'You are the Implementer. Read ~/.kokolog-loop/agents/implementer.md and obey it fully.\n'
+        printf 'Issue: %s  This is attempt %s after review FAIL findings below.\n' "$n" "$attempt"
+        printf 'Existing clone+branch: %s\n' "$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+        printf 'Fix ONLY the findings. Do not expand scope. Same diff budget.\n\n'
+        sed -n '/^findings:/,$p' "$v"
+      } > "$pf"
+      "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$(route_model implementer)" \
+        "$KOKOLOG_REPO" "$pf" >/dev/null
+      timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
+    else
+      st_set "$n" parked
+      timeline implement "ticket $n | parked: $maxr rounds exhausted"
+      log_append "ticket $n parked" implement "Review rounds exhausted." "$v"
+    fi
+  fi
+}
+
+for donef in "$SESSIONS"/*.done; do
+  [ -e "$donef" ] || continue
+  local_id="${donef%.done}"; local_id="${local_id##*/}"
+  harvested="${donef%.done}.harvested"
+  [ -e "$harvested" ] && continue
+  case "$local_id" in
+    *-impl-*) n="${local_id%%-impl-*}"; harvest_impl "$n" ;;
+    *-rev-*)  n="${local_id%%-rev-*}";  harvest_review "$n" ;;
+    dist-*)   timeline spec-sync "distiller session finished: $local_id" ;;
+  esac
+  touch "$harvested"
+done
+
+# ---------- frontier (implement domain) --------------------------------------
+frontier() {
+  domain_active implement || { say "implement paused"; return 0; }
+  # single-flight: at most one impl session alive
+  if tmux list-sessions 2>/dev/null | grep -q "^${tmux_session_prefix}-[0-9]*-impl-"; then
+    say "impl in flight; frontier idle this tick"; return 0
+  fi
+  local issues
+  issues="$(gh issue list -R "$GH_REPO" --label "$LABEL" --state open --limit 30 \
+            --json number,title --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null)" || return 0
+  [ -n "$issues" ] || { say "frontier empty"; return 0; }
+  while IFS=$'\t' read -r n title; do
+    st_exists "$n" && continue
+    # blockers: parse "Blocked by" refs from body; all must be closed
+    body="$(gh issue view "$n" -R "$GH_REPO" --json body -q .body 2>/dev/null || true)"
+    blocked=0
+    for b in $(printf '%s' "$body" | sed -n '/[Bb]locked by/,/^[A-Z*#]/p' | grep -o '#[0-9]\+' | tr -d '#'); do
+      s="$(gh issue view "$b" -R "$GH_REPO" --json state -q .state 2>/dev/null || echo open)"
+      [ "$s" = "closed" ] || { blocked=1; break; }
+    done
+    [ "$blocked" = 1 ] && continue
+    # spawn implementer in a fresh clone
+    clone="$CLONES/$n-a1"
+    git clone -q "$KOKOLOG_REPO" "$clone" 2>/dev/null || continue
+    branch="loop/$n-$(date +%s)"
+    git -C "$clone" checkout -q -b "$branch"
+    budget="$(jq -c .rules.diff_budget "$ROUTING")"
+    pf="$SESSIONS/$n-impl-a1.prompt"
+    {
+      printf 'You are the Implementer. Read ~/.kokolog-loop/agents/implementer.md first and obey it fully.\n'
+      printf 'Issue number: %s (%s) in repo %s.\n' "$n" "$title" "$(ghrepo)"
+      printf 'Your clone: %s (branch %s already created; work ONLY here).\n' "$clone" "$branch"
+      printf 'Diff budget (hard stop): %s\n' "$budget"
+      printf 'When done: push, open ONE PR, then write %s and touch %s.\n' \
+        "$SESSIONS/$n-impl-a1.result" "$SESSIONS/$n-impl-a1.done"
+    } > "$pf"
+    st_set "$n" in-progress
+    "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" "$clone" "$pf" >/dev/null
+    timeline implement "ticket $n | implementer spawned (frontier)"
+    say "spawned implementer for #$n: $title"
+    return 0   # one per tick; single-flight
+  done <<<"$issues"
+}
+frontier
+
+# ---------- spec-sync check ---------------------------------------------------
+if domain_active spec-sync; then
+  seen="$STATE/specsync.seen"
+  ls "$KOKOLOG_REPO/docs/meeting-transcripts" 2>/dev/null | grep -v '^README' | sort > "$STATE/specsync.ls"
+  if ! diff -q "$seen" "$STATE/specsync.ls" >/dev/null 2>&1; then
+    newfile="$(comm -13 "$seen" "$STATE/specsync.ls" 2>/dev/null | head -1)"
+    if [ -n "$newfile" ] && ! tmux list-sessions 2>/dev/null | grep -q "^${tmux_session_prefix}-dist-"; then
+      sid="dist-$(date +%s)"
+      pf="$SESSIONS/$sid.prompt"
+      {
+        printf 'You are the Distiller. Read ~/.kokolog-loop/agents/distiller.md and obey it fully.\n'
+        printf 'New transcript: %s in docs/meeting-transcripts of %s.\n' "$newfile" "$KOKOLOG_REPO"
+        printf 'Work in a doc-only branch. Result file: %s.result, then touch %s.done (in ~/.kokolog-loop/state/sessions/).\n' "$SESSIONS/$sid" "$SESSIONS/$sid"
+      } > "$pf"
+      "$LOOP_ROOT/run/spawn" start "$sid" "$(route_model distiller)" "$KOKOLOG_REPO" "$pf" >/dev/null
+      timeline spec-sync "transcript detected: $newfile -> distiller spawned"
+      cp "$STATE/specsync.ls" "$seen"
+    fi
+  fi
+fi
+
+metric implement runs.jsonl "\"event\":\"tick\",\"ts\":\"$(date -u +%FT%TZ)\""
+timeline implement "tick | pass complete"
+say "tick complete"

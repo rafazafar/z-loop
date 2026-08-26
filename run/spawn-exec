@@ -1,0 +1,37 @@
+#!/bin/bash
+# spawn-exec — runs INSIDE the tmux session. Always produces a result file
+# and a done sentinel, even on crash. The loop never waits on silence.
+# usage: spawn-exec <id> <model> <workdir> <prompt-file>
+set -u
+id="$1"; model="$2"; workdir="$3"; prompt_file="$4"
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+result="$SESSIONS/$id.result"
+donef="$SESSIONS/$id.done"
+jsonlog="$LOGS/$id.jsonl"
+
+finish() {
+  # result file must exist even if the agent never wrote one
+  if [ ! -s "$result" ]; then
+    printf 'NO RESULT WRITTEN. Exit status: %s. See %s\n' "$exit_code" "$jsonlog" > "$result"
+  fi
+  touch "$donef"
+}
+trap 'exit_code=$?; finish' EXIT
+
+cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit 1; }
+
+# scope provider config to our runs; harmless if the env var is unsupported
+# (opencode then falls back to the user's own global 9router provider)
+export OPENCODE_CONFIG="${OPENCODE_CONFIG:-$LOOP_ROOT/opencode.json}"
+
+# one-line prompt discipline: task payload lives in the prompt file
+opencode run \
+  --model "$model" \
+  --format json \
+  --title "$id" \
+  "$(cat "$prompt_file")" 2>>"$LOGS/$id.stderr" | tee -a "$jsonlog"
+
+exit_code=$?
