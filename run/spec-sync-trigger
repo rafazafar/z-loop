@@ -27,7 +27,10 @@ pf="$SESSIONS/$sid.prompt"
   printf 'New transcript: %s in docs/meeting-transcripts of %s.\n' "$newfile" "$KOKOLOG_REPO"
   printf 'Doc-only branch. Result: %s.result, sentinel: %s.done (state/sessions/).\n' "$SESSIONS/$sid" "$SESSIONS/$sid"
 } > "$pf"
-"$LOOP_ROOT/run/spawn" start "$sid" "$(route_model distiller)" "$KOKOLOG_REPO" "$pf"
-timeline spec-sync "transcript detected: $newfile -> distiller spawned"
-cp "$STATE/specsync.ls" "$seen"
-echo "distiller spawned for $newfile"
+if "$LOOP_ROOT/run/spawn" start "$sid" "$(route_model distiller)" "$KOKOLOG_REPO" "$pf"; then
+  timeline spec-sync "transcript detected: $newfile -> distiller spawned"
+  cp "$STATE/specsync.ls" "$seen"   # mark seen ONLY on successful spawn; failure retries next poll
+  echo "distiller spawned for $newfile"
+else
+  echo "distiller spawn failed; will retry next poll"
+fi

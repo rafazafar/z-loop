@@ -25,3 +25,7 @@ Query recipes:
 ## 2026-08-26 · loop system v1 skeleton · #loop #infra
 What: built ~/.kokolog-loop skeleton — agents, templates, domains, tick engine, launchd plists (not loaded).
 Refs: README.md (new), AGENTS.md (new), run/ (new)
+
+## 2026-08-26 · verifier round fixes · #loop #infra
+What: 3 verification rounds (2x FAIL fixed, round-3 single defect fixed post-cap with reproduced evidence: decision-batch default-state crash, exit-code trap, stranding paths, honest tier-up docs, spawn guards, dedupe).
+Refs: run/decision-batch (fixed), run/spec-sync-trigger (fixed), run/spawn-exec (fixed), run/loop-tick (fixed)
