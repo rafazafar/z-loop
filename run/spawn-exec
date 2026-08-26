@@ -24,9 +24,8 @@ trap 'finish' EXIT
 
 cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit_code=1; exit 1; }
 
-# scope provider config to our runs; harmless if the env var is unsupported
-# (opencode then falls back to the user's own global 9router provider)
-export OPENCODE_CONFIG="${OPENCODE_CONFIG:-$LOOP_ROOT/opencode.json}"
+# providers (9router, openai, zai coding plan, ...) resolve from the user's
+# GLOBAL opencode config — deliberately no OPENCODE_CONFIG override here.
 
 # one-line prompt discipline: task payload lives in the prompt file
 opencode run \

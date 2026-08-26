@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for model routing and policy. Aliases are 9router model ids — TUNE THESE to your router catalog. Provider prefix '9router' must match opencode.json. All scripts read this file via run/common.sh; never hardcode models elsewhere.",
+  "$comment": "Single source of truth for model routing and policy. Aliases are provider/model ids resolved by your GLOBAL opencode config (9router, openai, zai coding plan, ...). TUNE THESE to your catalog — any configured provider prefix works. All scripts read this file via run/common.sh; never hardcode models elsewhere.",
   "aliases": {
     "code-max": "9router/luna-max",
     "code-mid": "9router/sol-medium",

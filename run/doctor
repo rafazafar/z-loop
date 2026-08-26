@@ -35,12 +35,10 @@ for role in implementer reviewer ticketer distiller gardener decision-desk; do
   m="$(route_model "$role")"
   [ -n "$m" ] && ok "$role -> $m" || bad "$role has no resolvable model"
 done
-grep -q 'REPLACE_ME' "$LOOP_ROOT/opencode.json" \
-  && soft "opencode.json baseURL is a placeholder — either set OPENCODE_9ROUTER_BASEURL in config.env (see config.env.example) or rely on your global opencode provider" \
-  || ok "opencode.json baseURL set"
+echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 
 echo "== local setup =="
-[ -f "$LOOP_ROOT/config.env" ] && ok "config.env present" || soft "no config.env (fine if your global opencode already defines the 9router provider)"
+[ -f "$LOOP_ROOT/config.env" ] && ok "config.env present" || soft "no config.env (only needed to override KOKOLOG_REPO)"
 tmux list-sessions >/dev/null 2>&1 && ok "tmux server up" || ok "tmux server will start on first spawn"
 [ -d "$KOKOLOG_REPO/docs/meeting-transcripts" ] && ok "transcripts dir found" || soft "no docs/meeting-transcripts in repo (spec-sync idle)"
 
