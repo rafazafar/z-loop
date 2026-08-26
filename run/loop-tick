@@ -45,7 +45,11 @@ for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep "^${tmux_session_pre
     tmux kill-session -t "${tmux_session_prefix}-${sess}" 2>/dev/null
     [ -s "$SESSIONS/$sess.result" ] || printf 'TIMEOUT: reaped after %ss by tick\n' "$age" > "$SESSIONS/$sess.result"
     touch "$SESSIONS/$sess.done"
-    timeline implement "session $sess | reaped: timeout ${age}s"
+    case "$sess" in
+      dist-*)  timeline spec-sync "session $sess | reaped: timeout ${age}s" ;;
+      desk-*)  timeline decision-desk "session $sess | reaped: timeout ${age}s" ;;
+      *)       timeline implement "session $sess | reaped: timeout ${age}s" ;;
+    esac
   fi
 done
 
@@ -85,9 +89,14 @@ spawn_review() { # ticket pr
     printf 'Clone for inspection: %s\n' "$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
     printf 'Write your verdict to ~/.kokolog-loop/verdicts/%s-verdict.md (strict grammar).\n' "$n"
   } > "$pf"
-  "$LOOP_ROOT/run/spawn" start "$n-rev-r${round}" "$(route_model reviewer)" \
-    "$KOKOLOG_REPO" "$pf" >/dev/null
-  timeline implement "ticket $n | review round $round spawned"
+  if "$LOOP_ROOT/run/spawn" start "$n-rev-r${round}" "$(route_model reviewer)" \
+    "$KOKOLOG_REPO" "$pf" >/dev/null; then
+    timeline implement "ticket $n | review round $round spawned"
+  else
+    st_set "$n" parked
+    timeline implement "ticket $n | parked: review spawn failed (round $round)"
+    log_append "ticket $n parked" implement "Reviewer spawn failed; needs human attention." "state/$n.parked"
+  fi
 }
 
 harvest_review() { # ticket
@@ -136,8 +145,9 @@ harvest_review() { # ticket
       if "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$model" "$KOKOLOG_REPO" "$pf" >/dev/null; then
         timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
       else
-        rm -f "$STATE/$n.fix"
-        timeline implement "ticket $n | fix spawn failed; retry next tick"
+        st_set "$n" parked
+        timeline implement "ticket $n | parked: fix spawn failed (attempt $attempt)"
+        log_append "ticket $n parked" implement "Fix spawn failed; needs human attention." "state/$n.parked"
       fi
     else
       st_set "$n" parked
@@ -157,6 +167,7 @@ for donef in "$SESSIONS"/*.done; do
     *-impl-*) n="${local_id%%-impl-*}"; harvest_impl "$n" ;;
     *-rev-*)  n="${local_id%%-rev-*}";  harvest_review "$n" ;;
     dist-*)   timeline spec-sync "distiller session finished: $local_id" ;;
+    desk-*)   timeline decision-desk "decision-batch session finished: $local_id" ;;
   esac
 done
 

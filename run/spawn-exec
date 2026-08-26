@@ -11,6 +11,7 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 result="$SESSIONS/$id.result"
 donef="$SESSIONS/$id.done"
 jsonlog="$LOGS/$id.jsonl"
+exit_code=0
 
 finish() {
   # result file must exist even if the agent never wrote one
@@ -19,9 +20,9 @@ finish() {
   fi
   touch "$donef"
 }
-trap 'exit_code=$?; finish' EXIT
+trap 'finish' EXIT
 
-cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit 1; }
+cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit_code=1; exit 1; }
 
 # scope provider config to our runs; harmless if the env var is unsupported
 # (opencode then falls back to the user's own global 9router provider)

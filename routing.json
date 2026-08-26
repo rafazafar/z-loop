@@ -16,7 +16,7 @@
   },
   "rules": {
     "$comment_rules": "Policy executed by run/loop-tick in the fix-retry and reaper paths. Static policy, dynamic behavior.",
-    "retry_tier_up": { "after_failures": 2, "from": "code-mid", "to": "code-max" },
+    "retry_tier_up": { "$comment": "Fires only when the implementer is tuned DOWN to code-mid (cost mode): past N failures it escalates to code-max. With the default SOTA pin (code-max) it is correctly inert.", "after_failures": 2, "from": "code-mid", "to": "code-max" },
     "max_verify_rounds": 3,
     "max_impl_attempts": 3,
     "diff_budget": {
