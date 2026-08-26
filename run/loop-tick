@@ -1,13 +1,20 @@
 #!/bin/bash
 # loop-tick — the heartbeat. One idempotent pass:
-#   harvest finished sessions -> advance tickets
+#   reap timed-out sessions -> harvest finished sessions -> advance tickets
 #   work the ready-ticket frontier (spawn implementer, single-flight)
-#   check transcripts for spec-sync
 # A tick is a gate, not a heartbeat that always works. Never alarms.
+# Transcript polling lives in run/spec-sync-trigger (own timer), not here.
 set -uo pipefail   # NOT -e: one failed branch must not kill the pass
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
 . "$LOOP_ROOT/run/common.sh"
+
+for arg in "$@"; do
+  case "$arg" in
+    --once) ;;  # one pass is the only mode; flag kept for launchd/readability
+    *) echo "usage: loop-tick [--once]" >&2; exit 64 ;;
+  esac
+done
 
 acquire_lock || { echo "another tick holds the lock; exiting"; exit 0; }
 trap release_lock EXIT
@@ -26,6 +33,21 @@ LABEL="$(jqget .github.frontier_label)"
 # ---------- reap stray clones ------------------------------------------------
 reap_days="$(rule clone_reap_days)"
 find "$CLONES" -maxdepth 1 -type d -name '[0-9]*' -mtime "+${reap_days:-7}" -exec rm -rf {} + 2>/dev/null || true
+
+# ---------- reap timed-out sessions -------------------------------------------
+timeout_sec="$(rule session_timeout_sec)"
+for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep "^${tmux_session_prefix}-" | sed "s/^${tmux_session_prefix}-//"); do
+  [ -f "$SESSIONS/$sess.done" ] && continue
+  pf="$SESSIONS/$sess.prompt"
+  [ -f "$pf" ] || continue
+  age=$(( $(date +%s) - $(stat -f %m "$pf") ))
+  if [ "$age" -gt "${timeout_sec:-3600}" ]; then
+    tmux kill-session -t "${tmux_session_prefix}-${sess}" 2>/dev/null
+    [ -s "$SESSIONS/$sess.result" ] || printf 'TIMEOUT: reaped after %ss by tick\n' "$age" > "$SESSIONS/$sess.result"
+    touch "$SESSIONS/$sess.done"
+    timeline implement "session $sess | reaped: timeout ${age}s"
+  fi
+done
 
 # ---------- harvest finished sessions ----------------------------------------
 # session ids: <ticket>-impl-aN   |   <ticket>-rev-rN   |   dist-<epoch>
@@ -87,6 +109,22 @@ harvest_review() { # ticket
       # findings go back to a FRESH implementer session
       st_set "$n" fix
       local attempt; attempt=$(( $(ls "$SESSIONS/$n-impl"-a*.result 2>/dev/null | wc -l | tr -d ' ') + 1 ))
+      local maxa; maxa="$(rule max_impl_attempts)"
+      if [ "$attempt" -gt "${maxa:-3}" ]; then
+        st_set "$n" parked
+        timeline implement "ticket $n | parked: impl attempts exhausted ($maxa)"
+        log_append "ticket $n parked" implement "Implementation attempts exhausted." "$v"
+        return
+      fi
+      # tier-up policy from routing.json: past N failures, escalate model
+      local model after from to
+      model="$(route_model implementer)"
+      after="$(jq -r '.rules.retry_tier_up.after_failures // 2' "$ROUTING")"
+      from="$(jq -r --arg k "$(jq -r '.rules.retry_tier_up.from' "$ROUTING")" '.aliases[$k]' "$ROUTING")"
+      to="$(jq -r --arg k "$(jq -r '.rules.retry_tier_up.to' "$ROUTING")" '.aliases[$k]' "$ROUTING")"
+      if [ $((attempt - 1)) -ge "${after:-2}" ] && [ "$model" = "$from" ]; then
+        model="$to"
+      fi
       local pf="$SESSIONS/$n-impl-a${attempt}.prompt"
       {
         printf 'You are the Implementer. Read ~/.kokolog-loop/agents/implementer.md and obey it fully.\n'
@@ -95,9 +133,12 @@ harvest_review() { # ticket
         printf 'Fix ONLY the findings. Do not expand scope. Same diff budget.\n\n'
         sed -n '/^findings:/,$p' "$v"
       } > "$pf"
-      "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$(route_model implementer)" \
-        "$KOKOLOG_REPO" "$pf" >/dev/null
-      timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
+      if "$LOOP_ROOT/run/spawn" start "$n-impl-a${attempt}" "$model" "$KOKOLOG_REPO" "$pf" >/dev/null; then
+        timeline implement "ticket $n | FAIL r$round -> fix attempt $attempt spawned"
+      else
+        rm -f "$STATE/$n.fix"
+        timeline implement "ticket $n | fix spawn failed; retry next tick"
+      fi
     else
       st_set "$n" parked
       timeline implement "ticket $n | parked: $maxr rounds exhausted"
@@ -111,12 +152,12 @@ for donef in "$SESSIONS"/*.done; do
   local_id="${donef%.done}"; local_id="${local_id##*/}"
   harvested="${donef%.done}.harvested"
   [ -e "$harvested" ] && continue
+  touch "$harvested"  # before dispatch: a crash loses one transition, never duplicates it
   case "$local_id" in
     *-impl-*) n="${local_id%%-impl-*}"; harvest_impl "$n" ;;
     *-rev-*)  n="${local_id%%-rev-*}";  harvest_review "$n" ;;
     dist-*)   timeline spec-sync "distiller session finished: $local_id" ;;
   esac
-  touch "$harvested"
 done
 
 # ---------- frontier (implement domain) --------------------------------------
@@ -155,36 +196,19 @@ frontier() {
       printf 'When done: push, open ONE PR, then write %s and touch %s.\n' \
         "$SESSIONS/$n-impl-a1.result" "$SESSIONS/$n-impl-a1.done"
     } > "$pf"
-    st_set "$n" in-progress
-    "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" "$clone" "$pf" >/dev/null
-    timeline implement "ticket $n | implementer spawned (frontier)"
-    say "spawned implementer for #$n: $title"
+    if "$LOOP_ROOT/run/spawn" start "$n-impl-a1" "$(route_model implementer)" "$clone" "$pf" >/dev/null; then
+      st_set "$n" in-progress
+      timeline implement "ticket $n | implementer spawned (frontier)"
+      say "spawned implementer for #$n: $title"
+    else
+      rm -rf "$clone"
+      timeline implement "ticket $n | frontier spawn failed; retry next tick"
+    fi
     return 0   # one per tick; single-flight
   done <<<"$issues"
 }
 frontier
 
-# ---------- spec-sync check ---------------------------------------------------
-if domain_active spec-sync; then
-  seen="$STATE/specsync.seen"
-  ls "$KOKOLOG_REPO/docs/meeting-transcripts" 2>/dev/null | grep -v '^README' | sort > "$STATE/specsync.ls"
-  if ! diff -q "$seen" "$STATE/specsync.ls" >/dev/null 2>&1; then
-    newfile="$(comm -13 "$seen" "$STATE/specsync.ls" 2>/dev/null | head -1)"
-    if [ -n "$newfile" ] && ! tmux list-sessions 2>/dev/null | grep -q "^${tmux_session_prefix}-dist-"; then
-      sid="dist-$(date +%s)"
-      pf="$SESSIONS/$sid.prompt"
-      {
-        printf 'You are the Distiller. Read ~/.kokolog-loop/agents/distiller.md and obey it fully.\n'
-        printf 'New transcript: %s in docs/meeting-transcripts of %s.\n' "$newfile" "$KOKOLOG_REPO"
-        printf 'Work in a doc-only branch. Result file: %s.result, then touch %s.done (in ~/.kokolog-loop/state/sessions/).\n' "$SESSIONS/$sid" "$SESSIONS/$sid"
-      } > "$pf"
-      "$LOOP_ROOT/run/spawn" start "$sid" "$(route_model distiller)" "$KOKOLOG_REPO" "$pf" >/dev/null
-      timeline spec-sync "transcript detected: $newfile -> distiller spawned"
-      cp "$STATE/specsync.ls" "$seen"
-    fi
-  fi
-fi
-
-metric implement runs.jsonl "\"event\":\"tick\",\"ts\":\"$(date -u +%FT%TZ)\""
+metric implement runs.jsonl "\"event\":\"tick\""
 timeline implement "tick | pass complete"
 say "tick complete"

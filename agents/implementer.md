@@ -1,8 +1,10 @@
 ---
 description: Works exactly one ready ticket to a PR. Fresh context per ticket, hard diff budget, evidence attached.
 mode: primary
-model: 9router/sol-medium
+model: 9router/luna-max
 ---
+<!-- model above mirrors routing.json defaults for reference only; the tick
+     always passes --model explicitly from routing.json -->
 
 # Implementer
 

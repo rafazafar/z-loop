@@ -11,7 +11,7 @@ AGENTS.md        operating context every agent session reads first
 LOG.md           global work feed (strict grammar, bottom-appended)
 routing.json     role -> model alias + policy rules (single source of truth)
 opencode.json    9router provider definition (baseURL via config.env)
-agents/          six role prompts (symlinked into opencode at install)
+agents/          six role prompts (passed per-session via prompt files)
 templates/       subissue / spec / decision-card / device-protocol / verdict
 domains/         one charter per loop: focus, backlog, timeline, metrics
 verdicts/        reviewer verdicts (kind artifact, domain-tagged)
@@ -24,14 +24,18 @@ clones/          per-ticket git clones (gitignored)
 run/             tick engine, spawner, status, doctor, launchd install
 ```
 
+Agent prompts need no global opencode install: each spawn composes a
+per-session prompt file that points the agent at its role file in agents/.
+Nothing is written outside this directory and the client repo's GitHub.
+
 ## Run it (manual first — timers stay OFF until each loop proves itself)
 
 ```bash
 run/doctor                  # preflight: binaries, gh auth, repo, routing
-run/loop-tick --once        # one heartbeat: frontier check, spawn sessions
+run/loop-tick --once        # one heartbeat: harvest, frontier check, reaping
 run/loop-status             # what the machine is doing right now
 run/decision-batch          # assemble the human decision queue
-run/spec-sync-trigger       # check for new meeting transcripts
+run/spec-sync-trigger       # poll for new meeting transcripts (own timer)
 ```
 
 A tick is a gate, not a heartbeat that always works. No ready tickets, no

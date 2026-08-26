@@ -15,10 +15,10 @@
     "decision-desk": { "model": "code-mid" }
   },
   "rules": {
-    "$comment_rules": "Policy executed by run/loop-tick. Static policy, dynamic behavior.",
+    "$comment_rules": "Policy executed by run/loop-tick in the fix-retry and reaper paths. Static policy, dynamic behavior.",
     "retry_tier_up": { "after_failures": 2, "from": "code-mid", "to": "code-max" },
     "max_verify_rounds": 3,
-    "max_impl_attempts": 2,
+    "max_impl_attempts": 3,
     "diff_budget": {
       "$comment": "Exceeded => implementer must stop and park. Tune per scope later.",
       "max_files": 12,

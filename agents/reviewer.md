@@ -45,6 +45,8 @@ Verify evidence files exist and are non-empty where cited.
 
 ## Verdict — strict grammar, nothing else in the file
 
+Copy this grammar EXACTLY, at column zero — the tick greps anchored lines:
+
     VERDICT: PASS | FAIL
     TASK: works | broken | unproven
     expected: <criteria, one line>
@@ -52,6 +54,9 @@ Verify evidence files exist and are non-empty where cited.
     evidence: <paths verified>
     findings:
     - L1|L2|L3 · <file/area> · <defect> · <minimal fix direction>
+
+(In your verdict file the lines above start at column zero. The indentation
+here is display only.)
 
 Rules:
 - "Works" requires positive evidence. Absence of failure is not success.

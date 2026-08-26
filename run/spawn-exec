@@ -34,4 +34,4 @@ opencode run \
   --title "$id" \
   "$(cat "$prompt_file")" 2>>"$LOGS/$id.stderr" | tee -a "$jsonlog"
 
-exit_code=$?
+exit_code="${PIPESTATUS[0]}"

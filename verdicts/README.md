@@ -1,10 +1,11 @@
 # verdicts/
 
-Kind: verdict. One file per review round: `<ticket>-verdict.md` (latest round
-wins; keep history, never overwrite — the tick reads the newest by mtime).
+Kind: verdict. One file per ticket: `<ticket>-verdict.md`. Each review round
+OVERWRITES it; the tick reads this fixed path and greps anchored `VERDICT:` /
+`TASK:` lines. Round history lives in `logs/<ticket>-rev-rN.jsonl` and the PR.
 
 Schema is templates/verdict.md. Frontmatter must include domain, ticket, pr,
-round. Body grammar is strict; the tick parses VERDICT/TASK lines.
+round.
 
 Rules:
 - Written ONLY by the reviewer role.
