@@ -7,3 +7,4 @@
 @media(prefers-color-scheme:dark){:root{--paper:#15191f;--surface:#1d232b;--ink:#ebe5d7;--soft:#a4acb5;--line:#38414b;--red:#df5936;--green:#5eaa83;--amber:#d39a39;--blue:#85a9ca;--shadow:0 22px 60px #0008}.mast{background:#15191fe6}.board{background:radial-gradient(circle at center,#232a33,#171c22)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+.card-answer{display:block;margin-top:12px;border-top:1px solid var(--line);padding-top:12px}.card-opt{display:block;padding:5px 0;cursor:pointer;font:11px ui-monospace,monospace}.card-opt input{margin-right:6px}.card-answer textarea{display:block;width:100%;min-height:44px;margin:10px 0;font:11px ui-monospace,monospace;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:8px;resize:vertical}.card-answer button{width:100%}

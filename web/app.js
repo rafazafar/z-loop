@@ -27,7 +27,11 @@ function render(){
   const roles=Object.entries(state.routing.roles).map(([name,role])=>`<div class="route-row"><span>${esc(ROLE_NAMES[name]||name)}</span><span>${esc(role.model)}</span></div>`).join("");
   $("#routing").innerHTML=`<div class="route-table"><h3>Model aliases</h3>${aliases}</div><div class="route-table"><h3>Worker roles</h3>${roles}</div>`;
   const cards=state.cards.slice().sort((a,b)=>(a.status==="open"?0:1)-(b.status==="open"?0:1)||a.name.localeCompare(b.name));
-  $("#cards").innerHTML=cards.map((card)=>`<details class="card-tile"><summary><span class="badge ${card.status==="open"?"open":""}">${esc(card.status.toUpperCase())}</span> ${esc(card.title)}</summary><p class="card-file">${esc(card.name)}</p><pre>${esc(card.text)}</pre></details>`).join("")||'<p class="reason">No decision cards yet.</p>';
+  $("#cards").innerHTML=cards.map((card)=>{
+    const options=[...card.text.matchAll(/^## Option ([A-Z]) — (.+)$/gm)];
+    const form=card.status==="open"?`<form class="card-answer" data-card="${esc(card.name)}">${options.map((match)=>`<label class="card-opt"><input type="radio" name="opt-${esc(card.name)}" value="${match[1]}" required> <b>${esc(match[1])}</b> — ${esc(match[2])}</label>`).join("")}<textarea name="note" maxlength="2000" placeholder="optional reasoning — recorded in the card"></textarea><button class="primary" type="submit">Record answer</button></form>`:"";
+    return `<details class="card-tile"><summary><span class="badge ${card.status==="open"?"open":""}">${esc(card.status.toUpperCase())}</span> ${esc(card.title)}</summary><p class="card-file">${esc(card.name)}</p><pre>${esc(card.text)}</pre>${form}</details>`;
+  }).join("")||'<p class="reason">No decision cards yet.</p>';
 }
 
 function inspect(id){
@@ -44,6 +48,7 @@ function toast(message){const box=$("#toast");box.textContent=message;box.classL
 function formatBytes(bytes){return bytes<1024?`${bytes} B`:`${Math.round(bytes/1024)} KB`}
 
 document.addEventListener("click",(event)=>{const inspectButton=event.target.closest("[data-inspect]");if(inspectButton)return inspect(inspectButton.dataset.inspect);const actionButton=event.target.closest("[data-action]");if(actionButton)return ask(actionButton.dataset.action,actionButton.dataset.loop);const logButton=event.target.closest("[data-log]");if(logButton)return openLog(logButton.dataset.log)});
+document.addEventListener("submit",async(event)=>{const form=event.target.closest(".card-answer");if(!form)return;event.preventDefault();const option=form.querySelector("input[type=radio]:checked");try{const response=await fetch("/api/decide",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({card:form.dataset.card,option:option?.value,note:form.note.value})});const result=await response.json();toast(!response.ok||result.ok===false?`FAILED · ${result.output||result.error}`:result.output||"Decision recorded");await load(true)}catch(error){toast(`FAILED · ${error.message}`)}});
 $("#tick").addEventListener("click",()=>ask("run","implement"));$("#closeDrawer").addEventListener("click",closeDrawer);$("#scrim").addEventListener("click",closeDrawer);$("#confirm").addEventListener("close",()=>{$("#confirm").returnValue==="confirm"&&act()});$("#closeLog").addEventListener("click",()=>$("#logDialog").close());
 document.addEventListener("keydown",(event)=>{if(event.key==="Escape")closeDrawer()});document.addEventListener("visibilitychange",()=>{clearInterval(refreshTimer);if(!document.hidden)refreshTimer=setInterval(()=>load(true),8000)});
 load(true);refreshTimer=setInterval(()=>load(true),8000);

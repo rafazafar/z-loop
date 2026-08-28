@@ -38,6 +38,15 @@ function runDetached(file, args = []) {
   }
 }
 
+async function readBody(request) {
+  let raw = "";
+  for await (const chunk of request) {
+    raw += chunk;
+    if (raw.length > 4096) return null;
+  }
+  return JSON.parse(raw);
+}
+
 function field(text, name) {
   return text.match(new RegExp(`^${name}:\\s*(.+)$`, "m"))?.[1]?.trim() || "";
 }
@@ -118,6 +127,32 @@ async function action(body) {
   return { ok: true, output: `${body.loop} is now ${next}` };
 }
 
+async function decide(body) {
+  const name = path.basename(String(body?.card || ""));
+  if (!name.endsWith(".md") || name === "README.md") return { ok: false, output: "Invalid card" };
+  const file = path.join(root, "decisions", name);
+  const text = await readFile(file, "utf8").catch(() => null);
+  if (text === null) return { ok: false, output: "Card not found" };
+  // status/date edits are anchored to the frontmatter slice, never body prose
+  const split = text.indexOf("\n---", 4);
+  const head = split === -1 ? text : text.slice(0, split);
+  const rest = split === -1 ? "" : text.slice(split);
+  if (!/^status: open$/m.test(head)) return { ok: false, output: "Card is not open" };
+  const option = [...text.matchAll(/^## Option ([A-Z]) — (.+)$/gm)].find((match) => match[1] === body.option);
+  if (!option) return { ok: false, output: "Unknown option for this card" };
+  const note = String(body?.note || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+  const now = new Date();
+  const decided = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const updatedHead = head
+    .replace(/^status: open$/m, "status: decided")
+    .replace(/^(date: .+)$/m, `$1\ndecided-by: human (dashboard)\ndecided: ${decided}`);
+  const answer = `## Decision\n\nOption ${option[1]} — ${option[2].trim()}.${note ? ` Note: ${note}` : ""}\n`;
+  const temporary = `${file}.tmp`;
+  await writeFile(temporary, `${(updatedHead + rest).trimEnd()}\n\n${answer}`);
+  await rename(temporary, file);
+  return { ok: true, output: `${name} · recorded: Option ${option[1]}` };
+}
+
 function send(response, status, data, type = "application/json") {
   response.writeHead(status, { "content-type": `${type}; charset=utf-8`, "cache-control": "no-store" });
   response.end(type === "application/json" ? JSON.stringify(data) : data);
@@ -137,12 +172,14 @@ http.createServer(async (request, response) => {
       return send(response, 200, text.slice(-250000), "text/plain");
     }
     if (url.pathname === "/api/action" && request.method === "POST") {
-      let raw = "";
-      for await (const chunk of request) {
-        raw += chunk;
-        if (raw.length > 4096) return send(response, 413, { error: "Request too large" });
-      }
-      return send(response, 200, await action(JSON.parse(raw)));
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      return send(response, 200, await action(body));
+    }
+    if (url.pathname === "/api/decide" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      return send(response, 200, await decide(body));
     }
     const file = url.pathname === "/" ? "index.html" : path.basename(url.pathname);
     const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript" };

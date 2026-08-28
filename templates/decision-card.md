@@ -1,6 +1,6 @@
 ---
 kind: card
-status: open | answered
+status: open | decided
 domain: [implement | spec-sync | ticket-factory | gardener]
 parked-by: <role>
 date: YYYY-MM-DD HH:MM
