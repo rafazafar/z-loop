@@ -7,6 +7,22 @@ const title=(id)=>LOOP_NAMES[id]||id.split("-").map((word)=>word[0].toUpperCase(
 function sessionLabel(session,compact=false){let match=session.id.match(/^(\d+)-impl-a(\d+)$/);if(match)return compact?`#${match[1]} · Coding · Try ${match[2]}`:`Issue #${match[1]} · Implementing · Attempt ${match[2]}`;match=session.id.match(/^(\d+)-rev-(code|security|safety|qms)-r(\d+)$/);if(match){const profile={code:"Code",security:"Security",safety:"Safety",qms:"QMS"}[match[2]];return compact?`#${match[1]} · ${profile} review · R${match[3]}`:`Issue #${match[1]} · ${profile} review · Round ${match[3]}`};match=session.id.match(/^(\d+)-rev-r(\d+)$/);if(match)return compact?`#${match[1]} · Review · Round ${match[2]}`:`Issue #${match[1]} · Reviewing · Round ${match[2]}`;if(session.id.startsWith(`loop-${session.loop}-`))return`${title(session.loop)} · ${session.role==="reviewer"?"Verifying":ROLE_NAMES[session.role]||"Working"}`;return session.id;}
 const currentWork=(loop,compact=false)=>{const session=state.sessions.find((item)=>item.loop===loop.id&&item.status==="running");return session?sessionLabel(session,compact):"Idle"};
 const stamp=(loop)=>loop.unavailable?"NOT READY":loop.status.toUpperCase();
+const mdInline=(s)=>s.replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>").replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(match,text,url)=>/^(https?:\/\/|\/|#)/.test(url)?`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`:match).replace(/(^|[\s(])(https?:\/\/[^\s<>)]+)/g,(match,pre,url)=>{const clean=url.replace(/[.,;:!?]+$/,"");const tail=url.slice(clean.length);return `${pre}<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${tail}`});
+const md=(text)=>{
+  const body=text.replace(/\r\n/g,"\n").replace(/^---\n[\s\S]*?\n---\n?/,"").replace(/^\n+/,"").replace(/^#[^\n]*\n+/,"");
+  let html="",list=false,para=[];
+  const flush=()=>{if(para.length){html+=`<p>${mdInline(esc(para.join(" ")))}</p>`;para=[]}};
+  const closeList=()=>{if(list){html+="</ul>";list=false}};
+  for(const line of body.split("\n")){
+    const trimmed=line.trim();
+    if(!trimmed){flush();closeList();continue}
+    let match;
+    if((match=trimmed.match(/^(#{1,4})\s+(.+)$/))){flush();closeList();const level=Math.min(match[1].length+1,5);html+=`<h${level}>${mdInline(esc(match[2]))}</h${level}>`;continue}
+    if((match=trimmed.match(/^[-*]\s+(.+)$/))){flush();if(!list){html+="<ul>";list=true}html+=`<li>${mdInline(esc(match[1]))}</li>`;continue}
+    closeList();para.push(trimmed);
+  }
+  flush();closeList();return html;
+};
 const node=(loop)=>`<button class="graph-node n-${loop.id} ${loop.status} ${loop.unavailable?"unavailable":""}" data-inspect="${loop.id}"><strong>${title(loop.id)}</strong><span class="stamp">${esc(stamp(loop))}</span><small>${esc(loop.cadence)} · ${loop.timerLoaded?"armed":"not armed"}</small><small>${esc(currentWork(loop,true))}</small><small class="mobile-flow">OUTPUT → ${esc(loop.produces)}</small></button>`;
 const fact=(label,value)=>`<div class="fact"><span>${label}</span><b>${esc(value)}</b></div>`;
 
@@ -30,7 +46,7 @@ function render(){
   $("#cards").innerHTML=cards.map((card)=>{
     const options=[...card.text.matchAll(/^## Option ([A-Z]) — (.+)$/gm)];
     const form=card.status==="open"?`<form class="card-answer" data-card="${esc(card.name)}">${options.map((match)=>`<label class="card-opt"><input type="radio" name="opt-${esc(card.name)}" value="${match[1]}" required> <b>${esc(match[1])}</b> — ${esc(match[2])}</label>`).join("")}<textarea name="note" maxlength="2000" placeholder="optional reasoning — recorded in the card"></textarea><button class="primary" type="submit">Record answer</button></form>`:"";
-    return `<details class="card-tile"><summary><span class="badge ${card.status==="open"?"open":""}">${esc(card.status.toUpperCase())}</span> ${esc(card.title)}</summary><p class="card-file">${esc(card.name)}</p><pre>${esc(card.text)}</pre>${form}</details>`;
+    return `<details class="card-tile"><summary><span class="badge ${card.status==="open"?"open":""}">${esc(card.status.toUpperCase())}</span> ${esc(card.title)}</summary><p class="card-file">${esc(card.name)}</p><div class="card-md">${md(card.text)}</div>${form}</details>`;
   }).join("")||'<p class="reason">No decision cards yet.</p>';
 }
 
