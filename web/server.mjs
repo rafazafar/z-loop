@@ -86,13 +86,18 @@ async function collect() {
   for (const ticket of ticketStats) if (!latestTickets.has(ticket.id) || latestTickets.get(ticket.id).mtime < ticket.mtime) latestTickets.set(ticket.id, ticket);
   const tickets = [...latestTickets.values()].map(({ id, status }) => ({ id, status }));
   const decisionFiles = await readdir(path.join(root, "decisions")).catch(() => []);
-  const decisions = (await Promise.all(decisionFiles.filter((name) => name.endsWith(".md")).map(async (name) => ({ name, text: await readFile(path.join(root, "decisions", name), "utf8") })))).filter((item) => /^status:\s*open/m.test(item.text)).map((item) => item.name);
+  const cards = (await Promise.all(decisionFiles.filter((name) => name.endsWith(".md") && name !== "README.md").map(async (name) => {
+    const info = await stat(path.join(root, "decisions", name)).catch(() => null);
+    if (!info?.isFile()) return null;
+    const text = await readFile(path.join(root, "decisions", name), "utf8");
+    return { name, status: field(text, "status") || "unknown", title: text.match(/^# (.+)$/m)?.[1]?.trim() || name, text: text.slice(0, 16000) };
+  }))).filter(Boolean);
   const logFiles = await readdir(path.join(root, "logs")).catch(() => []);
   const logs = (await Promise.all(logFiles.map(async (name) => ({ name, info: await stat(path.join(root, "logs", name)).catch(() => null) })))).filter((item) => item.info?.isFile()).sort((a, b) => b.info.mtimeMs - a.info.mtimeMs).slice(0, 30).map((item) => ({ name: item.name, size: item.info.size, modified: item.info.mtime.toISOString() }));
   const frontierResult = await run("gh", ["issue", "list", "-R", ghrepo, "--state", "open", "--label", routing.github.frontier_label, "--limit", "50", "--json", "number,title"], root, 5000);
   let frontier = [];
   try { if (frontierResult.ok) frontier = JSON.parse(frontierResult.stdout || "[]"); } catch {}
-  return { generatedAt: new Date().toISOString(), repo: { path: repoPath, ghrepo }, loops, sessions: sessions.sort((a, b) => b.id.localeCompare(a.id)), tickets, decisions, logs, frontier, routing };
+  return { generatedAt: new Date().toISOString(), repo: { path: repoPath, ghrepo }, loops, sessions: sessions.sort((a, b) => b.id.localeCompare(a.id)), tickets, cards, decisions: cards.filter((card) => card.status === "open").map((card) => card.name), logs, frontier, routing };
 }
 
 async function action(body) {

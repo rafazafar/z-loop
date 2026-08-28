@@ -26,6 +26,8 @@ function render(){
   const aliases=Object.entries(state.routing.aliases).map(([name,route])=>`<div class="route-row"><span>${esc(name)}</span><span>${esc(route.model)} · ${esc(route.variant)}</span></div>`).join("");
   const roles=Object.entries(state.routing.roles).map(([name,role])=>`<div class="route-row"><span>${esc(ROLE_NAMES[name]||name)}</span><span>${esc(role.model)}</span></div>`).join("");
   $("#routing").innerHTML=`<div class="route-table"><h3>Model aliases</h3>${aliases}</div><div class="route-table"><h3>Worker roles</h3>${roles}</div>`;
+  const cards=state.cards.slice().sort((a,b)=>(a.status==="open"?0:1)-(b.status==="open"?0:1)||a.name.localeCompare(b.name));
+  $("#cards").innerHTML=cards.map((card)=>`<details class="card-tile"><summary><span class="badge ${card.status==="open"?"open":""}">${esc(card.status.toUpperCase())}</span> ${esc(card.title)}</summary><p class="card-file">${esc(card.name)}</p><pre>${esc(card.text)}</pre></details>`).join("")||'<p class="reason">No decision cards yet.</p>';
 }
 
 function inspect(id){
