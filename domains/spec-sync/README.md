@@ -34,6 +34,7 @@ files.
   staging-budget contract, then ack its ledger entry
 
 ## Timeline
+2026-08-28 | cycle loop-spec-sync-20260828-225624 | FAIL: NOOP cannot pass because live source contains a broken transcript citation and an Accepted ARD that silently fixes the still-pending MM4-D7 choice, so discovery is not empty and the citation and human-boundary checks fail although scope, staging, draft-state, and idempotency checks pass.
 2026-08-27 | cycle loop-spec-sync-20260827-121644 | FAIL: spec-sync staged too many artifacts
 
 ## Metrics
