@@ -1,9 +1,11 @@
 ---
 kind: card
-status: open
+status: decided
 domain: implement
 parked-by: opencode (human session)
+decided-by: human (Zafar), via orchestrator session 2026-08-28
 date: 2026-08-27 12:00
+decided: 2026-08-28
 ---
 
 # Should subissue PRs target a per-epic branch that merges to main once?
@@ -53,3 +55,17 @@ or a regulated release train appears.
 ## Default if unanswered
 
 A — current behavior unchanged at next batch.
+
+## Decision
+
+Option B — epic branch mode. Accepted as direction on 2026-08-28; not yet
+built. Runtime prerequisites before any epic uses it:
+
+- epic base-ref resolution in the frontier (ref convention and creation)
+- `--base` plumbing for implementer PRs (agents/implementer.md, loop-tick)
+- assurance re-basing: any movement of the epic branch changes the PR base
+  OID and restarts profile reviews; serial single-flight epics keep this
+  bounded, parallel ones will need review accumulation or rebasing policy
+
+Until those exist, serial epics may keep shipping straight to main (A
+behavior) without violating this decision.

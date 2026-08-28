@@ -2,7 +2,7 @@
 kind: domain
 domain: implement
 status: active
-goal: Turn one ready pure-logic ticket into a conditionally assured PR for human merge
+goal: Turn one ready agent-provable ticket into a conditionally assured PR for human merge or bench validation
 cadence: every 60m while Mac awake (launchd, not yet loaded)
 trigger: manual or hourly gate
 discover: Select the oldest ready-for-agent issue whose native and inline blockers are closed and whose native subissues are complete
@@ -35,8 +35,13 @@ the bench flow has run once for real.
 ## Backlog
 
 - [ ] First real run on one pure-logic ticket (prove-it gate)
+- [ ] Reconcile an implementer session killed before its .done sentinel
+  (ticket stuck in-progress has no review-cycle path yet)
 
 ## Timeline
+2026-08-28 | tick | pass complete
+2026-08-28 | tick | pass complete
+2026-08-28 | tick | blocked: GitHub frontier unavailable
 2026-08-27 | tick | pass complete
 2026-08-27 | tick | pass complete
 2026-08-27 | ticket 13 | parked: cannot fix assurance finding on PR state MERGED

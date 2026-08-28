@@ -2,9 +2,13 @@
 
 <!--
 Scope contract. Every field is law for the implementer.
-Publish to GitHub with: ready-for-agent label, native sub-issue link to the
-parent, and native GitHub blocked-by relationships. Keep the inline Blocked by
-field synchronized as a compatibility record.
+Publish to GitHub with labels per the two-fact rule: ready-for-agent when the
+agent may work it (criteria provable on the dev machine, or bench criteria
+explicit and separable); needs-device when any criterion needs bench hardware.
+A mixed ticket carries both. A pure bench task carries needs-device only.
+Plus native sub-issue link to the parent and native GitHub blocked-by
+relationships. Keep the inline Blocked by field synchronized as a
+compatibility record.
 No file paths, no code snippets (exception: prototype-derived decision shapes).
 -->
 

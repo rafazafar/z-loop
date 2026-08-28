@@ -31,19 +31,34 @@ cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$res
 # providers (9router, openai, zai coding plan, ...) resolve from the user's
 # GLOBAL opencode config — deliberately no OPENCODE_CONFIG override here.
 readonly_output=""
+extra_output=""
 case "$id" in
   *-verify) readonly_output="$result" ;;
-  *-rev-*) ticket="${id%%-rev-*}"; readonly_output="$VERDICTS/$ticket-verdict.md" ;;
+  *-rev-*)
+    ticket="${id%%-rev-*}"; readonly_output="$VERDICTS/$ticket-verdict.md"
+    extra_output="$result" ;;
 esac
 if [ -n "$readonly_output" ]; then
   mv_pattern="mv *${readonly_output}"
   write_pattern="printf * > ${readonly_output}.tmp"
   export OPENCODE_PERMISSION
-  OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" '
-    {edit:{"*":"deny",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
-     bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
-           "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
-           "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow"}}')"
+  if [ -n "$extra_output" ]; then
+    # reviewers: the authoritative verdict plus the one-line session result
+    rmove_pattern="mv *${extra_output}"
+    rwrite_pattern="printf * > ${extra_output}.tmp"
+    OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" --arg result "$extra_output" --arg rtemporary "$extra_output.tmp" --arg rmove "$rmove_pattern" --arg rwrite "$rwrite_pattern" '
+      {edit:{"*":"deny",($output):"allow",($temporary):"allow",($result):"allow",($rtemporary):"allow"},task:"deny",external_directory:"allow",
+       bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
+             "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
+             "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow",
+             ($rwrite):"allow",($rmove):"allow"}}')"
+  else
+    OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" '
+      {edit:{"*":"deny",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
+       bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
+             "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
+             "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow"}}')"
+  fi
 else
   case "$id" in
     *-impl-*|loop-spec-sync-*)

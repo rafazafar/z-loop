@@ -14,3 +14,8 @@
 {"t":"2026-08-27T02:43:36Z","event":"verdict","ticket":13,"profile":"code","verdict":"FAIL","task":"unproven","round":2}
 {"t":"2026-08-27T02:43:37Z","event":"tick"}
 {"t":"2026-08-27T03:16:15Z","event":"tick"}
+{"t":"2026-08-28T13:42:03Z","event":"tick","outcome":"blocked","reason":"github-frontier-unavailable"}
+{"t":"2026-08-28T13:43:18Z","event":"frontier-skip","ticket":30,"reason":"native-blockers","count":1}
+{"t":"2026-08-28T13:43:18Z","event":"tick"}
+{"t":"2026-08-28T13:49:12Z","event":"frontier-skip","ticket":30,"reason":"native-blockers","count":1}
+{"t":"2026-08-28T13:49:12Z","event":"tick"}

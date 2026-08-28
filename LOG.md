@@ -36,3 +36,7 @@ Refs: /Users/zafar/.kokolog-loop/verdicts/13-verdict.md
 ## 2026-08-28 · assurance runtime landed · #loop #infra
 What: desired-state assurance reconciliation bound to immutable PR OIDs; profile classifier with per-profile read-only reviewers; prove-it ran live on ticket 13 and parked correctly on a merged PR.
 Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/assurance-reviewer.md (new), run/doctor, run/common.sh, web/ (updated)
+
+## 2026-08-28 · bench labels + bench-pending verdict · #loop #implement
+What: two-fact label semantics (ready-for-agent vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending so done means "awaits human merge and bench validation"; frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
+Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents/assurance-reviewer.md, agents/ticketer.md, templates/subissue.md, templates/verdict.md, domains/*/README.md (updated)

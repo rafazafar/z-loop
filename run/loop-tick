@@ -149,6 +149,7 @@ spawn_profile_review() { # desired-state file
     printf 'Implementation evidence: %s\n' "$(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null | head -1)"
     printf 'Confirm relevant commands or PR checks yourself when evidence is incomplete.\n'
     printf 'Write %s atomically. Include PROFILE, ROUND, PR, BASE_OID, and HEAD_OID exactly once.\n' "$VERDICTS/$n-verdict.md"
+    printf 'Also write %s with exactly one line: VERDICT: PASS | FAIL. The verdict file is authoritative.\n' "$SESSIONS/$sid.result"
   } > "$pf"
   if "$LOOP_ROOT/run/spawn" start "$sid" "$(route_model reviewer)" "$(route_variant reviewer)" "$clone" "$pf" >/dev/null; then
     timeline implement "ticket $n | $profile review round $round spawned"; return 0
@@ -211,7 +212,7 @@ spawn_fix() { # desired-state file
 }
 
 harvest_review() { # ticket session-id
-  local n="$1" sid="$2" rs profile round pr base head v archived verdict task field count
+  local n="$1" sid="$2" rs profile round pr base head v archived verdict task bench_pending field count
   rs="$(review_state_file "$n")"
   [ -f "$rs" ] || { st_set "$n" parked; timeline implement "ticket $n | parked: missing review state"; return; }
   [ "$(jq -r '.last_applied_session // ""' "$rs")" = "$sid" ] && return 0
@@ -225,6 +226,11 @@ harvest_review() { # ticket session-id
       count="$(grep -c "^${field}:" "$v" 2>/dev/null || true)"
       [ "$count" = 1 ] || { park_review "$rs" "$sid" "invalid $profile verdict field $field"; return; }
     done
+    if grep -q '^BENCH:' "$v"; then
+      count="$(grep -c '^BENCH:' "$v")"
+      [ "$count" = 1 ] || { park_review "$rs" "$sid" "invalid BENCH field count"; return; }
+      grep -qE '^BENCH: (pending|none)$' "$v" || { park_review "$rs" "$sid" "invalid BENCH value"; return; }
+    fi
     [ "$(grep '^PROFILE:' "$v" | cut -d' ' -f2-)" = "$profile" ] &&
     [ "$(grep '^ROUND:' "$v" | cut -d' ' -f2-)" = "$round" ] &&
     [ "$(grep '^PR:' "$v" | cut -d' ' -f2-)" = "$pr" ] &&
@@ -235,9 +241,11 @@ harvest_review() { # ticket session-id
     mv "$v" "$archived"
   fi
   verdict="$(grep '^VERDICT:' "$archived" | cut -d' ' -f2 | tr -d '"\\')"; task="$(grep '^TASK:' "$archived" | cut -d' ' -f2 | tr -d '"\\')"
-  metric implement runs.jsonl "\"event\":\"verdict\",\"ticket\":$n,\"profile\":\"$profile\",\"verdict\":\"${verdict:-?}\",\"task\":\"${task:-?}\",\"round\":$round"
+  bench_pending=0; grep -q '^BENCH: pending$' "$archived" && bench_pending=1
+  metric implement runs.jsonl "\"event\":\"verdict\",\"ticket\":$n,\"profile\":\"$profile\",\"verdict\":\"${verdict:-?}\",\"task\":\"${task:-?}\",\"round\":$round,\"bench\":\"$bench_pending\""
   if [ "$verdict" = PASS ] && [ "$task" = works ]; then
-    jq --arg sid "$sid" --arg profile "$profile" '
+    jq --arg sid "$sid" --arg profile "$profile" --argjson bp "$bench_pending" '
+      .bench=(if $bp == 1 then "pending" elif .bench == null then "" else .bench end) |
       .remaining=.remaining[1:] | .completed += [$profile] | .last_applied_session=$sid |
       if (.remaining|length)>0 then .action="review" | .profile=.remaining[0] |
         .session_id=("\(.ticket)-rev-\(.profile)-r\(.round)")
@@ -248,7 +256,7 @@ harvest_review() { # ticket session-id
 }
 
 reconcile_assurance() {
-  local rs action n pr stored_base stored_head live_revision live_state live_base live_head round profiles
+  local rs action n pr stored_base stored_head live_revision live_state live_base live_head round profiles note
   for rs in "$STATE"/*.review.json; do
     [ -e "$rs" ] || continue
     action="$(jq -r .action "$rs")"; n="$(jq -r .ticket "$rs")"
@@ -273,8 +281,16 @@ reconcile_assurance() {
           done)
             round="$(jq -r .round "$rs")"; profiles="$(jq -r '.completed | join(",")' "$rs")"
             st_set "$n" done
-            timeline implement "ticket $n | PASS $profiles round $round — PR awaits human merge"
-            log_append "ticket $n verified" implement "All assurance profiles passed for $stored_head; PR ready for human merge." "$STATE/$n.assurance-r$round.json"
+            if [ "$(jq -r '.bench // ""' "$rs")" = pending ]; then
+              note="PR awaits human merge and bench validation"
+            else
+              note="PR awaits human merge"
+            fi
+            if [ ! -e "$STATE/$n.verified" ]; then
+              timeline implement "ticket $n | PASS $profiles round $round — $note"
+              log_append "ticket $n verified" implement "All assurance profiles passed for $stored_head; $note." "$STATE/$n.assurance-r$round.json"
+              touch "$STATE/$n.verified"
+            fi
             jq '.action="complete"' "$rs" | write_json "$rs"
             ;;
           complete) ;;
@@ -344,10 +360,10 @@ frontier() {
     # A parent issue is a container, not work. It never enters the frontier
     # unless it is a deliberate integration task marked with the integration
     # label, and then only after all its subissues close.
-    is_parent="$(printf '%s' "$metadata" | jq 'if (.subIssues.totalCount // 0) > 0 then "true" else "false" end')"
+    is_parent="$(printf '%s' "$metadata" | jq '(.subIssues.totalCount // 0) > 0')"
     case "$is_parent" in true|false) ;; *) say "frontier unavailable: invalid subissue data for #$n"; return 1 ;; esac
     if [ "$is_parent" = true ]; then
-      is_integration="$(printf '%s' "$metadata" | jq --arg l "$INTEG_LABEL" 'if ([.labels[]?.name] | index($l)) != null then "true" else "false" end')"
+      is_integration="$(printf '%s' "$metadata" | jq --arg l "$INTEG_LABEL" '([.labels[]?.name] | index($l)) != null')"
       case "$is_integration" in true|false) ;; *) say "frontier unavailable: invalid label data for #$n"; return 1 ;; esac
       if [ "$is_integration" != true ]; then
         metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"parent-not-integration\""

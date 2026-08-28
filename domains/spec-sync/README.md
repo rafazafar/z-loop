@@ -23,10 +23,15 @@ verifier and owns isolation, completion validation, and per-hash acknowledgment.
 ## Current understanding
 
 Prove one full transcript -> PR cycle manually before enabling the timer.
+A PASS cycle stages at most one artifact — one decision card when a human
+decision is parked. The runtime writes the cycle record; never stage signal
+files.
 
 ## Backlog
 
-- [ ] First manual run over the newest archived transcript
+- [x] First manual run over the newest archived transcript (PR 24, merged)
+- [ ] One resilience re-run of transcript 定例MTG_20260827.txt under the
+  staging-budget contract, then ack its ledger entry
 
 ## Timeline
 2026-08-27 | cycle loop-spec-sync-20260827-121644 | FAIL: spec-sync staged too many artifacts

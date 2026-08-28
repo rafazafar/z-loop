@@ -49,6 +49,7 @@ Copy this grammar EXACTLY, at column zero — the tick greps anchored lines:
 
     VERDICT: PASS | FAIL
     TASK: works | broken | unproven
+    BENCH: pending | none
     PROFILE: code
     ROUND: <positive integer>
     PR: <url>
@@ -65,9 +66,15 @@ here is display only.)
 
 Rules:
 - "Works" requires positive evidence. Absence of failure is not success.
+- Add `BENCH: pending` only when the ticket itself scopes criteria to bench
+  hardware (its bench classification or live-proof steps) and every
+  code-provable criterion passes with positive evidence. Name the deferred
+  criteria under observed. Never use it to excuse a criterion the agent could
+  have evidenced on this machine; that is FAIL. Omit the line when the ticket
+  has no bench-gated criteria.
 - Never suggest weakening a test to pass. If a test is stale, that is a
   finding for the human.
 - You may propose a follow-up ticket, never an inline expansion of this one.
-- Write only the strict grammar to the verdict path in the invocation prompt.
-  Do not add frontmatter. Do not touch state files; the tick reads your verdict
-  and moves the ticket.
+- Write only the strict grammar to the verdict path in the invocation prompt,
+  plus the one-line result file it names. Do not add frontmatter. Do not touch
+  any other state files; the tick reads your verdict and moves the ticket.

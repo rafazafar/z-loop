@@ -144,6 +144,11 @@ terminal() { # outcome summary work-unit operation exit-code
   local outcome_name="$1" summary_text="$2" work_unit="$3" operation="$4" exit_code="$5"
   local safe_summary
   safe_summary="$(printf '%s' "$summary_text" | tr '\\|' '//')"
+  # A failed cycle keeps its staged artifacts for inspection; success paths
+  # have already promoted or validated them.
+  if [ "$outcome_name" = FAIL ] && [ -d "$stage" ] && [ -n "$(find "$stage" -type f -print -quit)" ]; then
+    mv "$stage" "${stage}.kept-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+  fi
   write_cycle terminal "$outcome_name" "$summary_text" "$work_unit" "$operation" "$sid" "${verifier_sid:-}"
   timeline "$domain" "cycle $sid | $outcome_name: $safe_summary" || {
     echo "cannot persist $domain Timeline" >&2
@@ -182,6 +187,7 @@ esac
     printf 'Derive a stable operation key from the source and reconcile live files before writing.\n'
   fi
   printf 'Write new loop artifacts only under %s, preserving their final decisions/ or signals/ relative path. Use one bash printf redirection command per staged file. Do not modify canonical loop artifacts.\n' "$stage"
+  printf 'Staging budget: PASS stages at most one artifact (spec-sync: one decision card when a human decision is parked); BLOCKED exactly one decision card; NOOP stages nothing. Never stage signal files; the runtime writes the cycle record.\n'
   printf 'Client-repo changes belong only under %s.\n' "$workdir"
   [ -n "$context" ] && printf 'Trigger context: %s\n' "$context"
   printf 'Write the complete result with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$actor_result" "$actor_result"

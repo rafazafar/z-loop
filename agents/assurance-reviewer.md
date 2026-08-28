@@ -36,14 +36,18 @@ by the diff.
 ## Decision
 
 PASS only when the selected profile has positive evidence or the diff proves
-that no record update is required. Missing or ambiguous evidence is FAIL. This
-review is a pre-merge evidence gate, not regulatory certification and not a
-replacement for an authorized human approver.
+that no record update is required. Missing or ambiguous evidence is FAIL.
+Add `BENCH: pending` only when the ticket scopes obligations to bench hardware
+that cannot be evidenced without physical devices and every other obligation
+is positively proven; name the deferred obligations under observed. Otherwise
+omit the line. This review is a pre-merge evidence gate, not regulatory
+certification and not a replacement for an authorized human approver.
 
 Write exactly:
 
     VERDICT: PASS | FAIL
     TASK: works | broken | unproven
+    BENCH: pending | none
     PROFILE: code | security | safety | qms
     ROUND: <positive integer>
     PR: <url>

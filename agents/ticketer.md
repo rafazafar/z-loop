@@ -55,11 +55,18 @@ and the immutable PR diff determine the final profile set.
 The published dependency graph must use GitHub's native blocked-by and
 subissue relationships. Keep the inline Blocked by field synchronized only as
 a compatibility record for existing tickets.
-Every approved leaf subissue must receive the ready-for-agent label. Parent
-issues are containers and must not receive that label unless they define a
-separate integration task after all subissues close; such a parent must also
-carry the loop-integration label, and run/loop-tick ignores labeled parents
-without it.
+
+**Labels encode two independent facts.** `ready-for-agent` means the agent may
+work the ticket: its acceptance criteria are provable on the dev machine with
+package tests, or its bench-scoped criteria are explicit and separable.
+`needs-device` means some criteria need bench hardware. Apply both to a mixed
+ticket — the agent implements, and review may land it bench-pending so humans
+do the bench step. A pure bench task (no agent-provable deliverable) carries
+`needs-device` and NOT `ready-for-agent`; the loop will not see it.
+Parent issues are containers and must not receive ready-for-agent unless they
+define a separate integration task after all subissues close; such a parent
+must also carry the loop-integration label, and run/loop-tick ignores labeled
+parents without it.
 Use one parent/subissue level. Express deeper execution order with native
 blocked-by edges instead of nested subissues.
 
