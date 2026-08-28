@@ -1,0 +1,103 @@
+#!/bin/bash
+# assurance-classify - derive required independent reviews from ticket + PR.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1090
+. "$LOOP_ROOT/run/common.sh"
+
+[ "$#" = 4 ] || { echo "usage: assurance-classify <ticket> <pr> <checkout> <output>" >&2; exit 64; }
+ticket="$1"; pr="$2"; checkout="$3"; output="$4"
+GH_REPO="$(ghrepo)"
+
+issue="$(gh issue view "$ticket" -R "$GH_REPO" --json body,labels)"
+pr_meta="$(gh pr view "$pr" -R "$GH_REPO" --json url,baseRefOid,headRefOid)"
+pr_url="$(printf '%s' "$pr_meta" | jq -r .url)"
+base_oid="$(printf '%s' "$pr_meta" | jq -r .baseRefOid)"
+head_oid="$(printf '%s' "$pr_meta" | jq -r .headRefOid)"
+case "$base_oid:$head_oid" in
+  [0-9a-f][0-9a-f]*:[0-9a-f][0-9a-f]*) ;;
+  *) echo "invalid PR revision for #$ticket" >&2; exit 78 ;;
+esac
+git -C "$checkout" fetch -q origin "$base_oid" "$head_oid"
+git -C "$checkout" reset --hard -q "$head_oid"
+git -C "$checkout" clean -fdxq
+files="$(git -C "$checkout" diff --name-only "$base_oid...$head_oid")"
+patch="$(git -C "$checkout" diff --no-ext-diff "$base_oid...$head_oid")"
+changed="$(printf '%s\n' "$patch" | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---)' || true)"
+
+security=0; safety=0; qms=0
+reasons="baseline:all product changes"
+add_profile() { # profile reason
+  case "$1" in security) security=1 ;; safety) safety=1 ;; qms) qms=1 ;; esac
+  reasons="$reasons
+$1:$2"
+}
+
+body="$(printf '%s' "$issue" | jq -r '.body // ""')"
+declared="$(printf '%s\n' "$body" | grep -im1 '^\*\*Assurance:\*\*' | sed -E 's/^\*\*Assurance:\*\*[[:space:]]*//' || true)"
+labels="$(printf '%s' "$issue" | jq -r '.labels[].name | select(startswith("assurance:")) | sub("^assurance:"; "")')"
+tokens="$(printf '%s\n%s\n' "$declared" "$labels" | tr '[:upper:],|' '[:lower:]  ' | tr -s ' ')"
+for token in $tokens; do
+  case "$token" in
+    baseline|standard) ;;
+    security|safety|qms) add_profile "$token" "ticket declaration" ;;
+    '') ;;
+    *) echo "unsupported assurance profile for issue #$ticket: $token" >&2; exit 78 ;;
+  esac
+done
+
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  matched=0
+  case "$file" in
+    .github/workflows/*|*AndroidManifest.xml|*.entitlements|*Info.plist|*auth*|*security*|*mqtt*|*network*|*storage*)
+      add_profile security "sensitive path:$file"; matched=1 ;;
+  esac
+  case "$file" in
+    apps/*|packages/*|tools/*|docs/spec/*|docs/contracts/*)
+      add_profile safety "medical software path:$file"; matched=1 ;;
+  esac
+  case "$file" in
+    docs/compliance/*|docs/spec/*|docs/ard/*|docs/contracts/*|docs/releases/*|.github/workflows/*|*pubspec.yaml|*pubspec.lock|*package.json|*pnpm-lock.yaml)
+      add_profile qms "controlled path:$file"; matched=1 ;;
+  esac
+  if [ "$matched" = 0 ]; then
+    add_profile security "unclassified path:$file"
+    add_profile safety "unclassified path:$file"
+    add_profile qms "unclassified path:$file"
+  fi
+done <<< "$files"
+
+printf '%s\n' "$changed" | grep -Eiq '(permissions:|secrets\.|authorization|credential|password|token|mqtt|wss?://|https?://|tls|certificate)' \
+  && add_profile security "security-sensitive changed lines"
+printf '%s\n' "$changed" | grep -Eiq '(SR-|HAZ-|SAF-|patient|alarm|arrhythmia|ecg|heart.?rate|timestamp)' \
+  && add_profile safety "safety-sensitive changed lines"
+printf '%s\n' "$changed" | grep -Eiq '(QMS[0-9]+|JIS|IEC|ISO|SOUP|traceability|risk management)' \
+  && add_profile qms "lifecycle-sensitive changed lines"
+
+profiles="baseline"
+[ "$security" = 1 ] && profiles="$profiles
+security"
+[ "$safety" = 1 ] && profiles="$profiles
+safety"
+[ "$qms" = 1 ] && profiles="$profiles
+qms"
+profiles_json="$(printf '%s\n' "$profiles" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
+reasons_json="$(printf '%s\n' "$reasons" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
+required_json="$(printf '%s\n' "$profiles" | sed 's/^baseline$/code/' | jq -Rsc 'split("\n") | map(select(length > 0))')"
+
+temporary="$output.tmp"
+jq -n \
+  --argjson schema 1 \
+  --arg policy_version "assurance-v1" \
+  --argjson ticket "$ticket" \
+  --arg pr "$pr_url" \
+  --arg base_oid "$base_oid" \
+  --arg head_oid "$head_oid" \
+  --argjson profiles "$profiles_json" \
+  --argjson reasons "$reasons_json" \
+  --argjson required "$required_json" \
+  '{schema:$schema,policy_version:$policy_version,ticket:$ticket,pr:$pr,base_oid:$base_oid,head_oid:$head_oid,profiles:$profiles,reasons:$reasons,required_verdicts:$required,merge_policy:"human"}' \
+  > "$temporary"
+mv "$temporary" "$output"
+cat "$output"

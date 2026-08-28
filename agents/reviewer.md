@@ -49,6 +49,11 @@ Copy this grammar EXACTLY, at column zero — the tick greps anchored lines:
 
     VERDICT: PASS | FAIL
     TASK: works | broken | unproven
+    PROFILE: code
+    ROUND: <positive integer>
+    PR: <url>
+    BASE_OID: <40 lowercase hex>
+    HEAD_OID: <40 lowercase hex>
     expected: <criteria, one line>
     observed: <what the diff/evidence actually shows>
     evidence: <paths verified>
@@ -63,6 +68,6 @@ Rules:
 - Never suggest weakening a test to pass. If a test is stale, that is a
   finding for the human.
 - You may propose a follow-up ticket, never an inline expansion of this one.
-- Write `verdicts/<n>-verdict.md` with the domain tag in frontmatter
-  (domain: [implement]). Do not touch state/ files; the tick reads your
-  verdict and moves the ticket.
+- Write only the strict grammar to the verdict path in the invocation prompt.
+  Do not add frontmatter. Do not touch state files; the tick reads your verdict
+  and moves the ticket.

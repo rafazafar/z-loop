@@ -22,10 +22,21 @@ GH_REPO="$(ghrepo 2>/dev/null)" && ok "github: $GH_REPO" || bad "cannot resolve 
 
 echo "== github labels =="
 if [ -n "${GH_REPO:-}" ]; then
-  if gh label list -R "$GH_REPO" 2>/dev/null | grep -q "^$(jqget .github.frontier_label)"; then
+  frontier_label="$(jqget .github.frontier_label)"
+  labels="$(gh label list -R "$GH_REPO" --search "$frontier_label" --json name 2>/dev/null || true)"
+  if jq -e --arg name "$frontier_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
     ok "label $(jqget .github.frontier_label) exists"
   else
     soft "label $(jqget .github.frontier_label) missing -> gh label create $(jqget .github.frontier_label) -R $GH_REPO"
+  fi
+  integ_label="$(jqget .github.integration_label)"
+  if [ -n "$integ_label" ] && [ "$integ_label" != "null" ]; then
+    labels="$(gh label list -R "$GH_REPO" --search "$integ_label" --json name 2>/dev/null || true)"
+    if jq -e --arg name "$integ_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
+      ok "label $integ_label exists"
+    else
+      soft "label $integ_label missing -> gh label create $integ_label -R $GH_REPO"
+    fi
   fi
 fi
 

@@ -57,7 +57,7 @@ async function collectSessions(routing) {
   const files = await readdir(dir).catch(() => []);
   const liveText = (await run("tmux", ["list-sessions", "-F", "#S"], root, 2000)).output;
   const live = new Set(liveText.split("\n").filter(Boolean).map((id) => id.replace(/^kokoloop-/, "")));
-  const ids = [...new Set(files.map((name) => name.replace(/\.(prompt|result|done|harvested)$/, "")))];
+  const ids = files.filter((name) => name.endsWith(".prompt")).map((name) => name.replace(/\.prompt$/, ""));
   return Promise.all(ids.map(async (id) => {
     const resultPath = path.join(dir, `${id}.result`);
     const result = await readFile(resultPath, "utf8").catch(() => "");

@@ -29,3 +29,10 @@ Refs: README.md (new), AGENTS.md (new), run/ (new)
 ## 2026-08-26 · verifier round fixes · #loop #infra
 What: 3 verification rounds (2x FAIL fixed, round-3 single defect fixed post-cap with reproduced evidence: decision-batch default-state crash, exit-code trap, stranding paths, honest tier-up docs, spawn guards, dedupe).
 Refs: run/decision-batch (fixed), run/spec-sync-trigger (fixed), run/spawn-exec (fixed), run/loop-tick (fixed)
+## 2026-08-27 · ticket 13 verified · #implement
+What: PASS at review round 1; PR ready for merge.
+Refs: /Users/zafar/.kokolog-loop/verdicts/13-verdict.md
+
+## 2026-08-28 · assurance runtime landed · #loop #infra
+What: desired-state assurance reconciliation bound to immutable PR OIDs; profile classifier with per-profile read-only reviewers; prove-it ran live on ticket 13 and parked correctly on a merged PR.
+Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/assurance-reviewer.md (new), run/doctor, run/common.sh, web/ (updated)

@@ -62,7 +62,8 @@
     "clone_reap_days": 7
   },
   "github": {
-    "$comment": "ready-for-agent labels the frontier query. Create once: gh label create ready-for-agent",
-    "frontier_label": "ready-for-agent"
+    "$comment": "ready-for-agent labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. Create once: gh label create ready-for-agent; gh label create loop-integration",
+    "frontier_label": "ready-for-agent",
+    "integration_label": "loop-integration"
   }
 }

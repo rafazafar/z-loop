@@ -4,3 +4,13 @@
 {"t":"2026-08-26T06:45:52Z","event":"tick"}
 {"t":"2026-08-26T09:18:48Z","event":"tick"}
 {"t":"2026-08-26T09:56:38Z","event":"tick"}
+{"t":"2026-08-26T17:09:13Z","event":"tick"}
+{"t":"2026-08-26T17:20:03Z","event":"tick"}
+{"t":"2026-08-26T17:36:54Z","event":"tick"}
+{"t":"2026-08-26T19:59:29Z","event":"verdict","ticket":13,"verdict":"PASS","task":"works","round":1}
+{"t":"2026-08-26T19:59:30Z","event":"tick"}
+{"t":"2026-08-26T23:00:08Z","event":"tick"}
+{"t":"2026-08-27T02:38:01Z","event":"tick"}
+{"t":"2026-08-27T02:43:36Z","event":"verdict","ticket":13,"profile":"code","verdict":"FAIL","task":"unproven","round":2}
+{"t":"2026-08-27T02:43:37Z","event":"tick"}
+{"t":"2026-08-27T03:16:15Z","event":"tick"}

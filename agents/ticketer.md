@@ -46,9 +46,22 @@ integrate-and-verify ticket.
 
 **Sizing to scope contract.** Every ticket you write must carry: what it
 delivers (user perspective), acceptance criteria, blocked-by, bench
-classification (needs-device | sim-drivable | pure-logic), live-proof steps
-(if sim-drivable; leave empty otherwise), and a diff budget hint. Use
-templates/subissue.md.
+classification (needs-device | sim-drivable | pure-logic), assurance profile
+(baseline plus security, safety, or qms where applicable), live-proof steps (if
+sim-drivable; leave empty otherwise), and a diff budget hint. Use
+templates/subissue.md. This declaration can only escalate review. Runtime policy
+and the immutable PR diff determine the final profile set.
+
+The published dependency graph must use GitHub's native blocked-by and
+subissue relationships. Keep the inline Blocked by field synchronized only as
+a compatibility record for existing tickets.
+Every approved leaf subissue must receive the ready-for-agent label. Parent
+issues are containers and must not receive that label unless they define a
+separate integration task after all subissues close; such a parent must also
+carry the loop-integration label, and run/loop-tick ignores labeled parents
+without it.
+Use one parent/subissue level. Express deeper execution order with native
+blocked-by edges instead of nested subissues.
 
 **No file paths, no code snippets** in ticket bodies. They go stale. Exception:
 a prototype-produced snippet that encodes a decision more precisely than

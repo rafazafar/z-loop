@@ -1,7 +1,7 @@
 ---
 kind: domain
 domain: spec-sync
-status: paused
+status: active
 goal: Turn each new meeting transcript into a doc/spec/ARD PR with citations checked
 cadence: poll every 10m (launchd, not yet loaded)
 trigger: A new transcript file or a manual run
@@ -29,6 +29,7 @@ Prove one full transcript -> PR cycle manually before enabling the timer.
 - [ ] First manual run over the newest archived transcript
 
 ## Timeline
+2026-08-27 | cycle loop-spec-sync-20260827-121644 | FAIL: spec-sync staged too many artifacts
 
 ## Metrics
 
