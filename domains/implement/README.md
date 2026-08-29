@@ -35,10 +35,25 @@ the bench flow has run once for real.
 ## Backlog
 
 - [ ] First real run on one pure-logic ticket (prove-it gate)
-- [ ] Reconcile an implementer session killed before its .done sentinel
-  (ticket stuck in-progress has no review-cycle path yet)
+- [x] Reconcile an implementer session killed before its .done sentinel
+  (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
+2026-08-29 | tick | pass complete
 2026-08-28 | tick | pass complete
 2026-08-28 | tick | pass complete
 2026-08-28 | tick | pass complete

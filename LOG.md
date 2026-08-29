@@ -38,5 +38,9 @@ What: desired-state assurance reconciliation bound to immutable PR OIDs; profile
 Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/assurance-reviewer.md (new), run/doctor, run/common.sh, web/ (updated)
 
 ## 2026-08-28 · bench labels + bench-pending verdict · #loop #implement
-What: two-fact label semantics (ready-for-agent vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending so done means "awaits human merge and bench validation"; frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
+What: two-fact label semantics (ready-for-agent vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending (done awaits human bench validation); frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
 Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents/assurance-reviewer.md, agents/ticketer.md, templates/subissue.md, templates/verdict.md, domains/*/README.md (updated)
+
+## 2026-08-29 · auto-cardify + crash recovery · #loop #infra
+What: verifier FAILs and exhausted transcript attempts now park OPEN decision cards automatically (deduped, dashboard-answerable); a frontier implementer lost without its done sentinel re-queues up to max_impl_attempts, then parks with an auto card.
+Refs: run/common.sh (park_auto_card), run/domain-loop, run/spec-sync-trigger, run/loop-tick (updated)

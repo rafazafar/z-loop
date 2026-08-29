@@ -51,6 +51,27 @@ log_append() { # title tag what refs
   } >> "$LOGMD"
 }
 
+# Runtime-parked decision card for a failed work unit. Deduped by slug; the
+# card arrives OPEN and is answered like any other card. Record-only: the
+# answer is applied by a later, deliberate step — never by this helper.
+park_auto_card() { # slug domain question context evidence -> 0 if parked, 1 if exists or failed
+  local file="$LOOP_ROOT/decisions/auto-$1.card.md"
+  [ -e "$file" ] && return 1
+  local tmp="$file.tmp.$$"
+  {
+    printf -- '---\nkind: card\nstatus: open\ndomain: %s\nparked-by: runtime (auto-cardify)\ndate: %s\n---\n\n' "$2" "$(date '+%F %H:%M')"
+    printf '# %s\n\n' "$3"
+    printf '## Context\n\n%s\n\n' "$4"
+    printf '## Option A — Retry the cycle\n\n- What: re-run the failed cycle; bounds and attempts permitting.\n- Better: the loop completes the work itself.\n- Worse: may repeat the same failure.\n\n'
+    printf '## Option B — Drop the work unit\n\n- What: acknowledge the failure and skip this work unit.\n- Better: no repeated spend on a hopeless item.\n- Worse: the work stays undone until raised again.\n\n'
+    printf '## Option C — Take over manually\n\n- What: a human does or repairs the work outside the loop.\n- Better: fastest unblock for odd cases.\n- Worse: manual record-keeping; the loop learns nothing.\n\n'
+    printf '## Evidence\n\n%s\n\n' "$5"
+    printf '## Recommendation\n\nA — unless the evidence shows the work unit itself is wrong.\n\n'
+    printf '## Default if unanswered\n\nA — retry within bounds at the next batch; the card stays open until answered.\n'
+  } > "$tmp" && mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  return 0
+}
+
 timeline() { # domain line
   local f="$LOOP_ROOT/domains/$1/README.md"
   [ -f "$f" ] || return 0

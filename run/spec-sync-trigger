@@ -73,6 +73,14 @@ max_attempts="$(rule max_impl_attempts)"
 if [ "$attempts" -ge "${max_attempts:-3}" ]; then
   record_status "$selected_hash" failed "$selected_name"
   timeline spec-sync "transcript $selected_name | blocked: attempts exhausted"
+  if park_auto_card "specsync-blocked-$(printf '%s' "$selected_hash" | cut -c1-12)" spec-sync \
+    "Transcript $selected_name is blocked after $attempts failed attempts — retry, drop, or handle manually?" \
+    "The transcript never produced a verified PR. Each trigger run re-selects the oldest unacked transcript; this one exhausted max_impl_attempts and is now marked failed in the ledger." \
+    "- transcript: $transcripts/$selected_name
+- sha256: $selected_hash
+- attempts: $STATE/specsync-attempts/$selected_hash"; then
+    timeline spec-sync "auto card parked: decisions/auto-specsync-blocked-$(printf '%s' "$selected_hash" | cut -c1-12).card.md"
+  fi
   echo "transcript blocked after $attempts attempts: $selected_name" >&2
   exit 1
 fi

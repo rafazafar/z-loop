@@ -23,6 +23,7 @@ say() { printf '[%s] %s\n' "$(date +%T)" "$*"; }
 
 # ---------- preflight (soft) ------------------------------------------------
 have_bin() { command -v "$1" >/dev/null 2>&1; }
+session_live() { tmux has-session -t "${tmux_session_prefix}-$1" 2>/dev/null; }
 if ! have_bin opencode || ! have_bin gh || ! have_bin jq || ! have_bin tmux; then
   timeline implement "tick | skipped: missing binary (run run/doctor)"
   exit 0
@@ -54,6 +55,39 @@ for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep "^${tmux_session_pre
   fi
 done
 
+# ---------- recover sessions lost without their done sentinel ---------------
+# A tmux session that vanishes (crash, reboot) leaves no .done: spawn-exec's
+# traps never ran. Review and fix sessions re-spawn from desired state on
+# their own; only frontier implementer sessions need recovery here.
+for pf in "$SESSIONS"/*.prompt; do
+  [ -e "$pf" ] || continue
+  id="${pf%.prompt}"; id="${id##*/}"
+  case "$id" in *-impl-*) ;; *) continue ;; esac
+  [ -f "$SESSIONS/$id.done" ] && continue
+  session_live "$id" && continue
+  n="${id%%-impl-*}"
+  [ -f "$STATE/$n.in-progress" ] || continue
+  mv "$pf" "$pf.lost.$(date +%s)"
+  [ -e "$SESSIONS/$id.result" ] && mv "$SESSIONS/$id.result" "$SESSIONS/$id.result.lost.$(date +%s)"
+  lost="$(ls "$SESSIONS/$n-impl"-a*.prompt.lost* 2>/dev/null | wc -l | tr -d ' ')"
+  maxa="$(rule max_impl_attempts)"
+  metric implement runs.jsonl "\"event\":\"session-lost\",\"ticket\":$n,\"session\":\"$id\",\"lost\":$lost"
+  if [ "$lost" -le "${maxa:-3}" ]; then
+    rm -f "$STATE/$n.in-progress"
+    rm -rf "$CLONES/$n-a1"
+    timeline implement "ticket $n | recovered: session $id lost without completion ($lost/$maxa); re-queued"
+  else
+    st_set "$n" parked
+    timeline implement "ticket $n | parked: $lost implementer sessions lost; human decision required"
+    park_auto_card "impl-lost-$n" implement \
+      "Ticket $n lost $lost implementer sessions — retry, drop, or take over?" \
+      "Each re-queue cloned a fresh branch; a lost session may have pushed an orphan loop/$n-* branch on GitHub before vanishing. Inspect before retrying." \
+      "- lost sessions: $SESSIONS/$n-impl-a*.prompt.lost
+- ticket: https://github.com/$(ghrepo)/issues/$n
+- stray branches: git -C $KOKOLOG_REPO ls-remote origin 'refs/heads/loop/$n-*'"
+  fi
+done
+
 # ---------- harvest finished sessions ----------------------------------------
 # session ids: <ticket>-impl-aN | <ticket>-rev-<profile>-rN | loop-<domain>-*
 review_state_file() { printf '%s/%s.review.json\n' "$STATE" "$1"; }
@@ -70,8 +104,6 @@ park_review() { # desired-state file source-session reason
   st_set "$n" parked
   timeline implement "ticket $n | parked: $reason"
 }
-
-session_live() { tmux has-session -t "${tmux_session_prefix}-$1" 2>/dev/null; }
 
 start_review_cycle() { # ticket PR source-session
   local n="$1" pr="$2" source="$3" rs assurance round=1 clone

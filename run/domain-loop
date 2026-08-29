@@ -286,7 +286,23 @@ case "$verdict" in PASS|FAIL) ;; *) valid_verifier=0 ;; esac
 [ "$verifier_actor" = "$sid" ] && [ -n "$verifier_summary" ] && [ -n "$evidence" ] || valid_verifier=0
 [ "$valid_verifier" = 1 ] || terminal FAIL "invalid verifier result contract" "$work_unit" "$operation" 1
 [ "$verifier_exit" = 0 ] || terminal FAIL "verifier OpenCode exited $verifier_exit" "$work_unit" "$operation" 1
-[ "$verdict" = PASS ] || terminal FAIL "$verifier_summary" "$work_unit" "$operation" 1
+if [ "$verdict" != PASS ]; then
+  # an independent verifier found substance — park an OPEN decision card so
+  # the failure is answerable, not just a timeline line
+  slug="$(printf '%s' "${work_unit:-$sid}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' | sed 's/-\{2,\}/-/g; s/^-//; s/-$//' | cut -c1-60)"
+  [ -n "$slug" ] || slug="none-$sid"
+  evidence="- cycle record: $cycle_file
+- verifier result: $SESSIONS/$verifier_sid.result
+- actor result: $actor_result
+- staging: $stage"
+  if park_auto_card "$domain-$slug" "$domain" \
+    "Cycle $sid failed independent verification — retry, drop, or take over?" \
+    "Verifier summary: $verifier_summary. Work unit: ${work_unit:-none}. Operation: ${operation:-none}. The verifier is independent and read-only; its findings stand until a human decides." \
+    "$evidence"; then
+    timeline "$domain" "auto card parked: decisions/auto-$domain-$slug.card.md"
+  fi
+  terminal FAIL "$verifier_summary" "$work_unit" "$operation" 1
+fi
 
 if [ "$stage_count" = 1 ]; then
   staged_file="$(find "$stage" -type f -print -quit)"
