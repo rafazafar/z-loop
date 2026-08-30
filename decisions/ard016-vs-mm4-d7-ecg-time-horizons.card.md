@@ -1,9 +1,11 @@
 ---
 kind: card
-status: open
+status: decided
 domain: spec-sync
 parked-by: runtime verifier (cycle loop-spec-sync-20260828-225624)
 date: 2026-08-29 05:22
+decided: 2026-08-31
+decided-by: Zafar via Codex
 ---
 
 # Does Accepted ARD016 stand, or did it silently decide MM4-D7 for the client?
@@ -57,3 +59,14 @@ record must not outstate the customer; downgrade to A if they did.
 ## Default if unanswered
 
 B — narrow ARD016; MM4-D7 stays pending until the client answers.
+
+## Decision
+
+Use a qualified form of Option A as the current product decision.
+
+- The client confirmed that fixed 4-second display is too short.
+- The client asked for a design that can change after later review.
+- The current choices are 4 seconds, 8 seconds, and 16 seconds.
+- The current default is 8 seconds.
+- ARD016 must not claim that the client finalized these exact values.
+- The implementation must keep the choices and default configurable without a renderer redesign.

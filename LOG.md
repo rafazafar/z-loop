@@ -48,3 +48,7 @@ Refs: run/common.sh (park_auto_card), run/domain-loop, run/spec-sync-trigger, ru
 ## 2026-08-30 · manual frontier hardening + lean ticket contracts · #loop #implement
 What: coherent outcome replaced raw file-count stops; fresh explicit main bases and closing issue references are enforced; issues #44, #77, and #78 now have distinct executable scopes and correct blockers.
 Refs: agents/implementer.md, agents/ticketer.md, templates/subissue.md, run/loop-tick, run/doctor, routing.json, kokoromil/kokolog-monitor#44, #77, #78
+
+## 2026-08-31 · ECG horizon decision settled · #spec-sync #decision
+What: current product values are 4/8/16 seconds with an 8-second default and future configurability; the client has not finalized those exact values; the processed 2026-08-27 transcript is acknowledged.
+Refs: decisions/ard016-vs-mm4-d7-ecg-time-horizons.card.md, decisions/transcript-20260827-disposition.card.md, kokoromil/kokolog-monitor#91

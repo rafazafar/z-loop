@@ -1,9 +1,11 @@
 ---
 kind: card
-status: open
+status: decided
 domain: spec-sync
 parked-by: runtime verifier (cycle loop-spec-sync-20260828-225624)
 date: 2026-08-29 05:22
+decided: 2026-08-31
+decided-by: Zafar via Codex
 ---
 
 # What should happen to the 定例MTG_20260827.txt transcript still pending in spec-sync?
@@ -56,3 +58,7 @@ decision-driven editing that the companion card's answer should drive.
 ## Default if unanswered
 
 A — ack as completed at the next spec-sync batch; findings become tickets.
+
+## Decision
+
+Option A. Mark the transcript completed. PR 24 already contains the transcript work. Apply the citation correction and the ARD016 clarification as explicit controlled-document changes.
