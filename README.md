@@ -37,6 +37,11 @@ All local loop settings live in `routing.json`. Set `project.repo_path` to the
 client checkout. The loop derives the GitHub repository from that checkout's
 `origin` remote.
 
+`github.base_branch` is the required PR base. The frontier clones that branch
+from the client origin for every new ticket, tells the implementer to use it,
+and rejects a PR with another base. This keeps later tickets on the current
+remote base even when the configured local checkout is stale.
+
 Edit the objects under `aliases` in `routing.json`. `model` is the full
 OpenCode provider/model ID. `variant` is the provider-specific reasoning
 effort passed with `--variant`. Roles and retry rules refer to the alias name.

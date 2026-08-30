@@ -20,9 +20,11 @@ continues later. Read this file before acting.
 1. The ticket is the spec. Work exactly its scope contract. Adjacent problems
    are NOT yours to fix. Report them in your result file; the Gardener turns
    them into tickets.
-2. Diff budget from routing.json is a hard stop. If honest work needs more,
-   stop, and say why in your result file. Overshooting "to be helpful" is a
-   failure, not help.
+2. Diff budget from routing.json is a planning threshold, not a raw file-count
+   gate. Stop when the ticket has more than one independently mergeable outcome
+   or requires unrelated design decisions. Generated scaffolding, lockfiles,
+   and mechanical output may exceed the threshold when the semantic change is
+   still one reviewable outcome; explain the excess in the result file.
 3. Never weaken a test, assertion, or lint to go green. If a test is stale,
    say so and stop. The human decides.
 4. Proof, not claims. Cite commands you ran and their exit status. Reference

@@ -31,6 +31,16 @@ fi
 GH_REPO="$(ghrepo)" || { say "cannot resolve gh repo"; exit 0; }
 LABEL="$(jqget .github.frontier_label)"
 INTEG_LABEL="$(jqget .github.integration_label)"
+BASE_BRANCH="$(jqget '.github.base_branch // empty')"
+CLIENT_REMOTE="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
+if [ -z "$BASE_BRANCH" ] || [ -z "$CLIENT_REMOTE" ]; then
+  timeline implement "tick | skipped: missing GitHub base branch or client remote (run run/doctor)"
+  exit 0
+fi
+if ! git ls-remote --exit-code "$CLIENT_REMOTE" "refs/heads/$BASE_BRANCH" >/dev/null 2>&1; then
+  timeline implement "tick | skipped: base branch $BASE_BRANCH unavailable (run run/doctor)"
+  exit 0
+fi
 
 # ---------- reap stray clones ------------------------------------------------
 reap_days="$(rule clone_reap_days)"
@@ -133,7 +143,7 @@ start_review_cycle() { # ticket PR source-session
 }
 
 harvest_impl() { # ticket session-id
-  local n="$1" sid="$2" res="$SESSIONS/$2.result" prs pr rs clone checkout_head pr_head
+  local n="$1" sid="$2" res="$SESSIONS/$2.result" prs pr rs clone checkout_head pr_meta pr_head pr_base closes
   rs="$(review_state_file "$n")"
   [ -f "$rs" ] && [ "$(jq -r '.source_session // ""' "$rs")" = "$sid" ] && return 0
   if grep -q 'DECOMPOSE' "$res" 2>/dev/null; then
@@ -150,9 +160,18 @@ harvest_impl() { # ticket session-id
   esac
   clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
   checkout_head="$(git -C "$clone" rev-parse HEAD 2>/dev/null || true)"
-  pr_head="$(gh pr view "$pr" -R "$GH_REPO" --json headRefOid --jq .headRefOid 2>/dev/null || true)"
+  pr_meta="$(gh pr view "$pr" -R "$GH_REPO" --json headRefOid,baseRefName,closingIssuesReferences 2>/dev/null || true)"
+  pr_head="$(printf '%s' "$pr_meta" | jq -r '.headRefOid // empty')"
+  pr_base="$(printf '%s' "$pr_meta" | jq -r '.baseRefName // empty')"
+  closes="$(printf '%s' "$pr_meta" | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length')"
   [ -n "$checkout_head" ] && [ "$checkout_head" = "$pr_head" ] || {
     st_set "$n" parked; timeline implement "ticket $n | parked: PR head does not match implementation"; return
+  }
+  [ "$pr_base" = "$BASE_BRANCH" ] || {
+    st_set "$n" parked; timeline implement "ticket $n | parked: PR base $pr_base is not $BASE_BRANCH"; return
+  }
+  [ "$closes" = 1 ] || {
+    st_set "$n" parked; timeline implement "ticket $n | parked: PR must close issue #$n"; return
   }
   printf '%s\n' "$pr" > "$STATE/$n.pr"
   start_review_cycle "$n" "$pr" "$sid"
@@ -233,7 +252,7 @@ spawn_fix() { # desired-state file
   {
     printf 'You are the Implementer. Read %s and obey it fully.\n' "$LOOP_ROOT/agents/implementer.md"
     printf 'Issue: %s. Attempt: %s. Failed assurance profile: %s.\n' "$n" "$attempt" "$profile"
-    printf 'Existing clone+branch: %s\nFix ONLY the findings. Same diff budget.\n\n' "$clone"
+    printf 'Existing clone+branch: %s\nFix ONLY the findings. Same diff review threshold.\n\n' "$clone"
     sed -n '/^findings:/,$p' "$verdict"
     printf '\nWrite %s atomically. Do not touch its .done sentinel.\n' "$SESSIONS/$sid.result"
   } > "$pf"
@@ -430,22 +449,30 @@ frontier() {
     fi
     # spawn implementer in a fresh clone
     clone="$CLONES/$n-a1"
-    git clone -q "$KOKOLOG_REPO" "$clone" 2>/dev/null || continue
-    client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
-    if [ -z "$client_remote" ] || ! git -C "$clone" remote set-url origin "$client_remote"; then
+    if ! git clone -q --branch "$BASE_BRANCH" --single-branch "$CLIENT_REMOTE" "$clone" 2>/dev/null; then
+      rm -rf "$clone"
+      timeline implement "ticket $n | frontier clone from $BASE_BRANCH failed; retry next tick"
+      continue
+    fi
+    if ! git -C "$clone" remote set-url origin "$CLIENT_REMOTE"; then
       rm -rf "$clone"
       timeline implement "ticket $n | frontier clone remote failed; retry next tick"
       continue
     fi
     branch="loop/$n-$(date +%s)"
-    git -C "$clone" checkout -q -b "$branch"
+    if ! git -C "$clone" checkout -q -b "$branch" "origin/$BASE_BRANCH"; then
+      rm -rf "$clone"
+      timeline implement "ticket $n | branch from origin/$BASE_BRANCH failed; retry next tick"
+      continue
+    fi
     budget="$(jq -c .rules.diff_budget "$ROUTING")"
     pf="$SESSIONS/$n-impl-a1.prompt"
     {
       printf 'You are the Implementer. Read %s first and obey it fully.\n' "$LOOP_ROOT/agents/implementer.md"
       printf 'Issue number: %s (%s) in repo %s.\n' "$n" "$title" "$(ghrepo)"
       printf 'Your clone: %s (branch %s already created; work ONLY here).\n' "$clone" "$branch"
-      printf 'Diff budget (hard stop): %s\n' "$budget"
+      printf 'Required PR base: %s. Open with --base %s and include Closes #%s.\n' "$BASE_BRANCH" "$BASE_BRANCH" "$n"
+      printf 'Default diff review threshold: %s\n' "$budget"
       printf 'When done: push, open ONE PR, then write %s atomically.\n' "$SESSIONS/$n-impl-a1.result"
       printf 'Do not touch its .done sentinel; spawn-exec owns completion.\n'
     } > "$pf"

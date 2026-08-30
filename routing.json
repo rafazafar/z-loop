@@ -53,7 +53,7 @@
     "max_verify_rounds": 3,
     "max_impl_attempts": 3,
     "diff_budget": {
-      "$comment": "Exceeded => implementer must stop and park. Tune per scope later.",
+      "$comment": "Default review threshold for hand-written semantic changes. Generated scaffolding, lockfiles, and mechanical output can exceed it when the ticket remains one coherent outcome.",
       "max_files": 12,
       "max_insertions": 800,
       "max_deletions": 400
@@ -62,8 +62,9 @@
     "clone_reap_days": 7
   },
   "github": {
-    "$comment": "ready-for-agent labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. Create once: gh label create ready-for-agent; gh label create loop-integration",
+    "$comment": "ready-for-agent labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. base_branch is the required fresh remote branch and PR base. Create labels once: gh label create ready-for-agent; gh label create loop-integration",
     "frontier_label": "ready-for-agent",
-    "integration_label": "loop-integration"
+    "integration_label": "loop-integration",
+    "base_branch": "main"
   }
 }

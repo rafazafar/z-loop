@@ -66,8 +66,8 @@ here is display only.)
 
 Rules:
 - "Works" requires positive evidence. Absence of failure is not success.
-- Add `BENCH: pending` only when the ticket itself scopes criteria to bench
-  hardware (its bench classification or live-proof steps) and every
+- Add `BENCH: pending` only when the issue has the `needs-device` label or its
+  acceptance criteria explicitly require physical hardware, and every
   code-provable criterion passes with positive evidence. Name the deferred
   criteria under observed. Never use it to excuse a criterion the agent could
   have evidenced on this machine; that is FAIL. Omit the line when the ticket

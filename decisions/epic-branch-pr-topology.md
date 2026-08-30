@@ -69,3 +69,11 @@ built. Runtime prerequisites before any epic uses it:
 
 Until those exist, serial epics may keep shipping straight to main (A
 behavior) without violating this decision.
+
+## Operating update — 2026-08-30
+
+Manual prove-it ticks use explicit direct-to-main mode. The runtime now clones
+fresh `origin/main`, requires `--base main`, and validates the PR base and its
+closing issue reference before review. Epic branch mode remains deferred
+direction and is not implied by `loop-integration`. Do not label epic #34 as an
+integration task until the three prerequisites above exist.

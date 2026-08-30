@@ -44,3 +44,7 @@ Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents
 ## 2026-08-29 · auto-cardify + crash recovery · #loop #infra
 What: verifier FAILs and exhausted transcript attempts now park OPEN decision cards automatically (deduped, dashboard-answerable); a frontier implementer lost without its done sentinel re-queues up to max_impl_attempts, then parks with an auto card.
 Refs: run/common.sh (park_auto_card), run/domain-loop, run/spec-sync-trigger, run/loop-tick (updated)
+
+## 2026-08-30 · manual frontier hardening + lean ticket contracts · #loop #implement
+What: coherent outcome replaced raw file-count stops; fresh explicit main bases and closing issue references are enforced; issues #44, #77, and #78 now have distinct executable scopes and correct blockers.
+Refs: agents/implementer.md, agents/ticketer.md, templates/subissue.md, run/loop-tick, run/doctor, routing.json, kokoromil/kokolog-monitor#44, #77, #78

@@ -1,15 +1,12 @@
 # <NN>: <Ticket title>
 
 <!--
-Scope contract. Every field is law for the implementer.
-Publish to GitHub with labels per the two-fact rule: ready-for-agent when the
-agent may work it (criteria provable on the dev machine, or bench criteria
-explicit and separable); needs-device when any criterion needs bench hardware.
-A mixed ticket carries both. A pure bench task carries needs-device only.
-Plus native sub-issue link to the parent and native GitHub blocked-by
-relationships. Keep the inline Blocked by field synchronized as a
-compatibility record.
-No file paths, no code snippets (exception: prototype-derived decision shapes).
+The required contract is one outcome plus observable acceptance criteria.
+Publish native parent and blocked-by relationships. Apply ready-for-agent when
+the agent can prove the full code scope, and needs-device when any remaining
+criterion requires physical hardware. A mixed ticket carries both labels. A
+pure bench task carries needs-device only. Add optional sections only when they
+change implementation or proof. Do not add empty fields.
 -->
 
 **What to build:** the end-to-end behaviour this ticket makes work, from the
@@ -20,20 +17,9 @@ user's perspective. Not a layer-by-layer plan.
 - [ ] Criterion 1 — externally observable, testable
 - [ ] Criterion 2
 
-**Blocked by:** <must match native GitHub dependencies; ticket numbers/titles, or "None (can start immediately)">
-
-**Bench classification:** pure-logic | sim-drivable | needs-device
-
-**Assurance:** baseline | security | safety | qms (one or more; baseline is always applied)
-
-**Live-proof steps:** <only if sim-drivable: how to bring the stack up and
-exercise this ticket's behaviour; what the reviewer should observe. Otherwise
-leave empty.>
-
-**Diff budget hint:** <files / insertions / deletions ceiling for this ticket;
-defaults from routing.json if omitted>
-
-**Evidence to attach:** <what proof the PR must carry: commands, screenshots,
-device-test protocol reference (needs-device -> templates/device-test-protocol.md)>
-
-**Status:** ready-for-agent
+<!-- Optional when relevant:
+## Constraints / out of scope
+## Live proof
+## Human hardware evidence
+## Assurance escalation
+-->

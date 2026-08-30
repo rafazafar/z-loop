@@ -20,6 +20,24 @@ echo "== client repo =="
 gh auth status >/dev/null 2>&1 && ok "gh authenticated" || bad "gh not authenticated: run gh auth login"
 GH_REPO="$(ghrepo 2>/dev/null)" && ok "github: $GH_REPO" || bad "cannot resolve GitHub repo (is origin set?)"
 
+echo "== github base =="
+base_branch="$(jqget '.github.base_branch // empty')"
+client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
+if [ -z "$base_branch" ]; then
+  bad "github.base_branch is missing"
+elif [ -z "$client_remote" ]; then
+  bad "client origin remote is missing"
+elif git ls-remote --exit-code "$client_remote" "refs/heads/$base_branch" >/dev/null 2>&1; then
+  ok "base branch origin/$base_branch exists"
+else
+  bad "base branch origin/$base_branch does not exist"
+fi
+if [ -n "${GH_REPO:-}" ] && [ -n "$base_branch" ]; then
+  default_branch="$(gh repo view "$GH_REPO" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || true)"
+  [ "$default_branch" = "$base_branch" ] && ok "PR base matches repository default ($base_branch)" || \
+    soft "configured PR base $base_branch differs from repository default ${default_branch:-unknown}"
+fi
+
 echo "== github labels =="
 if [ -n "${GH_REPO:-}" ]; then
   frontier_label="$(jqget .github.frontier_label)"

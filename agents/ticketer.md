@@ -44,17 +44,15 @@ When even batches cannot stay green alone, keep the sequence but let batches
 share an integration branch; green is promised only at the final
 integrate-and-verify ticket.
 
-**Sizing to scope contract.** Every ticket you write must carry: what it
-delivers (user perspective), acceptance criteria, blocked-by, bench
-classification (needs-device | sim-drivable | pure-logic), assurance profile
-(baseline plus security, safety, or qms where applicable), live-proof steps (if
-sim-drivable; leave empty otherwise), and a diff budget hint. Use
-templates/subissue.md. This declaration can only escalate review. Runtime policy
-and the immutable PR diff determine the final profile set.
+**Ticket contract.** Every ticket body needs only one outcome and observable
+acceptance criteria. Add constraints, live-proof steps, hardware evidence, or
+assurance escalation only when they change how the ticket must be worked or
+proved. Do not add empty fields. Use templates/subissue.md. Runtime policy and
+the immutable PR diff determine the final assurance profile set.
 
 The published dependency graph must use GitHub's native blocked-by and
-subissue relationships. Keep the inline Blocked by field synchronized only as
-a compatibility record for existing tickets.
+subissue relationships. An inline Blocked by section is optional compatibility
+text and must match the native graph when present.
 
 **Labels encode two independent facts.** `ready-for-agent` means the agent may
 work the ticket: its acceptance criteria are provable on the dev machine with
@@ -67,8 +65,9 @@ Parent issues are containers and must not receive ready-for-agent unless they
 define a separate integration task after all subissues close; such a parent
 must also carry the loop-integration label, and run/loop-tick ignores labeled
 parents without it.
-Use one parent/subissue level. Express deeper execution order with native
-blocked-by edges instead of nested subissues.
+Container depth does not define execution order. Only executable leaf issues
+receive `ready-for-agent`, and every leaf declares its own native blockers.
+Do not rely on an ancestor's blockers being inherited by its descendants.
 
 **No file paths, no code snippets** in ticket bodies. They go stale. Exception:
 a prototype-produced snippet that encodes a decision more precisely than

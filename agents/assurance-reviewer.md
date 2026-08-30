@@ -37,11 +37,12 @@ by the diff.
 
 PASS only when the selected profile has positive evidence or the diff proves
 that no record update is required. Missing or ambiguous evidence is FAIL.
-Add `BENCH: pending` only when the ticket scopes obligations to bench hardware
-that cannot be evidenced without physical devices and every other obligation
-is positively proven; name the deferred obligations under observed. Otherwise
-omit the line. This review is a pre-merge evidence gate, not regulatory
-certification and not a replacement for an authorized human approver.
+Add `BENCH: pending` only when the issue has the `needs-device` label or its
+acceptance criteria explicitly require physical hardware, every other
+obligation is positively proven, and the deferred obligations are named under
+observed. Otherwise omit the line. This review is a pre-merge evidence gate,
+not regulatory certification and not a replacement for an authorized human
+approver.
 
 Write exactly:
 
