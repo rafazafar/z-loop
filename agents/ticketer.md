@@ -54,19 +54,19 @@ The published dependency graph must use GitHub's native blocked-by and
 subissue relationships. An inline Blocked by section is optional compatibility
 text and must match the native graph when present.
 
-**Labels encode two independent facts.** `ready-for-agent` means the agent may
+**Labels encode two independent facts.** `ready-for-worker` means the worker may
 work the ticket: its acceptance criteria are provable on the dev machine with
 package tests, or its bench-scoped criteria are explicit and separable.
 `needs-device` means some criteria need bench hardware. Apply both to a mixed
 ticket — the agent implements, and review may land it bench-pending so humans
 do the bench step. A pure bench task (no agent-provable deliverable) carries
-`needs-device` and NOT `ready-for-agent`; the loop will not see it.
-Parent issues are containers and must not receive ready-for-agent unless they
+`needs-device` and NOT `ready-for-worker`; the loop will not see it.
+Parent issues are containers and must not receive ready-for-worker unless they
 define a separate integration task after all subissues close; such a parent
 must also carry the loop-integration label, and run/loop-tick ignores labeled
 parents without it.
 Container depth does not define execution order. Only executable leaf issues
-receive `ready-for-agent`, and every leaf declares its own native blockers.
+receive `ready-for-worker`, and every leaf declares its own native blockers.
 Do not rely on an ancestor's blockers being inherited by its descendants.
 
 **No file paths, no code snippets** in ticket bodies. They go stale. Exception:

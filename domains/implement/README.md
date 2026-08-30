@@ -5,7 +5,7 @@ status: active
 goal: Turn one ready agent-provable ticket into a conditionally assured PR for human merge or bench validation
 cadence: every 60m while Mac awake (launchd, not yet loaded)
 trigger: manual or hourly gate
-discover: Select the oldest ready-for-agent issue whose native and inline blockers are closed and whose native subissues are complete
+discover: Select the oldest ready-for-worker issue whose native and inline blockers are closed and whose native subissues are complete
 act: Give one ticket to a fresh implementer and route review failures back as bounded fix attempts
 verify: Fresh read-only code, security, safety, and QMS reviewers must PASS every deterministically required profile
 persist: Store ticket state, PR URL, assurance classification, profile verdicts, result files, metrics, and one Timeline entry
@@ -14,7 +14,7 @@ exit: Stop on PASS, empty frontier, human decision, diff-budget breach, timeout,
 
 # implement
 
-Consumes: GitHub issues labeled ready-for-agent whose blockers are all closed.
+Consumes: GitHub issues labeled ready-for-worker whose blockers are all closed.
 Produces: PRs ready for human merge, verdict files, decision cards, and metrics.
 
 This domain uses a deterministic queue-drain and maker-checker controller. The

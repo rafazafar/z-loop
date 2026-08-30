@@ -2,7 +2,7 @@
 
 <!--
 The required contract is one outcome plus observable acceptance criteria.
-Publish native parent and blocked-by relationships. Apply ready-for-agent when
+Publish native parent and blocked-by relationships. Apply ready-for-worker when
 the agent can prove the full code scope, and needs-device when any remaining
 criterion requires physical hardware. A mixed ticket carries both labels. A
 pure bench task carries needs-device only. Add optional sections only when they

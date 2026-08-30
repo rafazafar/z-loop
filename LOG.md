@@ -38,7 +38,7 @@ What: desired-state assurance reconciliation bound to immutable PR OIDs; profile
 Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/assurance-reviewer.md (new), run/doctor, run/common.sh, web/ (updated)
 
 ## 2026-08-28 · bench labels + bench-pending verdict · #loop #implement
-What: two-fact label semantics (ready-for-agent vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending (done awaits human bench validation); frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
+What: two-fact label semantics (ready-for-worker vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending (done awaits human bench validation); frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
 Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents/assurance-reviewer.md, agents/ticketer.md, templates/subissue.md, templates/verdict.md, domains/*/README.md (updated)
 
 ## 2026-08-29 · auto-cardify + crash recovery · #loop #infra
@@ -53,6 +53,10 @@ Refs: agents/implementer.md, agents/ticketer.md, templates/subissue.md, run/loop
 What: current product values are 4/8/16 seconds with an 8-second default and future configurability; the client has not finalized those exact values; the processed 2026-08-27 transcript is acknowledged.
 Refs: decisions/ard016-vs-mm4-d7-ecg-time-horizons.card.md, decisions/transcript-20260827-disposition.card.md, kokoromil/kokolog-monitor#91
 
-## 2026-08-31 · terminal CI review gate + visual proof · #loop #review
-What: manual ticks defer reviewer spawn while PR checks are pending; implementers and reviewers now require viewable, non-sensitive visual evidence for visible UI and exact-head CI proof.
+## 2026-08-31 · terminal CI review gate · #loop #review
+What: manual ticks defer reviewer spawn while PR checks are pending; implementers and reviewers require exact-head CI proof.
 Refs: run/loop-tick, agents/implementer.md, agents/reviewer.md, kokoromil/kokolog-monitor#92
+
+## 2026-08-31 · worker readiness label · #loop #tickets
+What: renamed the implementation frontier to ready-for-worker and removed mandatory PR screenshots until stable image hosting is available.
+Refs: routing.json, agents/ (updated), templates/subissue.md (updated), domains/implement/README.md (updated), installed to-spec and to-tickets skills (updated), kokoromil/kokolog-monitor labels

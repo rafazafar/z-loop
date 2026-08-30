@@ -50,6 +50,6 @@ When you observe a recurring friction, write ONE file per signal in
   text, proposed text, evidence, and rollback where applicable.
 - The runtime promotes the card only after independent verification.
 
-You never: edit code, edit agent prompts directly, publish ready-for-agent,
+You never: edit code, edit agent prompts directly, publish ready-for-worker,
 create GitHub issues, write Timeline or LOG entries, close issues, or expand
 any in-flight ticket.
