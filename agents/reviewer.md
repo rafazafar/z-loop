@@ -22,6 +22,11 @@ makes levels 2-3 moot.
 **Level 1 — Acceptance.** For each acceptance criterion in the issue: is it
 satisfied IN THE DIFF, and evidenced? An unevidenced criterion is unmet.
 Verify evidence files exist and are non-empty where cited.
+- Read the live PR check rollup for the exact `HEAD_OID`. A relevant terminal
+  failure is FAIL. A relevant pending check is unproven and cannot PASS.
+- If the diff adds or changes visible UI, verify that the PR contains viewable
+  visual evidence with non-sensitive data. Require only materially different
+  states or platforms. A local-only screenshot path is not evidence.
 
 **Level 2 — Standards.** Only if the diff touches the client repo:
 - Traceability: does a change with user-facing or safety relevance reference

@@ -102,6 +102,23 @@ done
 # session ids: <ticket>-impl-aN | <ticket>-rev-<profile>-rN | loop-<domain>-*
 review_state_file() { printf '%s/%s.review.json\n' "$STATE" "$1"; }
 
+pr_checks_ready() { # PR URL; 0 terminal, 1 pending/not registered, 2 unavailable
+  local pr="$1" rollup count pending
+  if ! rollup="$(gh pr view "$pr" -R "$GH_REPO" --json statusCheckRollup 2>/dev/null)"; then
+    return 2
+  fi
+  count="$(printf '%s' "$rollup" | jq '.statusCheckRollup | length')"
+  [ "$count" -gt 0 ] || return 1
+  pending="$(printf '%s' "$rollup" | jq '
+    [.statusCheckRollup[] |
+      if .__typename == "CheckRun" then
+        (.status != "COMPLETED")
+      else
+        ((.state // "PENDING") == "PENDING" or (.state // "PENDING") == "EXPECTED")
+      end] | any')"
+  [ "$pending" = false ]
+}
+
 write_json() { # destination; JSON on stdin
   local destination="$1" tmp="$1.tmp.$$"
   if jq -S . > "$tmp"; then mv "$tmp" "$destination"; else rm -f "$tmp"; return 1; fi
@@ -178,7 +195,7 @@ harvest_impl() { # ticket session-id
 }
 
 spawn_profile_review() { # desired-state file
-  local rs="$1" n pr round profile head base sid clone role_file role_name pf
+  local rs="$1" n pr round profile head base sid clone role_file role_name pf check_state
   n="$(jq -r .ticket "$rs")"; pr="$(jq -r .pr "$rs")"; round="$(jq -r .round "$rs")"
   profile="$(jq -r .profile "$rs")"; head="$(jq -r .head_oid "$rs")"; base="$(jq -r .base_oid "$rs")"
   sid="$(jq -r .session_id "$rs")"; clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
@@ -189,6 +206,14 @@ spawn_profile_review() { # desired-state file
   esac
   [ -f "$SESSIONS/$sid.done" ] && return 0
   session_live "$sid" && return 0
+  check_state=0
+  pr_checks_ready "$pr" || check_state=$?
+  case "$check_state" in
+    0) ;;
+    1) say "ticket #$n review deferred: PR checks are pending"; return 0 ;;
+    2) say "ticket #$n review deferred: PR checks are unavailable"; return 0 ;;
+    *) say "ticket #$n review deferred: invalid PR check state"; return 1 ;;
+  esac
   rm -f "$VERDICTS/$n-verdict.md" "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
   pf="$SESSIONS/$sid.prompt"
   {

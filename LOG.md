@@ -52,3 +52,7 @@ Refs: agents/implementer.md, agents/ticketer.md, templates/subissue.md, run/loop
 ## 2026-08-31 · ECG horizon decision settled · #spec-sync #decision
 What: current product values are 4/8/16 seconds with an 8-second default and future configurability; the client has not finalized those exact values; the processed 2026-08-27 transcript is acknowledged.
 Refs: decisions/ard016-vs-mm4-d7-ecg-time-horizons.card.md, decisions/transcript-20260827-disposition.card.md, kokoromil/kokolog-monitor#91
+
+## 2026-08-31 · terminal CI review gate + visual proof · #loop #review
+What: manual ticks defer reviewer spawn while PR checks are pending; implementers and reviewers now require viewable, non-sensitive visual evidence for visible UI and exact-head CI proof.
+Refs: run/loop-tick, agents/implementer.md, agents/reviewer.md, kokoromil/kokolog-monitor#92

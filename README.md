@@ -64,6 +64,11 @@ isolation, timeouts, strict result validation, durable cycle records, artifact
 promotion, and Timeline recording. There is no global LLM conductor; domains
 coordinate through GitHub and the shared artifact folders.
 
+Before it starts a PR reviewer, each implementation tick samples the check
+rollup for the current PR head. Missing, pending, or unavailable checks defer
+review without consuming an attempt. Terminal checks start review whether they
+passed or failed; the reviewer diagnoses failures and still checks the ticket.
+
 ## Run it (manual first — timers stay OFF until each loop proves itself)
 
 ```bash

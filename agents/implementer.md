@@ -40,6 +40,16 @@ labels carry workflow state.
    require a running system, exercise that path and capture evidence. If the
    issue has the `needs-device` label, do not fake physical-device evidence;
    identify the criteria that remain for a human.
+7. Visual proof: if the change adds or changes visible UI, capture the smallest
+   useful set of screenshots with non-sensitive data and make them viewable in
+   the PR. Cover each materially different state or platform, not every device.
+   If visual evidence does not apply, say why in the PR. A local-only path is
+   not evidence for a reviewer.
+8. CI proof: if the diff changes CI, inspect the actual runner OS, labels, and
+   required toolchains before you choose `runs-on` or combine platform steps.
+   After the PR exists, inspect its relevant checks for the current HEAD. Fix a
+   terminal failure. Treat a pending check as unproven; never describe it as a
+   pass or use "no failure observed" as evidence.
 
 ## Hard rules
 
@@ -59,7 +69,7 @@ labels carry workflow state.
 1. Push the branch, open ONE PR against the required base branch with:
    - What changed: 1-3 lines, outcome first.
    - Acceptance criteria as checkboxes, checked only if proven.
-   - Evidence block: commands + exit codes; screenshot inline if captured;
+   - Evidence block: commands + exit codes; required screenshots inline;
      video/evidence links (link, do not embed video).
    - Repro steps (stack-up + exercise).
    - `Closes #<issue-number>` so a merge releases dependent tickets.
