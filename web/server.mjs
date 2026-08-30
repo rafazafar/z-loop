@@ -17,7 +17,7 @@ const definitions = {
   "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, cadence: "09:00 and 17:00", timer: "dev.kokolog.loop.decisions", consumes: "Open cards and parked work", produces: "Human decision queues" }
 };
 const domainIds = Object.keys(definitions);
-const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "parked", "blocked-decision"]);
+const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "parked", "merged-unverified", "blocked-decision"]);
 
 async function run(file, args = [], cwd = root, timeout = 10000) {
   try {
@@ -90,10 +90,13 @@ async function collect() {
   }));
   const stateFiles = await readdir(path.join(root, "state")).catch(() => []);
   const ticketFiles = stateFiles.map((name) => ({ name, match: name.match(/^(\d+)\.(.+)$/) })).filter((item) => item.match && stateNames.has(item.match[2]));
-  const ticketStats = await Promise.all(ticketFiles.map(async (item) => ({ id: item.match[1], status: item.match[2], mtime: (await stat(path.join(root, "state", item.name))).mtimeMs })));
+  const ticketStats = await Promise.all(ticketFiles.map(async (item) => {
+    const filePath = path.join(root, "state", item.name);
+    return { id: item.match[1], status: item.match[2], reason: (await readFile(filePath, "utf8").catch(() => "")).trim(), mtime: (await stat(filePath)).mtimeMs };
+  }));
   const latestTickets = new Map();
   for (const ticket of ticketStats) if (!latestTickets.has(ticket.id) || latestTickets.get(ticket.id).mtime < ticket.mtime) latestTickets.set(ticket.id, ticket);
-  const tickets = [...latestTickets.values()].map(({ id, status }) => ({ id, status }));
+  const tickets = [...latestTickets.values()].map(({ id, status, reason }) => ({ id, status, reason }));
   const decisionFiles = await readdir(path.join(root, "decisions")).catch(() => []);
   const cards = (await Promise.all(decisionFiles.filter((name) => name.endsWith(".md") && name !== "README.md").map(async (name) => {
     const info = await stat(path.join(root, "decisions", name)).catch(() => null);

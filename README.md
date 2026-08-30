@@ -51,6 +51,11 @@ letters or digits. If any remote branch already exists under the issue
 namespace, the frontier parks instead of creating a duplicate. Other domain
 cycles use `<domain>/<timestamp>` branches.
 
+If a PR merges before all required assurance profiles pass, the ticket enters
+the terminal `merged-unverified` state. This records that GitHub work is
+complete but the loop's pre-merge assurance was bypassed. It is not a parked
+decision and does not block the frontier.
+
 Edit the objects under `roles` in `routing.json`. `model` is the full OpenCode
 provider/model ID. `variant` is the provider-specific reasoning effort passed
 with `--variant`. Retry escalation also contains direct `from` and `to` routes.

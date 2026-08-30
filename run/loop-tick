@@ -133,6 +133,19 @@ park_review() { # desired-state file source-session reason
   timeline implement "ticket $n | parked: $reason"
 }
 
+mark_merged_unverified() { # desired-state file source-session
+  local rs="$1" sid="$2" n completed required reason
+  n="$(jq -r .ticket "$rs")"
+  completed="$(jq -r '.completed | length' "$rs")"
+  required="$((completed + $(jq -r '.remaining | length' "$rs")))"
+  reason="PR merged before assurance completed ($completed/$required profiles passed)"
+  jq --arg sid "$sid" '.action="merged-unverified" | .last_applied_session=$sid' "$rs" | write_json "$rs" || return 1
+  st_set "$n" merged-unverified
+  printf '%s\n' "$reason" > "$STATE/$n.merged-unverified"
+  metric implement runs.jsonl "\"event\":\"merged-unverified\",\"ticket\":$n,\"completed\":$completed,\"required\":$required"
+  timeline implement "ticket $n | merged-unverified: $reason"
+}
+
 start_review_cycle() { # ticket PR source-session
   local n="$1" pr="$2" source="$3" rs assurance round=1 clone
   rs="$(review_state_file "$n")"; assurance="$STATE/$n.assurance.json"
@@ -239,7 +252,11 @@ set_fix_desired() { # state file source-session
   n="$(jq -r .ticket "$rs")"; round="$(jq -r .round "$rs")"; profile="$(jq -r .profile "$rs")"
   pr_state="$(gh pr view "$(jq -r .pr "$rs")" -R "$GH_REPO" --json state --jq .state 2>/dev/null || true)"
   if [ "$pr_state" != OPEN ]; then
-    park_review "$rs" "$sid" "cannot fix assurance finding on PR state ${pr_state:-unknown}"
+    if [ "$pr_state" = MERGED ]; then
+      mark_merged_unverified "$rs" "$sid"
+    else
+      park_review "$rs" "$sid" "cannot fix assurance finding on PR state ${pr_state:-unknown}"
+    fi
     return
   fi
   maxr="$(rule max_verify_rounds)"; maxa="$(rule max_impl_attempts)"
@@ -348,7 +365,11 @@ reconcile_assurance() {
           say "assurance deferred: cannot read PR revision for #$n"; continue
         fi
         live_state="$(printf '%s' "$live_revision" | jq -r .state)"
-        if [ "$action" != complete ] && [ "$live_state" != OPEN ]; then
+        if [ "$action" = review ] && [ "$live_state" = MERGED ]; then
+          mark_merged_unverified "$rs" "$(jq -r '.session_id // ""' "$rs")"
+          continue
+        fi
+        if [ "$action" = review ] && [ "$live_state" != OPEN ]; then
           park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "cannot continue assurance on PR state $live_state"
           continue
         fi
@@ -378,7 +399,7 @@ reconcile_assurance() {
         esac
         ;;
       fix) spawn_fix "$rs" ;;
-      parked) ;;
+      parked|merged-unverified) ;;
       *) park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "invalid assurance action $action" ;;
     esac
   done

@@ -35,6 +35,9 @@ for f in "$STATE"/[0-9]*.*; do
   [ -e "$f" ] || continue
   b="$(basename "$f")"
   case "$b" in
+    *.merged-unverified)
+      reason="$(cat "$f" 2>/dev/null || true)"
+      printf '%s — %s\n' "$b" "${reason:-PR merged before assurance completed}" ;;
     *.in-progress|*.review|*.fix|*.done|*.parked|*.blocked-decision|*.ready)
       printf '%s\n' "$b" ;;
   esac

@@ -68,3 +68,7 @@ Refs: routing.json, run/common.sh, run/loop-tick, run/domain-loop, run/doctor, R
 ## 2026-08-31 · direct role routing · #loop #infra
 What: roles and retry escalation now declare provider models and variants directly; the runtime and dashboard no longer resolve model aliases.
 Refs: routing.json, run/common.sh, run/loop-tick, run/doctor, web/, README.md (updated)
+
+## 2026-08-31 · merged-unverified state · #loop #review
+What: PRs merged before assurance finishes now enter a distinct terminal state with a visible reason; completed assurance remains done after merge.
+Refs: run/common.sh, run/loop-tick, run/loop-status, web/server.mjs, README.md (updated)

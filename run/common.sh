@@ -48,7 +48,7 @@ domain_active() { # domain -> 0 if status: active
 # --- state files: state/<ticket>.<state> -----------------------------------
 st_set() { # ticket, state
   rm -f "$STATE/$1.in-progress" "$STATE/$1.review" "$STATE/$1.fix" \
-    "$STATE/$1.done" "$STATE/$1.parked"
+    "$STATE/$1.done" "$STATE/$1.parked" "$STATE/$1.merged-unverified"
   printf '%s\n' "$2" > "$STATE/$1.$2"
 }
 st_has() { [ -e "$STATE/$1.$2" ]; }                       # ticket, state
