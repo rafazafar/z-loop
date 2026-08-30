@@ -165,7 +165,8 @@ if [ -n "$clone" ]; then
   client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
   [ -n "$client_remote" ] || terminal FAIL "client GitHub remote unavailable" none none 1
   git -C "$clone" remote set-url origin "$client_remote" || terminal FAIL "client remote setup failed" none none 1
-  git -C "$clone" checkout -q -b "loop/$sid" || terminal FAIL "client branch failed" none none 1
+  cycle_branch="${domain}/${stamp}"
+  git -C "$clone" checkout -q -b "$cycle_branch" || terminal FAIL "client branch failed" none none 1
 fi
 
 case "$domain" in

@@ -62,9 +62,10 @@
     "clone_reap_days": 7
   },
   "github": {
-    "$comment": "ready-for-worker labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. base_branch is the required fresh remote branch and PR base. Create labels once: gh label create ready-for-worker; gh label create loop-integration",
+    "$comment": "ready-for-worker labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. branch_prefix creates stable issue branches as <prefix>-<issue>/<title-slug>. base_branch is the required fresh remote branch and PR base. Create labels once: gh label create ready-for-worker; gh label create loop-integration",
     "frontier_label": "ready-for-worker",
     "integration_label": "loop-integration",
+    "branch_prefix": "issue",
     "base_branch": "main"
   }
 }

@@ -42,6 +42,15 @@ from the client origin for every new ticket, tells the implementer to use it,
 and rejects a PR with another base. This keeps later tickets on the current
 remote base even when the configured local checkout is stale.
 
+`github.branch_prefix` names implementation branches as
+`<prefix>-<issue>/<title-slug>`, for example
+`issue-44/create-the-mobile-monitor-product-application`. The issue number is
+stable even if the issue title later changes. The slug is lowercase ASCII,
+limited to 64 characters, and falls back to `work` for a title without ASCII
+letters or digits. If any remote branch already exists under the issue
+namespace, the frontier parks instead of creating a duplicate. Other domain
+cycles use `<domain>/<timestamp>` branches.
+
 Edit the objects under `aliases` in `routing.json`. `model` is the full
 OpenCode provider/model ID. `variant` is the provider-specific reasoning
 effort passed with `--variant`. Roles and retry rules refer to the alias name.

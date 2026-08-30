@@ -27,6 +27,21 @@ route_variant() { alias_variant "$(role_alias "$1")"; }
 
 rule() { jq -r --arg k "$1" '.rules[$k]' "$ROUTING"; }
 
+branch_slug() { # title -> short ASCII kebab slug; unique issue number lives outside
+  local slug
+  slug="$(printf '%s' "$1" |
+    LC_ALL=C tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g' |
+    cut -c1-64 |
+    sed -E 's/-+$//')"
+  printf '%s\n' "${slug:-work}"
+}
+
+branch_prefix_valid() { # lowercase kebab prefix
+  [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] &&
+    git check-ref-format --branch "${1}-1/work" >/dev/null 2>&1
+}
+
 domain_active() { # domain -> 0 if status: active
   local f="$LOOP_ROOT/domains/$1/README.md"
   [ -f "$f" ] || return 1

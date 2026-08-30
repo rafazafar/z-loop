@@ -60,3 +60,7 @@ Refs: run/loop-tick, agents/implementer.md, agents/reviewer.md, kokoromil/kokolo
 ## 2026-08-31 · worker readiness label · #loop #tickets
 What: renamed the implementation frontier to ready-for-worker and removed mandatory PR screenshots until stable image hosting is available.
 Refs: routing.json, agents/ (updated), templates/subissue.md (updated), domains/implement/README.md (updated), installed to-spec and to-tickets skills (updated), kokoromil/kokolog-monitor labels
+
+## 2026-08-31 · issue branch names · #loop #infra
+What: implementation PR branches now use stable issue-number and title slugs; existing remote issue branches park the frontier instead of creating duplicates.
+Refs: routing.json, run/common.sh, run/loop-tick, run/domain-loop, run/doctor, README.md (updated)

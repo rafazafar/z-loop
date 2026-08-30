@@ -31,10 +31,11 @@ fi
 GH_REPO="$(ghrepo)" || { say "cannot resolve gh repo"; exit 0; }
 LABEL="$(jqget .github.frontier_label)"
 INTEG_LABEL="$(jqget .github.integration_label)"
+BRANCH_PREFIX="$(jqget '.github.branch_prefix // empty')"
 BASE_BRANCH="$(jqget '.github.base_branch // empty')"
 CLIENT_REMOTE="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
-if [ -z "$BASE_BRANCH" ] || [ -z "$CLIENT_REMOTE" ]; then
-  timeline implement "tick | skipped: missing GitHub base branch or client remote (run run/doctor)"
+if ! branch_prefix_valid "$BRANCH_PREFIX" || [ -z "$BASE_BRANCH" ] || [ -z "$CLIENT_REMOTE" ]; then
+  timeline implement "tick | skipped: invalid GitHub branch configuration or client remote (run run/doctor)"
   exit 0
 fi
 if ! git ls-remote --exit-code "$CLIENT_REMOTE" "refs/heads/$BASE_BRANCH" >/dev/null 2>&1; then
@@ -91,10 +92,10 @@ for pf in "$SESSIONS"/*.prompt; do
     timeline implement "ticket $n | parked: $lost implementer sessions lost; human decision required"
     park_auto_card "impl-lost-$n" implement \
       "Ticket $n lost $lost implementer sessions — retry, drop, or take over?" \
-      "Each re-queue cloned a fresh branch; a lost session may have pushed an orphan loop/$n-* branch on GitHub before vanishing. Inspect before retrying." \
+      "A lost session may have pushed an orphan ${BRANCH_PREFIX}-$n/* branch on GitHub before vanishing. Inspect before retrying." \
       "- lost sessions: $SESSIONS/$n-impl-a*.prompt.lost
 - ticket: https://github.com/$(ghrepo)/issues/$n
-- stray branches: git -C $KOKOLOG_REPO ls-remote origin 'refs/heads/loop/$n-*'"
+- stray branches: git -C $KOKOLOG_REPO ls-remote origin 'refs/heads/${BRANCH_PREFIX}-$n/*'"
   fi
 done
 
@@ -429,6 +430,7 @@ frontier() {
     # Native GitHub relationships are the primary dependency graph. Inline
     # "Blocked by" references remain a conservative compatibility check.
     local metadata native_blockers is_parent is_integration open_subissues body
+    local slug branch remote_issue_branches existing_branch existing_pr
     metadata="$(gh issue view "$n" -R "$GH_REPO" --json body,blockedBy,subIssues,labels 2>/dev/null)" || {
       say "frontier unavailable: cannot read dependencies for #$n"
       return 1
@@ -472,6 +474,36 @@ frontier() {
       say "#$n blocked by an open inline dependency"
       continue
     fi
+    slug="$(branch_slug "$title")"
+    branch="${BRANCH_PREFIX}-${n}/${slug}"
+    if ! git check-ref-format --branch "$branch" >/dev/null 2>&1; then
+      st_set "$n" parked
+      timeline implement "ticket $n | parked: generated branch name is invalid"
+      park_auto_card "branch-invalid-$n" implement \
+        "Ticket $n produced an invalid branch name — rename the issue or change the branch prefix?" \
+        "The generated branch was $branch. The loop did not clone or modify the client repository." \
+        "- ticket: https://github.com/$(ghrepo)/issues/$n
+- branch: $branch"
+      continue
+    fi
+    if ! remote_issue_branches="$(git ls-remote --heads "$CLIENT_REMOTE" "refs/heads/${BRANCH_PREFIX}-${n}/*" 2>/dev/null)"; then
+      timeline implement "ticket $n | frontier branch lookup failed; retry next tick"
+      continue
+    fi
+    existing_branch="$(printf '%s\n' "$remote_issue_branches" | awk 'NR==1 {sub(/^.*refs\/heads\//, ""); print}')"
+    if [ -n "$existing_branch" ]; then
+      existing_pr="$(gh pr list -R "$GH_REPO" --head "$existing_branch" --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)"
+      st_set "$n" parked
+      metric implement runs.jsonl "\"event\":\"frontier-park\",\"ticket\":$n,\"reason\":\"branch-exists\""
+      timeline implement "ticket $n | parked: branch $existing_branch already exists"
+      park_auto_card "branch-exists-$n" implement \
+        "Ticket $n already has a remote branch — review its PR or recover the branch?" \
+        "Stable branch naming found $existing_branch. The loop will not create a duplicate branch." \
+        "- ticket: https://github.com/$(ghrepo)/issues/$n
+- branch: $existing_branch
+- open PR: ${existing_pr:-none found}"
+      continue
+    fi
     # spawn implementer in a fresh clone
     clone="$CLONES/$n-a1"
     if ! git clone -q --branch "$BASE_BRANCH" --single-branch "$CLIENT_REMOTE" "$clone" 2>/dev/null; then
@@ -484,7 +516,6 @@ frontier() {
       timeline implement "ticket $n | frontier clone remote failed; retry next tick"
       continue
     fi
-    branch="loop/$n-$(date +%s)"
     if ! git -C "$clone" checkout -q -b "$branch" "origin/$BASE_BRANCH"; then
       rm -rf "$clone"
       timeline implement "ticket $n | branch from origin/$BASE_BRANCH failed; retry next tick"
