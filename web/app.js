@@ -39,9 +39,8 @@ function render(){
   const graphOrder=["spec-sync","ticket-factory","decision-desk","implement","gardener"];
   $("#graphNodes").innerHTML=graphOrder.map((id)=>state.loops.find((loop)=>loop.id===id)).filter(Boolean).map(node).join("");
   $("#loopGrid").innerHTML=state.loops.map((loop)=>`<article class="loop-card ${esc(loop.status)} ${loop.unavailable?"unavailable":""}"><div class="card-top"><h3>${title(loop.id)}</h3><span class="badge">${esc(stamp(loop))}</span></div><div class="facts">${fact("TRIGGER",loop.cadence)}${fact("TIMER",loop.timerLoaded?"Armed":"Not loaded")}${fact("CURRENT WORK",currentWork(loop))}${fact("LAST EVENT",loop.timeline[0]||"Never")}</div><div class="actions"><button class="primary" data-action="run" data-loop="${loop.id}" ${!loop.triggerable?"disabled":""}>Run now</button><button data-action="toggle" data-loop="${loop.id}">${loop.status==="active"?"Pause":"Resume"}</button><button data-inspect="${loop.id}">Inspect</button></div>${loop.unavailable?`<p class="reason">${esc(loop.unavailable)}</p>`:""}</article>`).join("");
-  const aliases=Object.entries(state.routing.aliases).map(([name,route])=>`<div class="route-row"><span>${esc(name)}</span><span>${esc(route.model)} · ${esc(route.variant)}</span></div>`).join("");
-  const roles=Object.entries(state.routing.roles).map(([name,role])=>`<div class="route-row"><span>${esc(ROLE_NAMES[name]||name)}</span><span>${esc(role.model)}</span></div>`).join("");
-  $("#routing").innerHTML=`<div class="route-table"><h3>Model aliases</h3>${aliases}</div><div class="route-table"><h3>Worker roles</h3>${roles}</div>`;
+  const roles=Object.entries(state.routing.roles).map(([name,role])=>`<div class="route-row"><span>${esc(ROLE_NAMES[name]||name)}</span><span>${esc(role.model)} · ${esc(role.variant)}</span></div>`).join("");
+  $("#routing").innerHTML=`<div class="route-table"><h3>Worker roles</h3>${roles}</div>`;
   const cards=state.cards.slice().sort((a,b)=>(a.status==="open"?0:1)-(b.status==="open"?0:1)||a.name.localeCompare(b.name));
   $("#cards").innerHTML=cards.map((card)=>{
     const options=[...card.text.matchAll(/^## Option ([A-Z]) — (.+)$/gm)];

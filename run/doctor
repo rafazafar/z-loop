@@ -71,6 +71,11 @@ for role in implementer reviewer ticketer distiller gardener decision-desk; do
   v="$(route_variant "$role")"
   [ -n "$m" ] && [ -n "$v" ] && ok "$role -> $m ($v)" || bad "$role has no resolvable model and variant"
 done
+for tier in from to; do
+  m="$(jq -r --arg tier "$tier" '.rules.retry_tier_up[$tier].model // empty' "$ROUTING")"
+  v="$(jq -r --arg tier "$tier" '.rules.retry_tier_up[$tier].variant // empty' "$ROUTING")"
+  [ -n "$m" ] && [ -n "$v" ] && ok "retry $tier -> $m ($v)" || bad "retry $tier has no model and variant"
+done
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 
 echo "== local setup =="

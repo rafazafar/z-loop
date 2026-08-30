@@ -19,11 +19,8 @@ export KOKOLOG_REPO
 
 jqget() { jq -r "$1" "$ROUTING"; }
 
-role_alias() { jq -r --arg r "$1" '.roles[$r].model // empty' "$ROUTING"; }
-alias_model() { jq -r --arg a "$1" '.aliases[$a].model // empty' "$ROUTING"; }
-alias_variant() { jq -r --arg a "$1" '.aliases[$a].variant // empty' "$ROUTING"; }
-route_model() { alias_model "$(role_alias "$1")"; }
-route_variant() { alias_variant "$(role_alias "$1")"; }
+route_model() { jq -r --arg r "$1" '.roles[$r].model // empty' "$ROUTING"; }
+route_variant() { jq -r --arg r "$1" '.roles[$r].variant // empty' "$ROUTING"; }
 
 rule() { jq -r --arg k "$1" '.rules[$k]' "$ROUTING"; }
 

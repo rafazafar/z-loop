@@ -64,3 +64,7 @@ Refs: routing.json, agents/ (updated), templates/subissue.md (updated), domains/
 ## 2026-08-31 · issue branch names · #loop #infra
 What: implementation PR branches now use stable issue-number and title slugs; existing remote issue branches park the frontier instead of creating duplicates.
 Refs: routing.json, run/common.sh, run/loop-tick, run/domain-loop, run/doctor, README.md (updated)
+
+## 2026-08-31 · direct role routing · #loop #infra
+What: roles and retry escalation now declare provider models and variants directly; the runtime and dashboard no longer resolve model aliases.
+Refs: routing.json, run/common.sh, run/loop-tick, run/doctor, web/, README.md (updated)

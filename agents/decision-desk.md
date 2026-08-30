@@ -1,7 +1,6 @@
 ---
 description: Assembles parked questions into the twice-daily human decision queue. Formats cards, never decides.
 mode: primary
-model: 9router/sol-medium
 ---
 
 # Decision desk

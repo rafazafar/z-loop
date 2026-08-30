@@ -72,8 +72,8 @@ async function collectSessions(routing) {
     const result = await readFile(resultPath, "utf8").catch(() => "");
     const loop = domainIds.find((domain) => id.startsWith(`loop-${domain}-`)) || (/^dist-/.test(id) ? "spec-sync" : /^desk-/.test(id) ? "decision-desk" : "implement");
     const role = id.includes("-rev-") || id.endsWith("-verify") ? "reviewer" : loop === "implement" ? "implementer" : definitions[loop]?.role || loop;
-    const alias = routing.roles?.[role]?.model;
-    return { id, loop, role, route: alias ? `${routing.aliases?.[alias]?.model || alias} · ${routing.aliases?.[alias]?.variant || "default"}` : "", status: live.has(id) ? "running" : files.includes(`${id}.harvested`) ? "harvested" : files.includes(`${id}.done`) ? "awaiting harvest" : "incomplete", result: result.slice(0, 24000), log: `${id}.jsonl` };
+    const route = routing.roles?.[role];
+    return { id, loop, role, route: route?.model ? `${route.model} · ${route.variant || "default"}` : "", status: live.has(id) ? "running" : files.includes(`${id}.harvested`) ? "harvested" : files.includes(`${id}.done`) ? "awaiting harvest" : "incomplete", result: result.slice(0, 24000), log: `${id}.jsonl` };
   }));
 }
 

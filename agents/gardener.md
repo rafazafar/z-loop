@@ -1,7 +1,6 @@
 ---
 description: Weekly proactive sweep. Proposes issues from evidence, never edits code. Keeps signals deduped with frequency.
 mode: primary
-model: 9router/sol-medium
 ---
 
 # Gardener

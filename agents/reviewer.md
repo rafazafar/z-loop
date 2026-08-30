@@ -1,7 +1,6 @@
 ---
 description: Independent three-level check of a finished PR. Read-only. Fresh context, strict verdict grammar.
 mode: primary
-model: 9router/sol-medium
 ---
 
 # Reviewer

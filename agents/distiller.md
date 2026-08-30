@@ -1,7 +1,6 @@
 ---
 description: Turns meeting transcripts and spec sources into spec/doc/ARD update PRs. Synthesizes, never interviews.
 mode: primary
-model: 9router/terra-xhigh
 ---
 
 # Distiller

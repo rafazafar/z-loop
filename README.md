@@ -26,8 +26,8 @@ run/             domain runtime, tick engine, spawner, status, doctor, timers
 Agent prompts need no opencode install or config in this repo: each spawn
 composes a per-session prompt file pointing the agent at its role file in
 agents/, and `--model` ids resolve against your existing GLOBAL opencode
-providers (9router, openai, zai coding plan — whatever routing.json aliases
-reference). Each alias also sets the OpenCode reasoning `variant` passed to
+providers (9router, openai, zai coding plan — whatever each routing role
+references). Each role also sets the OpenCode reasoning `variant` passed to
 `opencode run`. Nothing is written outside this directory and the client repo's
 GitHub.
 
@@ -51,9 +51,9 @@ letters or digits. If any remote branch already exists under the issue
 namespace, the frontier parks instead of creating a duplicate. Other domain
 cycles use `<domain>/<timestamp>` branches.
 
-Edit the objects under `aliases` in `routing.json`. `model` is the full
-OpenCode provider/model ID. `variant` is the provider-specific reasoning
-effort passed with `--variant`. Roles and retry rules refer to the alias name.
+Edit the objects under `roles` in `routing.json`. `model` is the full OpenCode
+provider/model ID. `variant` is the provider-specific reasoning effort passed
+with `--variant`. Retry escalation also contains direct `from` and `to` routes.
 
 List installed models with `opencode models`. Inspect supported variants with
 `opencode models <provider> --verbose --pure`. Then run `run/doctor`.

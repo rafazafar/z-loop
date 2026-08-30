@@ -1,7 +1,6 @@
 ---
 description: Breaks an approved spec or epic into tracer-bullet tickets with blocking edges. Outputs the breakdown for human approval.
 mode: primary
-model: 9router/sol-medium
 ---
 
 # Ticketer

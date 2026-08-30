@@ -259,7 +259,8 @@ set_fix_desired() { # state file source-session
 }
 
 spawn_fix() { # desired-state file
-  local rs="$1" n sid attempt profile verdict clone pf model variant after from_alias to_alias from
+  local rs="$1" n sid attempt profile verdict clone pf model variant after
+  local from_model from_variant to_model to_variant
   n="$(jq -r .ticket "$rs")"; sid="$(jq -r .session_id "$rs")"; attempt="$(jq -r .attempt "$rs")"
   profile="$(jq -r .profile "$rs")"; verdict="$(jq -r .verdict_file "$rs")"
   [ -f "$SESSIONS/$sid.done" ] && return 0
@@ -268,10 +269,13 @@ spawn_fix() { # desired-state file
   [ -n "$clone" ] || { st_set "$n" parked; timeline implement "ticket $n | parked: fix clone missing"; return 1; }
   model="$(route_model implementer)"; variant="$(route_variant implementer)"
   after="$(jq -r '.rules.retry_tier_up.after_failures // 2' "$ROUTING")"
-  from_alias="$(jq -r '.rules.retry_tier_up.from' "$ROUTING")"; to_alias="$(jq -r '.rules.retry_tier_up.to' "$ROUTING")"
-  from="$(alias_model "$from_alias")"
-  if [ $((attempt - 1)) -ge "${after:-2}" ] && [ "$model" = "$from" ]; then
-    model="$(alias_model "$to_alias")"; variant="$(alias_variant "$to_alias")"
+  from_model="$(jq -r '.rules.retry_tier_up.from.model // empty' "$ROUTING")"
+  from_variant="$(jq -r '.rules.retry_tier_up.from.variant // empty' "$ROUTING")"
+  to_model="$(jq -r '.rules.retry_tier_up.to.model // empty' "$ROUTING")"
+  to_variant="$(jq -r '.rules.retry_tier_up.to.variant // empty' "$ROUTING")"
+  if [ $((attempt - 1)) -ge "${after:-2}" ] && \
+     [ "$model" = "$from_model" ] && [ "$variant" = "$from_variant" ]; then
+    model="$to_model"; variant="$to_variant"
   fi
   rm -f "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
   pf="$SESSIONS/$sid.prompt"

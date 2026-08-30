@@ -1,54 +1,48 @@
 {
-  "$comment": "Single source of truth for local loop configuration. Alias models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. All scripts read this file via run/common.sh.",
+  "$comment": "Single source of truth for local loop configuration. Role models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. All scripts read this file via run/common.sh.",
   "project": {
     "$comment": "The GitHub repository is derived from this checkout's origin remote.",
     "repo_path": "/Users/zafar/dev/kokolog-monitor"
   },
-  "aliases": {
-    "code-max": {
+  "roles": {
+    "implementer": {
       "model": "openai/gpt-5.6-luna",
       "variant": "max"
     },
-    "code-mid": {
+    "reviewer": {
       "model": "openai/gpt-5.6-sol",
       "variant": "high"
     },
-    "doc-xhigh": {
-      "model": "zai-coding-plan/glm-5.3",
-      "variant": "max"
-    },
-    "doc-fast": {
-      "model": "zai-coding-plan/glm-5.3",
-      "variant": "max"
-    }
-  },
-  "roles": {
-    "implementer": {
-      "model": "code-max"
-    },
-    "reviewer": {
-      "model": "code-mid"
-    },
     "ticketer": {
-      "model": "code-mid"
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
     },
     "distiller": {
-      "model": "doc-xhigh"
+      "model": "zai-coding-plan/glm-5.3",
+      "variant": "max"
     },
     "gardener": {
-      "model": "code-mid"
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
     },
     "decision-desk": {
-      "model": "code-mid"
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
     }
   },
   "rules": {
     "$comment_rules": "Policy executed by run/loop-tick in the fix-retry and reaper paths. Static policy, dynamic behavior.",
     "retry_tier_up": {
-      "$comment": "Fires only when the implementer is tuned DOWN to code-mid (cost mode): past N failures it escalates to code-max. With the default SOTA pin (code-max) it is correctly inert.",
+      "$comment": "Fires only when the implementer route matches from: past N failures it switches to to. With the default implementer route it is correctly inert.",
       "after_failures": 2,
-      "from": "code-mid",
-      "to": "code-max"
+      "from": {
+        "model": "openai/gpt-5.6-sol",
+        "variant": "high"
+      },
+      "to": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "max"
+      }
     },
     "max_verify_rounds": 3,
     "max_impl_attempts": 3,
