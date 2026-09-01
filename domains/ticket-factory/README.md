@@ -2,7 +2,7 @@
 kind: domain
 domain: ticket-factory
 status: paused
-goal: Turn one approved spec into a verified tracer-bullet breakdown card for human approval
+goal: Turn one approved spec into a verified tracer-bullet breakdown card for owner approval
 cadence: on demand (spec merged, or manual invocation)
 trigger: An approved spec, an approved Gardener proposal, or a manual run
 discover: Select one approved source that has no open or answered breakdown card

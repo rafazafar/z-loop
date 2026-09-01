@@ -1,0 +1,5 @@
+#!/bin/bash
+# Collect completed implementation results without starting a model session.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$LOOP_ROOT/run/loop-tick" --collect-only

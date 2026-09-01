@@ -51,14 +51,55 @@ letters or digits. If any remote branch already exists under the issue
 namespace, the frontier parks instead of creating a duplicate. Other domain
 cycles use `<domain>/<timestamp>` branches.
 
-If a PR merges before all required assurance profiles pass, the ticket enters
+If a PR merges before its required unified assurance review passes, the ticket enters
 the terminal `merged-unverified` state. This records that GitHub work is
 complete but the loop's pre-merge assurance was bypassed. It is not a parked
 decision and does not block the frontier.
 
+The Operator Console can clear this active alert only after an owner records an
+post-merge audit note and accepts the exception. The ticket then enters
+`merged-audited`. The audit record keeps the PR, immutable head, original
+review count, note, owner, and time. This action does not convert the missed
+assurance review to PASS.
+
+After unified assurance passes, an owner merge moves the ticket from `done` to
+the terminal `merged` state. The controller records the merge only when the
+GitHub head matches the assured head. The Operator Console then removes the
+ticket from active work and keeps it in resolved history.
+
+When a ticket enters `parked`, `github.decision_label` is added to its GitHub
+issue and known PR, and `github.frontier_label` is removed from the issue. The
+known PR receives one comment with the parked reason. If no PR exists, the
+issue receives the comment. The label is cleared if work resumes. The parked
+state remains the source for the decision desk; the GitHub label and comment
+are its shared visibility surface.
+
+The Operator Console gives parked PRs two explicit dispositions. **Resume
+assurance** normally requires a new open-PR revision, records the owner
+intervention, clears the decision label, and starts a safe reconcile on the new
+PR revision.
+**Mark owner-managed** closes automated control, records the current PR head and
+owner note, clears the decision label, and retains prior failures without
+converting them to PASS.
+
+An implementation or review session that exits with status 143 is retried once
+with the same prompt, model, variant, and checkout. A second status 143 parks
+the ticket and records that the transient retry was exhausted. Other non-zero
+runtime exits park immediately.
+
+A parked assurance session that exited before writing any verdict can be
+retried from the Operator Console on the same PR head. The retry reuses the
+immutable evidence, uses the currently configured reviewer route, and does not
+consume a P0/P1 repair. It requires no owner note or risk acknowledgment because
+it changes no product or assurance decision. The controller rejects this action
+if the PR changed or an authoritative verdict already exists.
+
 Edit the objects under `roles` in `routing.json`. `model` is the full OpenCode
 provider/model ID. `variant` is the provider-specific reasoning effort passed
-with `--variant`. Retry escalation also contains direct `from` and `to` routes.
+with `--variant`. One reviewer handles the applicable acceptance, code,
+security, safety, and QMS dimensions. Build, unified review, and repair have
+independent routes. The Operator Console shows these controls in the Build &
+Verify cycle.
 
 List installed models with `opencode models`. Inspect supported variants with
 `opencode models <provider> --verbose --pure`. Then run `run/doctor`.
@@ -69,8 +110,11 @@ Each domain README is an executable seven-field contract: Goal, Trigger,
 Discover, Act, Verify, Persist, and Exit. A scheduled run handles one bounded
 cycle and then stops. Durable files carry understanding into the next cycle.
 
-`implement` is a deterministic queue-drain and maker-checker workflow. Its
-implementer and reviewer are workers. The other domains run one top-level
+`implement` is a deterministic queue-drain and maker-checker workflow. Result
+collection, repository sync, and paid dispatch are separate controller phases.
+Collection and sync cannot start model sessions. Paid dispatch is the only path
+that can start implementation, review, repair, or transient-retry sessions, and
+it obeys `rules.max_new_sessions_per_dispatch`. The other domains run one top-level
 OpenCode actor that owns semantic discovery. The runtime then launches a fresh
 verifier session. New loop artifacts stay under `state/staging/` until that
 verifier passes. Runtime scripts own a single-flight domain lock, clone
@@ -78,17 +122,34 @@ isolation, timeouts, strict result validation, durable cycle records, artifact
 promotion, and Timeline recording. There is no global LLM conductor; domains
 coordinate through GitHub and the shared artifact folders.
 
-Before it starts a PR reviewer, each implementation tick samples the check
+Before it starts a PR reviewer, paid dispatch samples the check
 rollup for the current PR head. Missing, pending, or unavailable checks defer
-review without consuming an attempt. Terminal checks start review whether they
+review without consuming a repair. Terminal checks start review whether they
 passed or failed; the reviewer diagnoses failures and still checks the ticket.
+The controller supplies each reviewer with an immutable patch plus issue and
+terminal-CI snapshots, so read-only review does not depend on shell permissions.
+The classifier selects applicable dimensions, not separate gates. One reviewer
+returns one severity-calibrated verdict for the whole revision. Only P0 and P1
+issues block and schedule a repair. P2 and P3 observations remain advisory and
+do not consume the repair budget. The initial build does not consume that
+budget. `rules.max_fix_attempts` limits only P0/P1-triggered repairs; PR revision
+history has no separate blocking ceiling. Existing CI remains unchanged.
+
+Writing sessions use OpenCode's scalar edit permission inside disposable
+checkouts. The installed runtime does not apply specific allow paths after a
+wildcard edit denial. Checkout isolation and deterministic harvest validation
+enforce the repository boundary.
 
 ## Run it (manual first — timers stay OFF until each loop proves itself)
 
 ```bash
 run/doctor                  # preflight: binaries, gh auth, repo, routing
 run/dashboard               # local web overview and loop controls
-run/loop-tick --once        # one heartbeat: harvest, frontier check, reaping
+run/collect-results         # collect completed results; never start a model session
+run/sync-repository         # refresh PR and queue state; never start a model session
+run/dispatch-work --current # start bounded paid work for a tracked ticket
+run/dispatch-work --next    # start one new issue only when tracked paid work is clear
+run/dispatch-work           # scheduled policy: tracked work first, then frontier
 run/domain-loop <domain>    # one blocking non-implementation domain cycle
 run/domain-loop decision-desk --dry-run  # inspect resolved routing without a model call
 run/loop-status             # what the machine is doing right now
@@ -102,8 +163,44 @@ serializes non-implementation actors in v1 without blocking implementation
 harvesting. Every cycle selects at most one work unit and writes one terminal
 Timeline entry.
 
-`run/dashboard` opens Bench at `http://127.0.0.1:4177`. It binds to localhost
-only. Set `KOKOLOG_DASHBOARD_PORT` to use another port.
+`run/dashboard` opens the Operator Console at `http://127.0.0.1:4177`. It binds
+to localhost only. Set `KOKOLOG_DASHBOARD_PORT` to use another port. The console
+and `run/loop-status` use the same status reducer. The console receives live
+state events and separates current work, tickets, decisions, history, and
+system health. Its current-work view shows each ticket as a state machine with
+completed, running, awaiting-harvest, blocked, and future steps. `enabled`
+means that the domain configuration is active. `armed` means that its launchd
+timer is loaded. These states are separate.
+
+The Control Center is the normal operator surface. From it, you can:
+
+- collect completed results without starting a model session;
+- refresh repository state without starting a model session;
+- advance tracked work within the configured paid session limit;
+- start the next ready issue explicitly;
+- pause or resume each workflow;
+- install and start, or stop, each configured launchd schedule;
+- change interval or daily schedule timing; an active schedule restarts safely and rolls back if reload fails;
+- change each cycle's model and provider-supported reasoning variant beside the
+  controls that use it. Unified assurance and repair appear as independent
+  Build & Verify steps.
+
+The paid implementation schedule uses `dispatch-work`. It prioritizes tracked
+work and can select a ready issue only when no tracked paid step is pending.
+The collector runs every minute and repository sync runs every 5 minutes.
+Their schedules do not require OpenCode. Every state-changing control has a
+confirmation step.
+Model changes apply to new workers only. Running sessions keep the route that
+they had when they started.
+
+Installed schedules use an explicit executable path that includes the active
+Node.js runtime, OpenCode, and Homebrew tools. Starting or changing a schedule
+runs preflight with that exact environment. The Control Center reports a
+skipped scheduled run as degraded.
+
+Use **Collect results** freely; it cannot start a model session. Use **Advance
+current work** to authorize paid work for a tracked ticket. Use **Start next
+issue** only when the queue has no tracked paid step.
 
 Sessions run detached under tmux. Watch one live: `run/spawn peek <name>`.
 Truth is never the pane. Truth is the result file plus changed files.
@@ -112,7 +209,9 @@ Truth is never the pane. Truth is the result file plus changed files.
 
 | Question | Surface |
 |---|---|
-| What is the loop doing? | `run/loop-status`, `tail -f logs/*.log` |
+| What is the loop doing, and what needs action? | `run/loop-status` or Bench |
+| What work can start now? | Bench `ELIGIBLE` count or the `frontier` section in `run/loop-status` |
+| What is each PR still missing? | Bench `Tickets and assurance` or the matching CLI section |
 | What did this run say? | `logs/<ticket>-<role>.jsonl` (raw replayable events) |
 | What do you need from me? | `decisions/<date>-queue.md` |
 | What shipped? | GitHub PRs, LOG.md, domain Timelines |

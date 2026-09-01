@@ -1,5 +1,5 @@
 #!/bin/bash
-# assurance-classify - derive required independent reviews from ticket + PR.
+# assurance-classify - derive one review's applicable dimensions from ticket + PR.
 set -euo pipefail
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
@@ -75,29 +75,30 @@ printf '%s\n' "$changed" | grep -Eiq '(SR-|HAZ-|SAF-|patient|alarm|arrhythmia|ec
 printf '%s\n' "$changed" | grep -Eiq '(QMS[0-9]+|JIS|IEC|ISO|SOUP|traceability|risk management)' \
   && add_profile qms "lifecycle-sensitive changed lines"
 
-profiles="baseline"
-[ "$security" = 1 ] && profiles="$profiles
+dimensions="acceptance
+code"
+[ "$security" = 1 ] && dimensions="$dimensions
 security"
-[ "$safety" = 1 ] && profiles="$profiles
+[ "$safety" = 1 ] && dimensions="$dimensions
 safety"
-[ "$qms" = 1 ] && profiles="$profiles
+[ "$qms" = 1 ] && dimensions="$dimensions
 qms"
-profiles_json="$(printf '%s\n' "$profiles" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
+dimensions_json="$(printf '%s\n' "$dimensions" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
 reasons_json="$(printf '%s\n' "$reasons" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
-required_json="$(printf '%s\n' "$profiles" | sed 's/^baseline$/code/' | jq -Rsc 'split("\n") | map(select(length > 0))')"
+required_json='["assurance"]'
 
 temporary="$output.tmp"
 jq -n \
   --argjson schema 1 \
-  --arg policy_version "assurance-v1" \
+  --arg policy_version "assurance-v2" \
   --argjson ticket "$ticket" \
   --arg pr "$pr_url" \
   --arg base_oid "$base_oid" \
   --arg head_oid "$head_oid" \
-  --argjson profiles "$profiles_json" \
+  --argjson dimensions "$dimensions_json" \
   --argjson reasons "$reasons_json" \
   --argjson required "$required_json" \
-  '{schema:$schema,policy_version:$policy_version,ticket:$ticket,pr:$pr,base_oid:$base_oid,head_oid:$head_oid,profiles:$profiles,reasons:$reasons,required_verdicts:$required,merge_policy:"human"}' \
+  '{schema:$schema,policy_version:$policy_version,ticket:$ticket,pr:$pr,base_oid:$base_oid,head_oid:$head_oid,dimensions:$dimensions,reasons:$reasons,required_verdicts:$required,merge_policy:"human"}' \
   > "$temporary"
 mv "$temporary" "$output"
 cat "$output"

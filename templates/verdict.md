@@ -4,38 +4,32 @@ domain: [implement]
 ticket: <n>
 pr: <url>
 round: <r>
-reviewer-model: <alias>
+reviewer-model: <provider/model>
 date: YYYY-MM-DD HH:MM
 ---
 
 <!--
-STRICT GRAMMAR. The tick parses this file. Nothing outside the grammar.
-The invocation prompt supplies the authoritative path and identity values.
-The tick archives PASS/FAIL verdicts as
-verdicts/<ticket>-<profile>-r<round>-<head12>-verdict.md.
+STRICT GRAMMAR. The controller archives verdicts as
+verdicts/<ticket>-assurance-r<round>-<head12>-verdict.md.
 -->
 
-VERDICT: PASS | FAIL
+VERDICT: PASS | BLOCK
 TASK: works | broken | unproven
 BENCH: pending | none
-PROFILE: code | security | safety | qms
+PROFILE: assurance
 ROUND: <positive integer>
 PR: <url>
 BASE_OID: <40 lowercase hex>
 HEAD_OID: <40 lowercase hex>
-expected: <criteria, one line>
-observed: <what the diff/evidence actually shows>
-evidence: <paths verified, comma-separated>
-findings:
-- L1|L2|L3 · <file/area> · <defect> · <minimal fix direction>
+expected: <acceptance and selected dimensions, one line>
+observed: <what the immutable evidence proves, one line>
+evidence: <verified paths, comma-separated>
+blockers:
+- P0|P1 · <dimension> · <file/area> · <failure and impact> · <minimal fix>
+advisories:
+- P2|P3 · <dimension> · <file/area> · <observation>
 
 <!--
-Rules baked into the reviewer roles, repeated here because they are the ones
-that rot first:
-- "Works" requires positive evidence. Absence of failure is not success.
-- BENCH: pending only for ticket-scoped bench-hardware criteria that no code
-  run can evidence, with everything code-provable positively proven. Omit the
-  line when the ticket has no bench-gated criteria.
-- Never propose weakening a test to pass.
-- Follow-up findings become tickets, never inline scope.
+Use "- none" for an empty section. Only P0 and P1 block. P2 and P3 are
+advisory and never start a repair or consume the blocking repair budget.
 -->

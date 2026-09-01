@@ -25,8 +25,8 @@ labels carry workflow state.
    merge independently, STOP. Write "DECOMPOSE" plus a suggested split in your
    result file. Do not use raw file count as the reason to stop. Generated
    platform scaffolding, lockfiles, and mechanical output can span many files.
-3. Plan before code for anything non-trivial: 5-10 lines in your result file.
-   Modules, interfaces, test seams. Then code.
+3. Plan before code for anything non-trivial: 5-20 lines in your result file.
+   Modules, interfaces, test seams. Review the plan again to ensure is solves the ticket without mistakes. Then code.
 4. Implement the smallest change that satisfies every acceptance criterion.
 5. Run the objective checks yourself and fix red:
    - changed package: `flutter analyze` / `dart analyze`, `flutter test` / `dart test`
@@ -55,6 +55,7 @@ labels carry workflow state.
 - Follow the client repo's AGENTS.md, ARDs, and import/barrel rules.
 - Commit as the configured git identity. Neutral, professional messages.
   No AI markers, no loop markers, no emoji.
+- Make no mistake.
 
 ## Output contract
 

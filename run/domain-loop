@@ -257,8 +257,9 @@ done < <(find "$stage" -type f)
   printf 'Actor session: %s. Work unit: %s. Operation: %s.\n' "$sid" "$work_unit" "$operation"
   printf 'Independently inspect every listed artifact and the live source. Confirm the domain Verify field, the one-work-unit limit, the human boundary, and that the operation key did not duplicate a side effect.\n'
   printf 'For NOOP, independently prove discovery is empty. For BLOCKED, prove a human decision is necessary and the parked artifact exists.\n'
+  printf 'Do not use shell commands. Use read and search tools on the contract, source, staged artifacts, and result records.\n'
   printf 'Write the complete verdict with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$verifier_result" "$verifier_result"
-  printf 'VERDICT: PASS | FAIL\nACTOR: %s\nSUMMARY: <one sentence>\nEVIDENCE: <checked paths, URLs, and command exits>\n' "$sid"
+  printf 'VERDICT: PASS | FAIL\nACTOR: %s\nSUMMARY: <one sentence>\nEVIDENCE: <checked paths, URLs, and records>\n' "$sid"
   printf 'Do not touch any .done file or append the domain Timeline.\n'
 } > "$verifier_prompt"
 

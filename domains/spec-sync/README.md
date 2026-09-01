@@ -30,10 +30,11 @@ files.
 ## Backlog
 
 - [x] First manual run over the newest archived transcript (PR 24, merged)
-- [ ] One resilience re-run of transcript 定例MTG_20260827.txt under the
-  staging-budget contract, then ack its ledger entry
+- [x] Reconcile transcript 定例MTG_20260827.txt after PR 91 and acknowledge
+  its completed ledger entry
 
 ## Timeline
+2026-08-31 | reconciliation | RESOLVED: PR 91 corrected the PRD008 transcript citation and recorded the qualified ECG time-horizon decision in PRD008 and ARD016. The transcript hash is completed in state/specsync.ledger, and both verifier decision cards are decided. The 2026-08-28 failed cycle remains historical evidence.
 2026-08-28 | cycle loop-spec-sync-20260828-225624 | FAIL: NOOP cannot pass because live source contains a broken transcript citation and an Accepted ARD that silently fixes the still-pending MM4-D7 choice, so discovery is not empty and the citation and human-boundary checks fail although scope, staging, draft-state, and idempotency checks pass.
 2026-08-27 | cycle loop-spec-sync-20260827-121644 | FAIL: spec-sync staged too many artifacts
 

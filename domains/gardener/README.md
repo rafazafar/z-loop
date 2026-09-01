@@ -2,7 +2,7 @@
 kind: domain
 domain: gardener
 status: paused
-goal: Convert recurring evidence into proposed issues and loop-self improvements; never edit anything directly
+goal: Convert recurring evidence into proposed issues and workflow improvements; never edit anything directly
 cadence: weekly (Sunday 20:00, launchd, not yet loaded)
 trigger: Weekly schedule or a manual run
 discover: Select one recurring signal or one evidence-backed repo or loop drift finding

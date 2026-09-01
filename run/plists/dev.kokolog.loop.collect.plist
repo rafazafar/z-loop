@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>dev.kokolog.loop.decisions</string>
+    <string>dev.kokolog.loop.collect</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>__LOOP_ROOT__/run/decision-batch</string>
+        <string>__LOOP_ROOT__/run/collect-results</string>
     </array>
     <key>WorkingDirectory</key>
     <string>__LOOP_ROOT__</string>
@@ -17,20 +17,13 @@
         <key>PATH</key>
         <string>__LAUNCH_PATH__</string>
     </dict>
-    <key>StartCalendarInterval</key>
-    <array>
-        <dict>
-            <key>Hour</key><integer>9</integer>
-            <key>Minute</key><integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key><integer>17</integer>
-            <key>Minute</key><integer>0</integer>
-        </dict>
-    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <false/>
     <key>StandardOutPath</key>
-    <string>__LOOP_ROOT__/logs/launchd-decisions.out</string>
+    <string>__LOOP_ROOT__/logs/launchd-collect.out</string>
     <key>StandardErrorPath</key>
-    <string>__LOOP_ROOT__/logs/launchd-decisions.err</string>
+    <string>__LOOP_ROOT__/logs/launchd-collect.err</string>
 </dict>
 </plist>

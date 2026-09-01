@@ -6,12 +6,14 @@
 set -euo pipefail
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="$HOME/Library/LaunchAgents"
+NODE_BIN="$(command -v node)" || { echo "node not found" >&2; exit 1; }
+LAUNCH_PATH="$(dirname "$NODE_BIN"):$HOME/.opencode/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 mkdir -p "$DEST"
 
 for src in "$LOOP_ROOT"/run/plists/*.plist; do
   [ -e "$src" ] || { echo "no plists found"; exit 1; }
   name="$(basename "$src")"
-  sed "s|__LOOP_ROOT__|$LOOP_ROOT|g" "$src" > "$DEST/$name"
+  sed -e "s|__LOOP_ROOT__|$LOOP_ROOT|g" -e "s|__LAUNCH_PATH__|$LAUNCH_PATH|g" "$src" > "$DEST/$name"
   echo "installed $DEST/$name (NOT loaded)"
 done
 

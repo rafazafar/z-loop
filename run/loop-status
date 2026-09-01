@@ -1,54 +1,57 @@
 #!/bin/bash
-# loop-status — what the machine is doing right now. Pure bash rendering of
-# state files. Collectors write data; nobody pays a model to fetch numbers.
 set -uo pipefail
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck disable=SC1090
-. "$LOOP_ROOT/run/common.sh"
+
+snapshot="$(node "$LOOP_ROOT/web/status.mjs")" || {
+  echo "loop status unavailable" >&2
+  exit 1
+}
 
 echo "== kokolog-loop $(date '+%F %T') =="
 
+echo; echo "-- attention --"
+printf '%s' "$snapshot" | jq -r '
+  if (.attention | length) == 0 then "  (none)"
+  else .attention[] | "  [\(.severity)] \(.title)\n     \(.detail // "")\n     next: \(.action)"
+  end'
+
 echo; echo "-- domains --"
-for d in implement spec-sync ticket-factory gardener decision-desk; do
-  f="$LOOP_ROOT/domains/$d/README.md"
-  [ -f "$f" ] || continue
-  status="$(grep -m1 '^status:' "$f" | sed 's/status: *//')"
-  goal="$(grep -m1 '^goal:' "$f" | sed 's/goal: *//')"
-  last="$(grep -A1 '^## Timeline' "$f" | tail -1)"
-  printf '%-15s %-8s %s\n' "$d" "${status:-?}" "${goal:-}"
-  [ -n "${last:-}" ] && printf '   last: %s\n' "$last"
-done
+printf '%s' "$snapshot" | jq -r '.loops[] |
+  "\(.id)\t\(.status)\t\(if .timerConfigured then (if .timerLoaded then "armed" else "not-armed" end) else "manual" end)\t\(.goal)\n   last: \(.lastEvent)"' \
+  | while IFS=$'\t' read -r domain status timer rest; do
+      if [ -n "${rest:-}" ]; then
+        printf '%-15s %-8s %-10s %s\n' "$domain" "$status" "$timer" "$rest"
+      else
+        printf '%s\n' "$domain"
+      fi
+    done
 
-echo; echo "-- sessions --"
-alive="$(tmux list-sessions 2>/dev/null | grep "^$tmux_session_prefix-" || true)"
-if [ -n "$alive" ]; then printf '%s\n' "$alive"; else echo "(none in flight)"; fi
-undone=""
-for d in "$SESSIONS"/*.done; do
-  [ -e "$d" ] || continue
-  r="${d%.done}.result"
-  [ -e "${d%.done}.harvested" ] || { undone="$undone $(basename "${d%.done}")"; }
-done
-[ -n "$undone" ] && echo "awaiting harvest:$undone"
+echo; echo "-- current sessions --"
+printf '%s' "$snapshot" | jq -r '
+  if (.currentSessions | length) == 0 then "  (none)"
+  else .currentSessions[] | "  \(.id) — \(.status) — last \(.lastActivity // "unknown")"
+  end'
 
-echo; echo "-- tickets --"
-for f in "$STATE"/[0-9]*.*; do
-  [ -e "$f" ] || continue
-  b="$(basename "$f")"
-  case "$b" in
-    *.merged-unverified)
-      reason="$(cat "$f" 2>/dev/null || true)"
-      printf '%s — %s\n' "$b" "${reason:-PR merged before assurance completed}" ;;
-    *.in-progress|*.review|*.fix|*.done|*.parked|*.blocked-decision|*.ready)
-      printf '%s\n' "$b" ;;
-  esac
-done | sort | uniq | sed 's/^/  /' || true
-count="$(ls "$STATE"/[0-9]*.* 2>/dev/null | wc -l | tr -d ' ')"
-[ "$count" = "0" ] && echo "  (no ticket state — frontier untouched)"
+echo; echo "-- tickets and assurance --"
+printf '%s' "$snapshot" | jq -r '
+  def profile_marks:
+    if (.assurance.total // 0) == 0 then "n/a"
+    else [.assurance.profiles[] | "\(.name):\(if .status == "passed" then "pass" elif .status == "current" then "next" else "wait" end)"] | join(" ")
+    end;
+  if (.tickets | length) == 0 then "  (none)"
+  else .tickets[] |
+    "  #\(.id) \(.status) · PR \(if .prNumber then "#\(.prNumber) \(.prState)" else "none" end) · assurance \(.assurance.passed)/\(.assurance.total) · revision \(.round) · P0/P1 repair \(.repair)/\(.repairLimit)\n     \(profile_marks)\n     head: \(.headShort // "-") · last: \(.lastActivity // "unknown") · model-session duration: \(if .session then "\(.session.durationSeconds // 0)s" else "n/a" end)\n     next: \(.nextAction)\(if (.reason // "") != "" then "\n     reason: \(.reason)" else "" end)"
+  end'
+
+echo; echo "-- issue queue --"
+printf '%s' "$snapshot" | jq -r '
+  if .frontier.available then
+    "  \(.frontier.eligible) ready now · \(.frontier.deferred) waiting · \(.frontier.labeled) in queue\n  next: \(if .frontier.next then "#\(.frontier.next.number) \(.frontier.next.title)" else "none" end)"
+  else "  unavailable"
+  end'
 
 echo; echo "-- open decision cards --"
-ls "$LOOP_ROOT"/decisions/*.card.md >/dev/null 2>&1 \
-  && grep -l '^status: *open' "$LOOP_ROOT"/decisions/*.card.md | sed 's/^/  /' \
-  || echo "  (none)"
-
-echo; echo "-- LOG tail --"
-tail -n 14 "$LOGMD" 2>/dev/null | sed 's/^/  /'
+printf '%s' "$snapshot" | jq -r '
+  if (.cards | map(select(.status == "open")) | length) == 0 then "  (none)"
+  else .cards[] | select(.status == "open") | "  \(.name) — \(.title)"
+  end'

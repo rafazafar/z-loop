@@ -1,124 +1,125 @@
 import http from "node:http";
-import { execFile, spawn } from "node:child_process";
-import { readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { watch } from "node:fs";
+import { open, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { collectStatus, definitions, field, runCommand } from "./status.mjs";
+import { recordMergedAudit } from "./audit.mjs";
+import { applyDispatchPolicy, applyRouteUpdates, installLaunchAgent, launchAgentEnvironment, launchAgentPaths, parseModelList, parseModelMetadata, routeEntries, STANDARD_VARIANTS, updateLaunchAgentSchedule, writeRouting } from "./control-plane.mjs";
 
-const exec = promisify(execFile);
 const web = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(web);
 const port = Number(process.argv[process.argv.indexOf("--port") + 1]) || 4177;
-const definitions = {
-  implement: { runner: "loop-tick", args: ["--once"], cadence: "Every 60m", timer: "dev.kokolog.loop.tick", consumes: "Ready GitHub issues", produces: "PRs and verdicts" },
-  "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, cadence: "Every 10m", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Doc PRs and decisions" },
-  "ticket-factory": { runner: "domain-loop", role: "ticketer", args: ["ticket-factory"], background: true, cadence: "On demand", consumes: "Approved specs and epics", produces: "Breakdown cards" },
-  gardener: { runner: "domain-loop", role: "gardener", args: ["gardener"], background: true, cadence: "Weekly", consumes: "Signals and verdicts", produces: "Signals and proposal cards" },
-  "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, cadence: "09:00 and 17:00", timer: "dev.kokolog.loop.decisions", consumes: "Open cards and parked work", produces: "Human decision queues" }
-};
-const domainIds = Object.keys(definitions);
-const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "parked", "merged-unverified", "blocked-decision"]);
+const eventClients = new Set();
+let statusCache = null;
+let statusCacheAt = 0;
+let statusRefresh = null;
+let refreshDebounce = null;
+let modelCache = null;
+let modelCacheAt = 0;
+const providerCache = new Map();
 
-async function run(file, args = [], cwd = root, timeout = 10000) {
-  try {
-    const result = await exec(file, args, { cwd, timeout, maxBuffer: 1024 * 1024 });
-    return { ok: true, stdout: result.stdout.trim(), output: `${result.stdout}${result.stderr}`.trim() };
-  } catch (error) {
-    return { ok: false, stdout: (error.stdout || "").trim(), output: `${error.stdout || ""}${error.stderr || error.message}`.trim() };
-  }
+function statusFingerprint(status) {
+  const { generatedAt, ...stable } = status;
+  return JSON.stringify(stable);
+}
+
+function writeEvent(response, event, data) {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function broadcastState(status) {
+  for (const response of eventClients) writeEvent(response, "state", status);
+}
+
+async function refreshStatus(force = false) {
+  if (!force && statusCache && Date.now() - statusCacheAt < 2500) return statusCache;
+  if (statusRefresh) return statusRefresh;
+  statusRefresh = collectStatus(root).then((next) => {
+    const changed = !statusCache || statusFingerprint(statusCache) !== statusFingerprint(next);
+    statusCache = next;
+    statusCacheAt = Date.now();
+    if (changed) broadcastState(next);
+    return next;
+  }).finally(() => { statusRefresh = null; });
+  return statusRefresh;
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshDebounce);
+  refreshDebounce = setTimeout(() => refreshStatus(true).catch((error) => console.error("status refresh failed", error)), 350);
+}
+
+function streamEvents(request, response) {
+  response.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no"
+  });
+  response.write("retry: 2000\n\n");
+  eventClients.add(response);
+  refreshStatus().then((status) => writeEvent(response, "state", status)).catch((error) => writeEvent(response, "error", { message: error.message }));
+  const keepAlive = setInterval(() => response.write(`: heartbeat ${Date.now()}\n\n`), 15000);
+  request.on("close", () => {
+    clearInterval(keepAlive);
+    eventClients.delete(response);
+  });
 }
 
 function runDetached(file, args = []) {
-  try {
+  return new Promise((resolve) => {
     const child = spawn(file, args, { cwd: root, detached: true, stdio: "ignore" });
-    child.unref();
-    return { ok: true, output: `Started ${path.basename(file)} ${args.join(" ")}`.trim() };
-  } catch (error) {
-    return { ok: false, output: error.message };
-  }
+    child.once("error", (error) => resolve({ ok: false, output: error.message }));
+    child.once("spawn", () => {
+      child.unref();
+      resolve({ ok: true, output: `Started ${path.basename(file)} ${args.join(" ")}`.trim() });
+    });
+  });
 }
 
 async function readBody(request) {
   let raw = "";
   for await (const chunk of request) {
     raw += chunk;
-    if (raw.length > 4096) return null;
+    if (raw.length > 8192) return null;
   }
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const error = new Error("Malformed JSON");
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
-function field(text, name) {
-  return text.match(new RegExp(`^${name}:\\s*(.+)$`, "m"))?.[1]?.trim() || "";
-}
-
-function timeline(text) {
-  const body = text.split(/^## Timeline\s*$/m)[1]?.split(/^## /m)[0] || "";
-  return body.split("\n").map((line) => line.trim()).filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line)).slice(0, 8);
-}
-
-async function isTimerLoaded(label) {
-  if (!label) return false;
-  return (await run("launchctl", ["print", `gui/${process.getuid()}/${label}`], root, 2000)).ok;
-}
-
-async function collectSessions(routing) {
-  const dir = path.join(root, "state/sessions");
-  const files = await readdir(dir).catch(() => []);
-  const liveText = (await run("tmux", ["list-sessions", "-F", "#S"], root, 2000)).output;
-  const live = new Set(liveText.split("\n").filter(Boolean).map((id) => id.replace(/^kokoloop-/, "")));
-  const ids = files.filter((name) => name.endsWith(".prompt")).map((name) => name.replace(/\.prompt$/, ""));
-  return Promise.all(ids.map(async (id) => {
-    const resultPath = path.join(dir, `${id}.result`);
-    const result = await readFile(resultPath, "utf8").catch(() => "");
-    const loop = domainIds.find((domain) => id.startsWith(`loop-${domain}-`)) || (/^dist-/.test(id) ? "spec-sync" : /^desk-/.test(id) ? "decision-desk" : "implement");
-    const role = id.includes("-rev-") || id.endsWith("-verify") ? "reviewer" : loop === "implement" ? "implementer" : definitions[loop]?.role || loop;
-    const route = routing.roles?.[role];
-    return { id, loop, role, route: route?.model ? `${route.model} · ${route.variant || "default"}` : "", status: live.has(id) ? "running" : files.includes(`${id}.harvested`) ? "harvested" : files.includes(`${id}.done`) ? "awaiting harvest" : "incomplete", result: result.slice(0, 24000), log: `${id}.jsonl` };
-  }));
-}
-
-async function collect() {
-  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
-  const repoPath = routing.project.repo_path;
-  const remote = (await run("git", ["remote", "get-url", "origin"], repoPath)).output;
-  const ghrepo = remote.replace(/^.*github\.com[:/]/, "").replace(/\.git$/, "");
-  const sessions = await collectSessions(routing);
-  const loops = await Promise.all(domainIds.map(async (id) => {
-    const text = await readFile(path.join(root, `domains/${id}/README.md`), "utf8");
-    const def = definitions[id];
-    return { id, status: field(text, "status"), goal: field(text, "goal"), cadence: def.cadence, timerLoaded: await isTimerLoaded(def.timer), triggerable: Boolean(def.runner), unavailable: def.unavailable || "", consumes: def.consumes, produces: def.produces, timeline: timeline(text), work: sessions.find((item) => item.loop === id && item.status === "running")?.id || "Idle" };
-  }));
-  const stateFiles = await readdir(path.join(root, "state")).catch(() => []);
-  const ticketFiles = stateFiles.map((name) => ({ name, match: name.match(/^(\d+)\.(.+)$/) })).filter((item) => item.match && stateNames.has(item.match[2]));
-  const ticketStats = await Promise.all(ticketFiles.map(async (item) => {
-    const filePath = path.join(root, "state", item.name);
-    return { id: item.match[1], status: item.match[2], reason: (await readFile(filePath, "utf8").catch(() => "")).trim(), mtime: (await stat(filePath)).mtimeMs };
-  }));
-  const latestTickets = new Map();
-  for (const ticket of ticketStats) if (!latestTickets.has(ticket.id) || latestTickets.get(ticket.id).mtime < ticket.mtime) latestTickets.set(ticket.id, ticket);
-  const tickets = [...latestTickets.values()].map(({ id, status, reason }) => ({ id, status, reason }));
-  const decisionFiles = await readdir(path.join(root, "decisions")).catch(() => []);
-  const cards = (await Promise.all(decisionFiles.filter((name) => name.endsWith(".md") && name !== "README.md").map(async (name) => {
-    const info = await stat(path.join(root, "decisions", name)).catch(() => null);
-    if (!info?.isFile()) return null;
-    const text = await readFile(path.join(root, "decisions", name), "utf8");
-    return { name, status: field(text, "status") || "unknown", title: text.match(/^# (.+)$/m)?.[1]?.trim() || name, text: text.slice(0, 16000) };
-  }))).filter(Boolean);
-  const logFiles = await readdir(path.join(root, "logs")).catch(() => []);
-  const logs = (await Promise.all(logFiles.map(async (name) => ({ name, info: await stat(path.join(root, "logs", name)).catch(() => null) })))).filter((item) => item.info?.isFile()).sort((a, b) => b.info.mtimeMs - a.info.mtimeMs).slice(0, 30).map((item) => ({ name: item.name, size: item.info.size, modified: item.info.mtime.toISOString() }));
-  const frontierResult = await run("gh", ["issue", "list", "-R", ghrepo, "--state", "open", "--label", routing.github.frontier_label, "--limit", "50", "--json", "number,title"], root, 5000);
-  let frontier = [];
-  try { if (frontierResult.ok) frontier = JSON.parse(frontierResult.stdout || "[]"); } catch {}
-  return { generatedAt: new Date().toISOString(), repo: { path: repoPath, ghrepo }, loops, sessions: sessions.sort((a, b) => b.id.localeCompare(a.id)), tickets, cards, decisions: cards.filter((card) => card.status === "open").map((card) => card.name), logs, frontier, routing };
+async function readTail(file, maxBytes = 250000) {
+  const info = await stat(file);
+  const length = Math.min(info.size, maxBytes);
+  const handle = await open(file, "r");
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, info.size - length);
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await handle.close();
+  }
 }
 
 async function action(body) {
   const def = definitions[body.loop];
-  if (!def || !["run", "toggle"].includes(body.action)) return { ok: false, output: "Unsupported action" };
-  if (body.action === "run") {
+  if (!def || !["run", "advance", "collect", "sync", "toggle"].includes(body.action)) return { ok: false, output: "Unsupported action" };
+  if (["collect", "sync"].includes(body.action)) {
+    const task = def.maintenance?.find((item) => item.id === body.action);
+    if (!task) return { ok: false, output: "Unsupported maintenance action" };
+    return runCommand(path.join(root, `run/${task.runner}`), [], root, 120000);
+  }
+  if (body.action === "run" || body.action === "advance") {
     if (!def.runner) return { ok: false, output: def.unavailable };
     const runner = path.join(root, `run/${def.runner}`);
-    return def.background ? runDetached(runner, def.args || []) : run(runner, def.args || [], root, 120000);
+    const args = body.action === "advance" && body.loop === "implement" ? ["--next"] : (def.args || []);
+    return def.background ? runDetached(runner, args) : runCommand(runner, args, root, 120000);
   }
   const file = path.join(root, `domains/${body.loop}/README.md`);
   const text = await readFile(file, "utf8");
@@ -128,6 +129,169 @@ async function action(body) {
   await writeFile(temporary, text.replace(/^status:\s*\w+/m, `status: ${next}`));
   await rename(temporary, file);
   return { ok: true, output: `${body.loop} is now ${next}` };
+}
+
+function scheduleTarget(body) {
+  const def = definitions[body?.loop];
+  if (!def) return null;
+  if (!body?.task) return { ...def, id: body.loop, title: body.loop, paid: true };
+  const task = def.maintenance?.find((item) => item.id === body.task);
+  return task ? { ...task, title: `${body.loop} ${task.label}` } : null;
+}
+
+async function timerAction(body) {
+  const def = definitions[body?.loop];
+  const targetDef = scheduleTarget(body);
+  const timerActionName = body?.timerAction;
+  if (!def || !targetDef?.timer || !["arm", "disarm"].includes(timerActionName)) return { ok: false, output: "Unsupported timer action" };
+  const domainFile = path.join(root, `domains/${body.loop}/README.md`);
+  const domain = await readFile(domainFile, "utf8");
+  if (timerActionName === "arm" && targetDef.paid !== false && field(domain, "status") !== "active") return { ok: false, output: "Resume the workflow before you start its paid schedule" };
+  const target = launchAgentPaths(root, targetDef.timer).installed;
+  const service = `gui/${process.getuid()}/${targetDef.timer}`;
+  const loaded = (await runCommand("launchctl", ["print", service], root, 3000)).ok;
+  if (timerActionName === "arm") {
+    if (loaded) return { ok: true, output: `${body.loop} schedule is already on` };
+    await installLaunchAgent(root, targetDef.timer);
+    const preflightArgs = targetDef.paid === false ? ["--no-model-runtime"] : [];
+    const preflight = await runCommand(path.join(root, "run/doctor"), preflightArgs, root, 30000, launchAgentEnvironment());
+    if (!preflight.ok) return { ok: false, output: `The scheduled environment is not ready:\n${preflight.output}` };
+    const result = await runCommand("launchctl", ["bootstrap", `gui/${process.getuid()}`, target], root, 10000);
+    if (!result.ok) return { ok: false, output: result.output || `Could not start ${body.loop} schedule` };
+    return { ok: true, output: `${targetDef.title} schedule is on · ${targetDef.cadence}` };
+  }
+  if (!loaded) return { ok: true, output: `${targetDef.title} schedule is already off` };
+  const result = await runCommand("launchctl", ["bootout", service], root, 10000);
+  return result.ok ? { ok: true, output: `${targetDef.title} schedule is off` } : { ok: false, output: result.output || `Could not stop ${targetDef.title} schedule` };
+}
+
+async function writeLaunchAgentSource(file, text) {
+  const temporary = `${file}.dashboard.tmp`;
+  await writeFile(temporary, text, { mode: 0o644 });
+  await rename(temporary, file);
+}
+
+async function scheduleAction(body) {
+  const targetDef = scheduleTarget(body);
+  if (!targetDef?.timer) return { ok: false, output: "This workflow has no automatic schedule" };
+  if (body?.acknowledged !== true) return { ok: false, output: "Confirm the schedule change first" };
+  const files = launchAgentPaths(root, targetDef.timer);
+  const previous = await readFile(files.source, "utf8");
+  let updated;
+  try {
+    updated = updateLaunchAgentSchedule(previous, body?.schedule);
+  } catch (error) {
+    return { ok: false, output: error.message };
+  }
+
+  const service = `gui/${process.getuid()}/${targetDef.timer}`;
+  const loaded = (await runCommand("launchctl", ["print", service], root, 3000)).ok;
+  const installed = await stat(files.installed).then(() => true).catch(() => false);
+  let stopped = false;
+  try {
+    if (loaded) {
+      const result = await runCommand("launchctl", ["bootout", service], root, 10000);
+      if (!result.ok) throw new Error(result.output || "Could not stop the current schedule");
+      stopped = true;
+    }
+    await writeLaunchAgentSource(files.source, updated.text);
+    if (installed || loaded) await installLaunchAgent(root, targetDef.timer);
+    const preflightArgs = targetDef.paid === false ? ["--no-model-runtime"] : [];
+    const preflight = await runCommand(path.join(root, "run/doctor"), preflightArgs, root, 30000, launchAgentEnvironment());
+    if (!preflight.ok) throw new Error(`The scheduled environment is not ready:\n${preflight.output}`);
+    if (loaded) {
+      const result = await runCommand("launchctl", ["bootstrap", `gui/${process.getuid()}`, files.installed], root, 10000);
+      if (!result.ok) throw new Error(result.output || "Could not restart the updated schedule");
+    }
+    return { ok: true, output: `${targetDef.title} schedule saved · ${updated.schedule.cadence}${loaded ? " · schedule restarted" : ""}` };
+  } catch (error) {
+    const rollbackErrors = [];
+    try {
+      await writeLaunchAgentSource(files.source, previous);
+      if (installed || loaded) await installLaunchAgent(root, targetDef.timer);
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError.message);
+    }
+    if (loaded && stopped) {
+      const result = await runCommand("launchctl", ["bootstrap", `gui/${process.getuid()}`, files.installed], root, 10000);
+      if (!result.ok) rollbackErrors.push(result.output || "Could not restart the previous schedule");
+    }
+    return { ok: false, output: `Schedule change failed and was rolled back: ${error.message}${rollbackErrors.length ? `\nRollback warning: ${rollbackErrors.join("; ")}` : ""}` };
+  }
+}
+
+async function availableModels(force = false) {
+  if (!force && modelCache && Date.now() - modelCacheAt < 60000) return modelCache;
+  const result = await runCommand("opencode", ["models"], root, 20000);
+  const models = parseModelList(result.stdout || result.output);
+  if (!models.length) throw new Error(result.output || "No installed models were found");
+  modelCache = models;
+  modelCacheAt = Date.now();
+  return models;
+}
+
+async function providerModels(provider, force = false) {
+  const cached = providerCache.get(provider);
+  if (!force && cached && Date.now() - cached.at < 300000) return cached.models;
+  const result = await runCommand("opencode", ["models", provider, "--verbose", "--pure"], root, 20000);
+  const models = parseModelMetadata(result.stdout || result.output);
+  if (!Object.keys(models).length) throw new Error(result.output || `No model metadata was returned for ${provider}`);
+  providerCache.set(provider, { at: Date.now(), models });
+  return models;
+}
+
+async function variantsForModels(models, force = false) {
+  const providers = [...new Set(models.map((model) => model.split("/")[0]))];
+  const metadata = await Promise.all(providers.map((provider) => providerModels(provider, force)));
+  return Object.assign({}, ...metadata);
+}
+
+async function variantsForModel(model, force = false) {
+  const installed = await availableModels();
+  if (!installed.includes(model)) throw new Error(`Model is not installed: ${model}`);
+  const variants = (await providerModels(model.split("/")[0], force))[model];
+  if (!variants?.length) throw new Error(`No variants were reported for ${model}`);
+  return variants;
+}
+
+async function modelCatalog(force = false) {
+  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
+  const routes = routeEntries(routing);
+  const routeModels = [...new Set(routes.map((route) => route.model))];
+  return { models: await availableModels(force), variants: STANDARD_VARIANTS, variantsByModel: await variantsForModels(routeModels, force), routes };
+}
+
+async function routingAction(body) {
+  if (body?.acknowledged !== true) return { ok: false, output: "Confirm the routing change first" };
+  const file = path.join(root, "routing.json");
+  const previousText = await readFile(file, "utf8");
+  const previous = JSON.parse(previousText);
+  const updates = body?.updates;
+  const models = Array.isArray(updates) ? [...new Set(updates.map((update) => String(update?.model || "")))] : [];
+  const next = applyRouteUpdates(previous, updates, await availableModels(), await variantsForModels(models));
+  await writeRouting(root, next);
+  const check = await runCommand(path.join(root, "run/doctor"), [], root, 30000);
+  if (!check.ok) {
+    await writeFile(`${file}.dashboard.tmp`, previousText, { mode: 0o644 });
+    await rename(`${file}.dashboard.tmp`, file);
+    return { ok: false, output: `Routing validation failed and was rolled back.\n${check.output}` };
+  }
+  return { ok: true, output: "Model routing saved. New model sessions will use these routes." };
+}
+
+async function dispatchPolicyAction(body) {
+  if (body?.acknowledged !== true) return { ok: false, output: "Confirm the paid dispatch limit first" };
+  const file = path.join(root, "routing.json");
+  const previousText = await readFile(file, "utf8");
+  const next = applyDispatchPolicy(JSON.parse(previousText), body?.maxStarts);
+  await writeRouting(root, next);
+  const check = await runCommand(path.join(root, "run/doctor"), [], root, 30000);
+  if (!check.ok) {
+    await writeFile(`${file}.dashboard.tmp`, previousText, { mode: 0o644 });
+    await rename(`${file}.dashboard.tmp`, file);
+    return { ok: false, output: `Paid dispatch policy validation failed and was rolled back.\n${check.output}` };
+  }
+  return { ok: true, output: `Paid dispatch limit saved · ${next.rules.max_new_sessions_per_dispatch} model session(s) per run` };
 }
 
 async function decide(body) {
@@ -148,12 +312,31 @@ async function decide(body) {
   const decided = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const updatedHead = head
     .replace(/^status: open$/m, "status: decided")
-    .replace(/^(date: .+)$/m, `$1\ndecided-by: human (dashboard)\ndecided: ${decided}`);
+    .replace(/^(date: .+)$/m, `$1\ndecided-by: owner (operator console)\ndecided: ${decided}`);
   const answer = `## Decision\n\nOption ${option[1]} — ${option[2].trim()}.${note ? ` Note: ${note}` : ""}\n`;
   const temporary = `${file}.tmp`;
   await writeFile(temporary, `${(updatedHead + rest).trimEnd()}\n\n${answer}`);
   await rename(temporary, file);
   return { ok: true, output: `${name} · recorded: Option ${option[1]}` };
+}
+
+async function resolveParked(body) {
+  const ticket = Number(body?.ticket);
+  const disposition = ["resume", "retry", "manual"].includes(body?.disposition) ? body.disposition : "";
+  const note = String(body?.note || "").replace(/\r\n/g, "\n").trim();
+  if (!Number.isSafeInteger(ticket) || ticket < 1 || !disposition) return { ok: false, output: "Invalid parked-ticket disposition" };
+  if (disposition !== "retry") {
+    if (body?.acknowledged !== true) return { ok: false, output: "Acknowledge the disposition first" };
+    if (note.length < 12) return { ok: false, output: "Add a specific note of at least 12 characters" };
+    if (note.length > 4000) return { ok: false, output: "Note is too long" };
+  }
+  const result = await runCommand(path.join(root, "run/resolve-ticket"), [String(ticket), disposition, note], root, 30000);
+  if (!result.ok) return { ok: false, output: result.output };
+  if (["resume", "retry"].includes(disposition)) {
+    const reconcile = await runCommand(path.join(root, "run/loop-tick"), ["--reconcile-only"], root, 120000);
+    return { ok: reconcile.ok, output: [result.output, reconcile.output].filter(Boolean).join("\n") };
+  }
+  return { ok: true, output: result.output };
 }
 
 function send(response, status, data, type = "application/json") {
@@ -167,28 +350,91 @@ http.createServer(async (request, response) => {
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return send(response, 403, { error: "Invalid host" });
     if (request.method === "POST" && request.headers.origin && ![`http://127.0.0.1:${port}`, `http://localhost:${port}`].includes(request.headers.origin)) return send(response, 403, { error: "Invalid origin" });
     const url = new URL(request.url, `http://${request.headers.host}`);
-    if (url.pathname === "/api/state") return send(response, 200, await collect());
+    if (url.pathname === "/api/state") return send(response, 200, await refreshStatus());
+    if (url.pathname === "/api/events") return streamEvents(request, response);
+    if (url.pathname === "/api/models") return send(response, 200, await modelCatalog(url.searchParams.get("refresh") === "1"));
+    if (url.pathname === "/api/model-variants") {
+      const model = url.searchParams.get("model") || "";
+      return send(response, 200, { model, variants: await variantsForModel(model, url.searchParams.get("refresh") === "1") });
+    }
     if (url.pathname === "/api/log") {
       const name = path.basename(url.searchParams.get("name") || "");
       if (!name) return send(response, 400, { error: "Missing log name" });
-      const text = await readFile(path.join(root, "logs", name), "utf8");
-      return send(response, 200, text.slice(-250000), "text/plain");
+      return send(response, 200, await readTail(path.join(root, "logs", name)), "text/plain");
     }
     if (url.pathname === "/api/action" && request.method === "POST") {
       const body = await readBody(request);
       if (body === null) return send(response, 413, { error: "Request too large" });
-      return send(response, 200, await action(body));
+      const result = await action(body);
+      await refreshStatus(true);
+      return send(response, 200, result);
+    }
+    if (url.pathname === "/api/timer" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await timerAction(body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
+    }
+    if (url.pathname === "/api/schedule" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await scheduleAction(body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
+    }
+    if (url.pathname === "/api/routing" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await routingAction(body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
+    }
+    if (url.pathname === "/api/dispatch-policy" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await dispatchPolicyAction(body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
     }
     if (url.pathname === "/api/decide" && request.method === "POST") {
       const body = await readBody(request);
       if (body === null) return send(response, 413, { error: "Request too large" });
-      return send(response, 200, await decide(body));
+      const result = await decide(body);
+      await refreshStatus(true);
+      return send(response, 200, result);
+    }
+    if (url.pathname === "/api/merged-audit" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await recordMergedAudit(root, body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
+    }
+    if (url.pathname === "/api/parked-resolution" && request.method === "POST") {
+      const body = await readBody(request);
+      if (body === null) return send(response, 413, { error: "Request too large" });
+      const result = await resolveParked(body);
+      await refreshStatus(true);
+      return send(response, result.ok ? 200 : 409, result);
     }
     const file = url.pathname === "/" ? "index.html" : path.basename(url.pathname);
-    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript" };
+    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript" };
     try { return send(response, 200, await readFile(path.join(web, file), "utf8"), types[path.extname(file)] || "text/plain"); }
     catch (error) { if (error.code === "ENOENT") return send(response, 404, { error: "Not found" }); throw error; }
   } catch (error) {
-    send(response, 500, { error: error.message });
+    send(response, error.statusCode || 500, { error: error.message });
   }
 }).listen(port, "127.0.0.1", () => console.log(`Bench: http://127.0.0.1:${port}`));
+
+for (const target of [path.join(root, "state"), path.join(root, "domains"), path.join(root, "decisions"), path.join(root, "routing.json")]) {
+  try {
+    const watcher = watch(target, { recursive: true }, scheduleRefresh);
+    watcher.unref();
+  } catch (error) {
+    console.error(`cannot watch ${target}`, error.message);
+  }
+}
+
+const statusTimer = setInterval(() => refreshStatus(true).catch((error) => console.error("status poll failed", error)), 8000);
+statusTimer.unref();

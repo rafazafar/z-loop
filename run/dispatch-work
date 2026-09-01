@@ -1,0 +1,11 @@
+#!/bin/bash
+# Start paid implementation work. One invocation uses the configured session cap.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+case "${1:-}" in
+  "") mode=--dispatch ;;
+  --current) mode=--advance-current ;;
+  --next) mode=--start-next ;;
+  *) echo "usage: dispatch-work [--current|--next]" >&2; exit 64 ;;
+esac
+exec "$LOOP_ROOT/run/loop-tick" "$mode"

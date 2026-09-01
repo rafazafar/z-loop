@@ -34,12 +34,12 @@ What: PASS at review round 1; PR ready for merge.
 Refs: /Users/zafar/.kokolog-loop/verdicts/13-verdict.md
 
 ## 2026-08-28 · assurance runtime landed · #loop #infra
-What: desired-state assurance reconciliation bound to immutable PR OIDs; profile classifier with per-profile read-only reviewers; prove-it ran live on ticket 13 and parked correctly on a merged PR.
-Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/assurance-reviewer.md (new), run/doctor, run/common.sh, web/ (updated)
+What: desired-state assurance reconciliation bound to immutable PR OIDs; the classifier selects applicable dimensions for a fresh read-only reviewer; prove-it ran live on ticket 13 and parked correctly on a merged PR.
+Refs: run/loop-tick (rewritten), run/assurance-classify (new), agents/reviewer.md, run/doctor, run/common.sh, web/ (updated)
 
 ## 2026-08-28 · bench labels + bench-pending verdict · #loop #implement
 What: two-fact label semantics (ready-for-worker vs needs-device) keep pure bench tickets out of the frontier while mixed tickets run; reviewers may land BENCH: pending (done awaits human bench validation); frontier jq quoting bug fixed by live tick; spec-sync staging budget made explicit and failed staging preserved.
-Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents/assurance-reviewer.md, agents/ticketer.md, templates/subissue.md, templates/verdict.md, domains/*/README.md (updated)
+Refs: run/loop-tick, run/domain-loop, run/spawn-exec, agents/reviewer.md, agents/ticketer.md, templates/subissue.md, templates/verdict.md, domains/*/README.md (updated)
 
 ## 2026-08-29 · auto-cardify + crash recovery · #loop #infra
 What: verifier FAILs and exhausted transcript attempts now park OPEN decision cards automatically (deduped, dashboard-answerable); a frontier implementer lost without its done sentinel re-queues up to max_impl_attempts, then parks with an auto card.
@@ -72,3 +72,72 @@ Refs: routing.json, run/common.sh, run/loop-tick, run/doctor, web/, README.md (u
 ## 2026-08-31 · merged-unverified state · #loop #review
 What: PRs merged before assurance finishes now enter a distinct terminal state with a visible reason; completed assurance remains done after merge.
 Refs: run/common.sh, run/loop-tick, run/loop-status, web/server.mjs, README.md (updated)
+
+## 2026-08-31 · parked decision label · #loop #decision
+What: parked work now carries the neutral need-decision label on its issue and known PR; ready-for-worker is removed until work resumes.
+Refs: routing.json, run/common.sh, run/doctor, README.md, kokoromil/kokolog-monitor labels (updated)
+
+## 2026-09-01 · cycle-local model controls · #loop #infra
+What: model and variant controls now sit inside the cycle that uses them, with task-specific names and synchronized shared verification routes.
+Refs: web/app.js, web/index.html, web/styles.css, README.md (updated)
+
+## 2026-08-31 · parked reason and transient retry · #loop #review
+What: a parked PR now receives one reason comment, and implementation or review exit 143 receives one automatic retry before parking.
+Refs: routing.json, run/common.sh, run/spawn, run/loop-tick, run/loop-status, README.md (updated)
+
+## 2026-08-31 · operator status and safe reconcile · #loop #bench
+What: Bench and loop-status now share one status reducer with attention, eligible frontier count, current sessions, PR assurance progress, and next actions; routine reconciliation no longer starts new frontier work.
+Refs: web/status.mjs (new), web/ (updated), run/loop-status, run/loop-tick, domains/spec-sync/README.md, README.md (updated)
+
+## 2026-09-01 · live operator console · #loop #bench
+What: rebuilt Bench around one honest system mode, recommended safe action, ticket state machines, live activity, explicit attention owners, and separate ticket, decision, history, and health views; server-sent events replace blind refresh polling.
+Refs: web/index.html, web/app.js, web/styles.css, web/server.mjs, web/status.mjs, web/view-model.mjs, test/ (updated)
+
+## 2026-09-01 · post-merge audit resolution · #loop #review
+What: added a guarded Operator Console action that records a human post-merge audit and clears a merged-unverified alert without converting missed assurance profiles to PASS.
+Refs: web/audit.mjs, web/, run/common.sh, run/loop-tick, test/ (updated)
+
+## 2026-09-01 · parked work dispositions · #loop #review
+What: added guarded Resume assurance and Mark human-owned actions for parked PRs, with current-head checks, durable human notes, GitHub decision-label cleanup, and retained failed-verdict history.
+Refs: run/resolve-ticket, web/, run/common.sh, run/loop-tick, test/ (updated)
+
+## 2026-09-01 · profile-specific assurance routing · #loop #review
+What: code, security, safety, and QMS verification now use independent model and variant routes shown in the Build & Verify cycle.
+Refs: routing.json, run/loop-tick, run/doctor, web/, README.md (updated)
+
+## 2026-09-01 · deterministic schedule environment · #loop #infra
+What: installed schedules now receive explicit executable paths, reschedule validates the same environment before restart, and skipped preflight runs appear as degraded.
+Refs: run/plists/, run/loop-tick, web/, test/, README.md (updated)
+
+## 2026-09-01 · cost-bounded controller phases · #loop #infra
+What: result collection and repository sync now run independently without model access; paid dispatch is the only implementation-session gateway and enforces a configurable global start limit.
+Refs: routing.json, run/collect-results, run/sync-repository, run/dispatch-work, run/loop-tick, run/spawn, run/plists/, web/, test/, README.md (updated)
+
+## 2026-09-01 · bounded review and independent repair · #review
+What: reviewers now return one bounded set of blocking findings, QMS-only checks stay with QMS verification, and three independent repairs have a separate four-cycle review budget.
+Refs: agents/, routing.json, run/loop-tick, run/doctor, web/, test/, README.md (updated)
+
+## 2026-09-01 · controller audit and truthful session history · #review
+What: history now separates revision cycles, per-gate runs, builds, and repairs; recorded routes remain historical; writing permissions work with the installed OpenCode runtime; reviews use immutable evidence; controller locks and recovery are deterministic; and the console handles large logs and failed background starts safely.
+Refs: run/, agents/, web/, test/, README.md, domains/implement/README.md (updated)
+
+## 2026-09-01 · unified severity-calibrated assurance · #loop #review
+What: replaced separate code, security, safety, and QMS model gates with one unified review; only validated P0/P1 blockers schedule repairs or consume the repair budget, while P2/P3 observations remain advisory and PR revisions have no blocking ceiling.
+Refs: agents/, templates/verdict.md, routing.json, run/assurance-classify, run/loop-tick, run/doctor, run/loop-status, web/, test/, README.md, domains/implement/README.md (updated)
+
+## 2026-09-02 · assured merge reconciliation · #loop #review
+What: a GitHub PR merged after unified assurance PASS now becomes a terminal local merged record only when its head matches the assured head; the Operator Console removes it from active work and shows it in resolved history.
+Refs: run/common.sh, run/loop-tick, web/, test/, README.md (updated)
+
+## 2026-09-02 · same-head assurance runtime retry · #loop #review
+What: the Operator Console can requeue a reviewer runtime failure on the same immutable PR head when no verdict was written; it uses the current reviewer route, consumes no P0/P1 repair, and requires no owner note or risk acknowledgment.
+Refs: run/resolve-ticket, web/, test/, README.md (updated)
+## 2026-09-01 · ticket 36 verified · #implement
+What: Unified assurance passed for e50024fad194a29cc0fa76499baeefff9132fcad; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/36.assurance-r4.json
+## 2026-09-02 · ticket 37 verified · #implement
+What: Unified assurance passed for 097721b5da1d914adc411c3537f973b4438ece62; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/37.assurance-r1.json
+## 2026-09-02 · ticket 38 verified · #implement
+What: Unified assurance passed for 14199afbcad3a19e4f2022789ef3f1a5bce4900c; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/38.assurance-r1.json

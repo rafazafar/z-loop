@@ -1,0 +1,11 @@
+#!/bin/bash
+# Refresh durable GitHub and repository state without starting a model session.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+destination="$LOOP_ROOT/state/repository-sync.json"
+temporary="$destination.tmp.$$"
+trap 'rm -f "$temporary"' EXIT
+node "$LOOP_ROOT/web/status.mjs" |
+  jq '{generatedAt,frontier,tickets:[.tickets[] | {id,status,pr,prState,liveHead,lastActivity}]}' > "$temporary"
+mv "$temporary" "$destination"
+printf 'repository sync complete; no model sessions started\n'

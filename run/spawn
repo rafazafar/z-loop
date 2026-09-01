@@ -13,9 +13,22 @@ sname() { printf '%s-%s' "$tmux_session_prefix" "$1"; }
 case "$cmd" in
   start)
     name="$1"; model="$2"; variant="$3"; workdir="$4"; prompt_file="$5"
+    case "$name" in
+      [0-9]*-impl-*|[0-9]*-rev-*)
+        [ "${KOKOLOG_PAID_DISPATCH:-0}" = 1 ] || {
+          echo "implementation and assurance sessions must start through paid dispatch" >&2
+          exit 78
+        }
+        ;;
+    esac
     [ -f "$prompt_file" ] || { echo "no prompt file: $prompt_file" >&2; exit 1; }
     mkdir -p "$SESSIONS" "$LOGS"
-    rm -f "$SESSIONS/$name.done" "$SESSIONS/$name.result"
+    metadata="$SESSIONS/$name.spawn.json"
+    jq -n --arg model "$model" --arg variant "$variant" --arg workdir "$workdir" \
+      --arg prompt_file "$prompt_file" \
+      '{model:$model,variant:$variant,workdir:$workdir,prompt_file:$prompt_file}' \
+      > "$metadata.tmp" && mv "$metadata.tmp" "$metadata"
+    rm -f "$SESSIONS/$name.done" "$SESSIONS/$name.result" "$SESSIONS/$name.exit"
     tmux new-session -d -s "$(sname "$name")" \
       "$LOOP_ROOT/run/spawn-exec" "$name" "$model" "$variant" "$workdir" "$prompt_file"
     echo "spawned $(sname "$name")"

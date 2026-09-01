@@ -40,45 +40,45 @@ case "$id" in
 esac
 if [ -n "$readonly_output" ]; then
   mv_pattern="mv *${readonly_output}"
+  quoted_mv_pattern="mv *\"${readonly_output}\""
   write_pattern="printf * > ${readonly_output}.tmp"
+  quoted_write_pattern="printf * > \"${readonly_output}.tmp\""
   export OPENCODE_PERMISSION
   if [ -n "$extra_output" ]; then
-    # reviewers: the authoritative verdict plus the one-line session result
     rmove_pattern="mv *${extra_output}"
+    quoted_rmove_pattern="mv *\"${extra_output}\""
     rwrite_pattern="printf * > ${extra_output}.tmp"
-    OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" --arg result "$extra_output" --arg rtemporary "$extra_output.tmp" --arg rmove "$rmove_pattern" --arg rwrite "$rwrite_pattern" '
-      {edit:{"*":"deny",($output):"allow",($temporary):"allow",($result):"allow",($rtemporary):"allow"},task:"deny",external_directory:"allow",
-       bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
-             "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
-             "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow",
-             ($rwrite):"allow",($rmove):"allow"}}')"
+    quoted_rwrite_pattern="printf * > \"${extra_output}.tmp\""
+    OPENCODE_PERMISSION="$(jq -cn --arg move "$mv_pattern" --arg qmove "$quoted_mv_pattern" --arg write "$write_pattern" --arg qwrite "$quoted_write_pattern" --arg rmove "$rmove_pattern" --arg rqmove "$quoted_rmove_pattern" --arg rwrite "$rwrite_pattern" --arg rqwrite "$quoted_rwrite_pattern" '
+      {edit:"deny",task:"deny",external_directory:"allow",
+       bash:{"*":"deny",($write):"allow",($qwrite):"allow",($move):"allow",($qmove):"allow",
+             ($rwrite):"allow",($rqwrite):"allow",($rmove):"allow",($rqmove):"allow"}}')"
   else
-    OPENCODE_PERMISSION="$(jq -cn --arg output "$readonly_output" --arg temporary "$readonly_output.tmp" --arg move "$mv_pattern" --arg write "$write_pattern" '
-      {edit:{"*":"deny",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
-       bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
-             "gh pr view*":"allow","gh issue view*":"allow","shasum *":"allow","dart analyze*":"allow",
-             "dart test*":"allow","flutter analyze*":"allow","flutter test*":"allow",($write):"allow",($move):"allow"}}')"
+    OPENCODE_PERMISSION="$(jq -cn --arg move "$mv_pattern" --arg qmove "$quoted_mv_pattern" --arg write "$write_pattern" --arg qwrite "$quoted_write_pattern" '
+      {edit:"deny",task:"deny",external_directory:"allow",
+       bash:{"*":"deny",($write):"allow",($qwrite):"allow",($move):"allow",($qmove):"allow"}}')"
   fi
 else
   case "$id" in
     *-impl-*|loop-spec-sync-*)
-      edit_root="$workdir/**"
-      stage_root="$STATE/staging/$id/**"
       export OPENCODE_PERMISSION
-      OPENCODE_PERMISSION="$(jq -cn --arg root "$edit_root" --arg stage "$stage_root" --arg output "$result" --arg temporary "$result.tmp" '
-        {edit:{"*":"deny",($root):"allow",($stage):"allow",($output):"allow",($temporary):"allow"},external_directory:"allow"}')"
+      OPENCODE_PERMISSION='{"edit":"allow","task":"deny","external_directory":"allow"}'
       ;;
     loop-ticket-factory-*|loop-gardener-*|loop-decision-desk-*)
       stage_root="$STATE/staging/$id/**"
       mv_pattern="mv *${result}"
+      quoted_mv_pattern="mv *\"${result}\""
       result_write_pattern="printf * > ${result}.tmp"
+      quoted_result_write_pattern="printf * > \"${result}.tmp\""
       stage_write_pattern="printf * > $STATE/staging/$id/*"
+      quoted_stage_write_pattern="printf * > \"$STATE/staging/$id/*\""
       export OPENCODE_PERMISSION
-      OPENCODE_PERMISSION="$(jq -cn --arg stage "$stage_root" --arg output "$result" --arg temporary "$result.tmp" --arg move "$mv_pattern" --arg resultWrite "$result_write_pattern" --arg stageWrite "$stage_write_pattern" '
-        {edit:{"*":"deny",($stage):"allow",($output):"allow",($temporary):"allow"},task:"deny",external_directory:"allow",
+      OPENCODE_PERMISSION="$(jq -cn --arg move "$mv_pattern" --arg qmove "$quoted_mv_pattern" --arg resultWrite "$result_write_pattern" --arg qresultWrite "$quoted_result_write_pattern" --arg stageWrite "$stage_write_pattern" --arg qstageWrite "$quoted_stage_write_pattern" '
+        {edit:"deny",task:"deny",external_directory:"allow",
          bash:{"*":"deny","git diff*":"allow","git status*":"allow","git log*":"allow","git show*":"allow",
                "gh pr view*":"allow","gh pr list*":"allow","gh issue view*":"allow","gh issue list*":"allow",
-               "shasum *":"allow",($resultWrite):"allow",($stageWrite):"allow",($move):"allow"}}')"
+               "shasum *":"allow",($resultWrite):"allow",($qresultWrite):"allow",
+               ($stageWrite):"allow",($qstageWrite):"allow",($move):"allow",($qmove):"allow"}}')"
       ;;
   esac
 fi

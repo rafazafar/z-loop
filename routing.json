@@ -1,16 +1,18 @@
 {
-  "$comment": "Single source of truth for local loop configuration. Role models are provider/model ids resolved by your GLOBAL opencode config. Variants set provider-specific reasoning effort. All scripts read this file via run/common.sh.",
   "project": {
-    "$comment": "The GitHub repository is derived from this checkout's origin remote.",
     "repo_path": "/Users/zafar/dev/kokolog-monitor"
   },
   "roles": {
     "implementer": {
-      "model": "openai/gpt-5.6-luna",
+      "model": "zai-coding-plan/glm-5.3-flash",
+      "variant": "max"
+    },
+    "repairer": {
+      "model": "10router/cx/gpt-5.6-luna",
       "variant": "max"
     },
     "reviewer": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "10router/cx/gpt-5.6-sol",
       "variant": "high"
     },
     "ticketer": {
@@ -18,36 +20,24 @@
       "variant": "high"
     },
     "distiller": {
-      "model": "zai-coding-plan/glm-5.3",
-      "variant": "max"
+      "model": "10router/ag/gemini-3.7-flash-high",
+      "variant": "high"
     },
     "gardener": {
       "model": "openai/gpt-5.6-sol",
       "variant": "high"
     },
     "decision-desk": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "10router/ag/gemini-3.7-flash-high",
       "variant": "high"
     }
   },
   "rules": {
-    "$comment_rules": "Policy executed by run/loop-tick in the fix-retry and reaper paths. Static policy, dynamic behavior.",
-    "retry_tier_up": {
-      "$comment": "Fires only when the implementer route matches from: past N failures it switches to to. With the default implementer route it is correctly inert.",
-      "after_failures": 2,
-      "from": {
-        "model": "openai/gpt-5.6-sol",
-        "variant": "high"
-      },
-      "to": {
-        "model": "openai/gpt-5.6-luna",
-        "variant": "max"
-      }
-    },
-    "max_verify_rounds": 3,
+    "max_fix_attempts": 3,
     "max_impl_attempts": 3,
+    "max_transient_session_retries": 1,
+    "max_new_sessions_per_dispatch": 2,
     "diff_budget": {
-      "$comment": "Default review threshold for hand-written semantic changes. Generated scaffolding, lockfiles, and mechanical output can exceed it when the ticket remains one coherent outcome.",
       "max_files": 12,
       "max_insertions": 800,
       "max_deletions": 400
@@ -56,9 +46,9 @@
     "clone_reap_days": 7
   },
   "github": {
-    "$comment": "ready-for-worker labels the frontier query. loop-integration marks a parent issue that is a real integration task; the frontier ignores labeled parents without it. branch_prefix creates stable issue branches as <prefix>-<issue>/<title-slug>. base_branch is the required fresh remote branch and PR base. Create labels once: gh label create ready-for-worker; gh label create loop-integration",
     "frontier_label": "ready-for-worker",
     "integration_label": "loop-integration",
+    "decision_label": "need-decision",
     "branch_prefix": "issue",
     "base_branch": "main"
   }

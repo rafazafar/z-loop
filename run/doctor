@@ -5,13 +5,22 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
 . "$LOOP_ROOT/run/common.sh"
 
+require_model_runtime=1
+case "${1:-}" in
+  "") ;;
+  --no-model-runtime) require_model_runtime=0 ;;
+  *) echo "usage: doctor [--no-model-runtime]" >&2; exit 64 ;;
+esac
+
 fail=0; warn=0
 ok()   { printf '  ok    %s\n' "$1"; }
 bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
 soft() { printf '  warn  %s\n' "$1"; warn=$((warn+1)); }
 
 echo "== binaries =="
-for b in opencode gh git jq tmux; do
+required_bins=(gh git jq shasum tmux)
+[ "$require_model_runtime" = 0 ] || required_bins=(opencode "${required_bins[@]}")
+for b in "${required_bins[@]}"; do
   command -v "$b" >/dev/null 2>&1 && ok "$b ($(command -v $b))" || bad "$b missing from PATH"
 done
 
@@ -62,20 +71,37 @@ if [ -n "${GH_REPO:-}" ]; then
       soft "label $integ_label missing -> gh label create $integ_label -R $GH_REPO"
     fi
   fi
+  decision_label="$(jqget '.github.decision_label // empty')"
+  labels="$(gh label list -R "$GH_REPO" --search "$decision_label" --json name 2>/dev/null || true)"
+  if [ -n "$decision_label" ] && jq -e --arg name "$decision_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
+    ok "label $decision_label exists"
+  else
+    bad "github.decision_label is missing or unavailable"
+  fi
 fi
 
 echo "== routing =="
 jq empty "$ROUTING" 2>/dev/null && ok "routing.json parses" || bad "routing.json invalid JSON"
-for role in implementer reviewer ticketer distiller gardener decision-desk; do
+for role in implementer repairer reviewer ticketer distiller gardener decision-desk; do
   m="$(route_model "$role")"
   v="$(route_variant "$role")"
   [ -n "$m" ] && [ -n "$v" ] && ok "$role -> $m ($v)" || bad "$role has no resolvable model and variant"
 done
-for tier in from to; do
-  m="$(jq -r --arg tier "$tier" '.rules.retry_tier_up[$tier].model // empty' "$ROUTING")"
-  v="$(jq -r --arg tier "$tier" '.rules.retry_tier_up[$tier].variant // empty' "$ROUTING")"
-  [ -n "$m" ] && [ -n "$v" ] && ok "retry $tier -> $m ($v)" || bad "retry $tier has no model and variant"
-done
+fix_attempts="$(rule max_fix_attempts)"
+case "$fix_attempts" in
+  ''|null|*[!0-9]*|0) bad "rules.max_fix_attempts must be a positive integer" ;;
+  *) ok "P0/P1 repairs per ticket: $fix_attempts" ;;
+esac
+transient_retries="$(rule max_transient_session_retries)"
+case "$transient_retries" in
+  ''|null|*[!0-9]*) bad "rules.max_transient_session_retries must be a non-negative integer" ;;
+  *) ok "transient status-143 retries: $transient_retries" ;;
+esac
+dispatch_limit="$(rule max_new_sessions_per_dispatch)"
+case "$dispatch_limit" in
+  ''|null|*[!0-9]*|0) bad "rules.max_new_sessions_per_dispatch must be a positive integer" ;;
+  *) ok "paid session starts per dispatch: $dispatch_limit" ;;
+esac
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 
 echo "== local setup =="
