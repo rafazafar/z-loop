@@ -1,0 +1,18 @@
+VERDICT: BLOCK
+TASK: broken
+BENCH: none
+PROFILE: assurance
+ROUND: 4
+PR: https://github.com/kokoromil/kokolog-monitor/pull/101
+BASE_OID: be0c9569a58ecc5748e10a594c87e1e366bd656d
+HEAD_OID: 47c49f90d85110d977caed5a3b207866705c6b11
+expected: Publish schema-valid current status on the exact topic after connection, every two seconds, and after alias changes; use a fixed-generation LWT; reject stale generations; preserve SDK state and MQTT security and safety contracts.
+observed: The patch adds status encoders, timers, alias publication, fixed-generation Wills, and passing reported Flutter analysis/tests/builds, but its stale-generation control is an unauthorized incomplete self-subscription, unbounded firmware can invalidate status, and reconnect timing violates the required recovery policy.
+evidence: .git/kokolog-loop/evidence/assurance.json, .git/kokolog-loop/evidence/review-evidence.json, .git/kokolog-loop/evidence/implementation-result.md, .git/kokolog-loop/evidence/patch.diff, docs/contracts/mqtt.md, docs/contracts/schemas/status.schema.json, packages/flutter/hrm_runtime/android/src/main/kotlin/com/kokolog/hrm_runtime/CloudMqttConnection.kt, packages/flutter/hrm_runtime/android/src/main/kotlin/com/kokolog/hrm_runtime/StatusPayloadEncoder.kt, packages/flutter/hrm_runtime/ios/hrm_runtime/Sources/hrm_runtime/CloudMqttConnection.swift, packages/flutter/hrm_runtime/ios/hrm_runtime/Sources/hrm_runtime/StatusPayloadEncoder.swift
+blockers:
+- P1 · acceptance/security/safety · Cloud status generation gate · Both mobile-monitor clients subscribe to their own status topic even though the MQTT ACL contract permits them no subscriptions, ignore SUBACK failure, and keep the accepted value only in an unused process-local store; therefore a delayed old-generation LWT still reaches the real authorized consumers without this control, so the explicit old-generation replacement criterion is not implemented · Put generation validation in the authorized status-consumer path and add broker-level delayed-LWT regression evidence, or define and enforce an authorized end-to-end mechanism without the forbidden subscription.
+- P1 · acceptance/safety · Android and iOS status encoders · firmwareVersion comes directly from unconstrained BLE system information and is emitted without the schema maximum of 64 characters; a reachable long value produces schema-invalid status, and a sufficiently long value makes Android throw or iOS silently skip every status tick, violating schema conformance and periodic device-state publication · Enforce the schema bound before encoding on both platforms and validate actual Android and iOS payloads against status.schema.json, including overlong device input.
+- P1 · safety/code · Android and iOS MQTT reconnect policy · Retry starts at one second without jitter and reaches the 30-second ceiling within one minute, so service restored just after a scheduled attempt can leave current status unavailable for more than the contract maximum of ten seconds; the contract requires 100 ms startup, a normal two-second ceiling, jitter, and a 30-second ceiling only after an outage exceeds one minute · Implement the specified phased jittered backoff and add deterministic recovery-deadline tests on both platforms.
+advisories:
+- P2 · code · setCloudStatusAliasesV1 · The two aliases update sequentially, so a valid first alias is stored and may publish before an invalid second alias makes the call fail, leaving partial state after an error.
+- P2 · safety · periodic status publishing · Android catches all timer failures and iOS uses try? without diagnostics, so encoding and publish failures can suppress status without actionable evidence.

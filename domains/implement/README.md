@@ -51,6 +51,314 @@ the bench flow has run once for real.
 2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
 2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
 2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | unified assurance review for revision 5 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | revision 5 classified for unified assurance at 31cd4547e614
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | merged after unified assurance PASS at 22b054bbe064
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | unified assurance PASS on revision 3 — PR awaits owner merge
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | unified assurance review for revision 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | revision 3 classified for unified assurance at 22b054bbe064
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | clean retry started as 42-impl-a8-retry2
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementation contract incomplete: PR must close issue #42
+2026-09-02 | ticket 42 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | clean retry started as 42-impl-a8-retry1
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementation contract incomplete: PR must close issue #42
+2026-09-02 | ticket 42 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a12-retry1
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementation contract incomplete: PR must close issue #40
+2026-09-02 | ticket 40 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | parked: needs decomposition
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 3 spawned
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | parked: P0/P1 repair cycles exhausted (3)
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | unified assurance review for revision 4 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | revision 4 classified for unified assurance at 47c49f90d851
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | unified assurance review for revision 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | revision 2 classified for unified assurance at 079fce7a45ca
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | unified assurance review for revision 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | revision 3 classified for unified assurance at a875c202eaf4
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | clean retry started as 42-impl-a4-retry2
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | dispatch | scheduled work: 1/1 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a6-retry2
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | dispatch | scheduled work: 0/1 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 2 spawn deferred
+2026-09-02 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational failure: API rate limit / quota exceeded (cooldown active); clean retry status: retry-ready
+2026-09-02 | ticket 40 | implementer operational failure: API rate limit / quota exceeded (cooldown active); clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 0/1 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | clean retry started as 42-impl-a1-retry1
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a2-retry1
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | unified assurance review for revision 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | revision 2 classified for unified assurance at 86c8291366ed
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
 2026-09-02 | ticket 39 | merged after unified assurance PASS at 187187556517
 2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
 2026-09-02 | dispatch | scheduled work: 1/2 model sessions started

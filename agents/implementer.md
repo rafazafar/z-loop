@@ -29,6 +29,7 @@ carry workflow state.
 3. Plan before code for anything non-trivial: 5-20 lines in your result file.
    Modules, interfaces, test seams. Review the plan again to ensure is solves the ticket without mistakes. Then code.
 4. Implement the smallest change that satisfies every acceptance criterion.
+   If your branch has diverged from `origin/<base-branch>` or has merge conflicts, run `git fetch origin` and `git merge origin/<base-branch>`, resolve any conflict markers cleanly, and verify all objective checks pass on the merged head.
 5. Run the objective checks yourself and fix red:
    - changed package: `flutter analyze` / `dart analyze`, `flutter test` / `dart test`
    - app scope: same, from the app directory

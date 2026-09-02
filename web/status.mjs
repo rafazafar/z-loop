@@ -193,17 +193,17 @@ export async function collectSessions(root, routing) {
 }
 
 export function ticketNextAction(ticket, session) {
-  if (session?.status === "awaiting harvest") return "Collect results · no model session";
-  if (session?.status === "running") return `Wait for ${session.id}`;
-  if (session?.status === "incomplete") return "Advance current work · restarts the missing session";
   if (ticket.status === "merged-unverified") return "Owner: audit the merged PR and record assurance evidence";
   if (ticket.status === "merged") return "No action: PR merged after unified assurance passed";
   if (ticket.status === "merged-audited") return "No action: post-merge audit is recorded";
   if (ticket.status === "manual-takeover") return "No controller action: the PR is owner-managed";
-  if (ticket.operationalFailure?.status === "needs-retry") return "Owner: start a clean retry from GitHub state";
-  if (ticket.operationalFailure?.status === "retry-ready") return "Clean retry is ready for the next controller heartbeat";
   if (ticket.status === "parked" && ticket.retryableReviewFailure) return "Owner: retry the same assurance review";
   if (["parked", "blocked-decision"].includes(ticket.status)) return "Owner: resolve the recorded reason";
+  if (ticket.operationalFailure?.status === "needs-retry") return "Owner: start a clean retry from GitHub state";
+  if (ticket.operationalFailure?.status === "retry-ready") return "Clean retry is ready for the next controller heartbeat";
+  if (session?.status === "awaiting harvest") return "Collect results · no model session";
+  if (session?.status === "running") return `Wait for ${session.id}`;
+  if (session?.status === "incomplete") return "Advance current work · restarts the missing session";
   if (ticket.status === "review") return "Advance current work · starts at most one review session";
   if (ticket.status === "fix") return "Advance current work · starts at most one repair session";
   if (ticket.status === "in-progress") return "Advance current work · starts at most one implementation session";
@@ -337,8 +337,20 @@ export function classifyFrontierIssue(issue, open, known, integration) {
   return { number: issue.number, title: issue.title, createdAt: issue.createdAt, eligible: !reason, reason };
 }
 
-function buildAttention(loops, sessions, tickets, cards) {
+function buildAttention(loops, sessions, tickets, cards, circuitBreaker = null) {
   const attention = [];
+  if (circuitBreaker?.active) {
+    const mins = Math.floor(circuitBreaker.remainingSeconds / 60);
+    const secs = circuitBreaker.remainingSeconds % 60;
+    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    attention.push({
+      severity: "warning",
+      kind: "rate-limit",
+      title: "API Rate Limit Cooldown Active",
+      detail: `${circuitBreaker.model || "Provider"} reached quota limit. Model dispatches are paused.`,
+      action: `Auto-resumes in ${timeStr} (or switch model in Control Center)`
+    });
+  }
   for (const session of sessions.filter((item) => item.status === "awaiting harvest")) {
     attention.push({ severity: "action", kind: "harvest", title: `${session.id} is complete`, detail: "Its result is ready, but the ticket has not been updated.", action: "Collect results · no model session" });
   }
@@ -447,11 +459,25 @@ export async function collectStatus(root = defaultRoot) {
   const frontier = await collectFrontier(root, routing, ghrepo, tickets);
   const currentSessions = sessions.filter((session) => ["running", "awaiting harvest", "incomplete"].includes(session.status));
   const paidReady = tickets.filter((ticket) => ["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.operationalFailure || ticket.operationalFailure.status === "retry-ready") && (!ticket.session || ticket.session.status === "incomplete")).length;
-  const attention = buildAttention(loops, currentSessions, tickets, cards);
+  const cbFile = path.join(root, "state/circuit-breaker.json");
+  const cbData = await readJson(cbFile);
+  let circuitBreaker = null;
+  if (cbData && cbData.cooldown_until) {
+    const remainingSeconds = Math.max(0, Math.floor((Date.parse(cbData.cooldown_until) - Date.now()) / 1000));
+    circuitBreaker = {
+      active: remainingSeconds > 0,
+      remainingSeconds,
+      model: cbData.model || "",
+      role: cbData.role || "",
+      reason: cbData.reason || "Rate limit cooldown",
+      cooldownUntil: cbData.cooldown_until
+    };
+  }
+  const attention = buildAttention(loops, currentSessions, tickets, cards, circuitBreaker);
   const activity = await collectActivity(root, sessions);
   return {
     generatedAt: new Date().toISOString(), repo: { path: repoPath, ghrepo }, loops, sessions, currentSessions,
-    tickets, cards, decisions: cards.filter((card) => card.status === "open").map((card) => card.name), logs, frontier, attention, activity, routing,
+    tickets, cards, decisions: cards.filter((card) => card.status === "open").map((card) => card.name), logs, frontier, attention, activity, routing, circuitBreaker,
     summary: {
       enabled: loops.filter((loop) => loop.status === "active").length,
       armed: loops.reduce((count, loop) => count + Number(loop.timerLoaded) + loop.maintenance.filter((task) => task.timerLoaded).length, 0),

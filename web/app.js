@@ -218,10 +218,11 @@ function renderShell() {
 
 function renderCommand() {
   const action = recommendedAction(state);
-  const control = action.action ? `<button class="${action.tone === "primary" ? "primary" : ""}" data-action="${action.action}" data-loop="${action.loop}">${esc(action.label)}</button>` : `<button data-view-jump="${action.view}">${esc(action.label)}</button>`;
+  const control = action.action ? `<button class="${action.tone === "primary" ? "primary" : ""}" data-action="${action.action}" data-loop="${action.loop}">${esc(action.label)}</button>` : `<button class="${action.tone === "primary" ? "primary" : ""}" data-view-jump="${action.view}">${esc(action.label)}</button>`;
   const advance = action.action === "run" ? `<button class="outline-danger" data-action="advance" data-loop="implement" ${state.frontier.eligible === 0 ? "disabled" : ""}>Start next issue · ${state.frontier.eligible} ready</button>` : "";
+  const clearCooldown = state?.circuitBreaker?.active ? `<button type="button" class="outline-danger" data-clear-cooldown>Clear cooldown & retry</button>` : "";
   $("#commandBar").className = `command-bar ${action.tone}`;
-  updateHtml($("#commandBar"), `<div><span>RECOMMENDED NEXT ACTION</span><strong>${esc(action.title)}</strong><p>${esc(action.detail)}</p></div><div class="command-actions">${control}${advance}</div>`);
+  updateHtml($("#commandBar"), `<div><span>RECOMMENDED NEXT ACTION</span><strong>${esc(action.title)}</strong><p>${esc(action.detail)}</p></div><div class="command-actions">${control}${advance}${clearCooldown}</div>`);
 }
 
 function renderCurrentWork() {
@@ -756,6 +757,14 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("[data-close-audit]")) return $("#auditDialog").close();
   if (event.target.closest("[data-close-parked]")) return $("#parkedDialog").close();
   if (event.target.closest("[data-close-schedule]")) return $("#scheduleDialog").close();
+  if (event.target.closest("[data-clear-cooldown]")) {
+    return fetch("/api/action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "clear-cooldown" }) })
+      .then((res) => res.json())
+      .then((data) => {
+        toast(data.ok ? "Cooldown cleared · retrying now" : "Failed to clear cooldown");
+        return loadState();
+      });
+  }
 });
 
 document.addEventListener("submit", async (event) => {
@@ -816,6 +825,7 @@ $("#parkedForm").addEventListener("change", syncParkedSubmit);
 $("#closeDrawer").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
 $("#closeLog").addEventListener("click", () => $("#logDialog").close());
+$("#logDialog").addEventListener("click", (event) => { if (event.target === $("#logDialog")) $("#logDialog").close(); });
 $("#logTabFormatted").addEventListener("click", () => {
   $("#logTabFormatted").classList.add("active");
   $("#logTabRaw").classList.remove("active");

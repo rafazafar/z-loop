@@ -50,6 +50,52 @@ ticket_session_live() { # ticket-number
   tmux list-sessions -F '#S' 2>/dev/null | grep -qE "^${tmux_session_prefix}-${n}-(impl|rev)-"
 }
 
+# --- rate-limiting / circuit breaker -----------------------------------------
+detect_api_rate_limit() { # session-id
+  local sid="$1" logfile="$LOGS/$sid.jsonl"
+  [ -s "$logfile" ] || return 1
+  jq -e 'select(.type=="error") | .error.data | (.statusCode == 429 or .statusCode == 524 or ((.message // "") | test("429|quota|rate limit|too many requests"; "i")))' "$logfile" >/dev/null 2>&1
+}
+
+extract_retry_after() { # session-id
+  local sid="$1" logfile="$LOGS/$sid.jsonl" val
+  val="$(jq -r 'select(.type=="error") | .error.data.responseHeaders["retry-after"] // .error.data["retry-after"] // empty' "$logfile" 2>/dev/null | head -n 1)"
+  case "$val" in ''|*[!0-9]*) val="" ;; esac
+  if [ -z "$val" ]; then
+    val="$(grep -oE 'reset after [0-9]+s' "$logfile" 2>/dev/null | grep -oE '[0-9]+' | head -n 1)"
+  fi
+  case "$val" in ''|*[!0-9]*) val=180 ;; esac
+  [ "$val" -lt 60 ] && val=60
+  printf '%s\n' "$val"
+}
+
+trip_circuit_breaker() { # session-id role [reason]
+  local sid="$1" role="$2" reason="${3:-API rate limit or quota exceeded}"
+  local retry_sec cooldown_until model
+  retry_sec="$(extract_retry_after "$sid")"
+  cooldown_until="$(date -u -v+"${retry_sec}"S +%FT%TZ 2>/dev/null || date -u -d "+${retry_sec} seconds" +%FT%TZ 2>/dev/null || date -u +%FT%TZ)"
+  model="$(route_model "$role")"
+  jq -n --arg model "$model" --arg role "$role" --arg reason "$reason" \
+    --arg tripped_at "$(date -u +%FT%TZ)" --arg cooldown_until "$cooldown_until" \
+    --argjson retry_after "$retry_sec" --arg sid "$sid" \
+    '{status: "tripped", model: $model, role: $role, failed_session: $sid, reason: $reason, tripped_at: $tripped_at, cooldown_until: $cooldown_until, retry_after_sec: $retry_after}' > "$STATE/circuit-breaker.json.tmp" &&
+    mv "$STATE/circuit-breaker.json.tmp" "$STATE/circuit-breaker.json"
+}
+
+circuit_breaker_active() {
+  local cb_file="$STATE/circuit-breaker.json" now until until_sec
+  [ -f "$cb_file" ] || return 1
+  until="$(jq -r '.cooldown_until // empty' "$cb_file" 2>/dev/null)"
+  [ -n "$until" ] || { rm -f "$cb_file"; return 1; }
+  now="$(date -u +%s)"
+  until_sec="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$until" +%s 2>/dev/null || date -d "$until" +%s 2>/dev/null || echo 0)"
+  if [ "$now" -lt "$until_sec" ]; then
+    return 0
+  fi
+  rm -f "$cb_file"
+  return 1
+}
+
 # --- state files: state/<ticket>.<state> -----------------------------------
 github_issue_number_from_pr() { # PR URL -> number
   local pr="$1" number="${1##*/}"

@@ -1,7 +1,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { watch } from "node:fs";
-import { open, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectStatus, definitions, field, runCommand } from "./status.mjs";
@@ -108,8 +108,12 @@ async function readTail(file, maxBytes = 250000) {
 }
 
 async function action(body) {
-  const def = definitions[body.loop];
-  if (!def || !["run", "advance", "collect", "toggle"].includes(body.action)) return { ok: false, output: "Unsupported action" };
+  if (body?.action === "clear-cooldown") {
+    await rm(path.join(root, "state/circuit-breaker.json"), { force: true });
+    return { ok: true, output: "Rate limit cooldown cleared" };
+  }
+  const def = definitions[body?.loop];
+  if (!def || !["run", "advance", "collect", "toggle"].includes(body?.action)) return { ok: false, output: "Unsupported action" };
   if (body.action === "collect") {
     return runCommand(path.join(root, "run/collect-results"), [], root, 120000);
   }
@@ -274,6 +278,7 @@ async function routingAction(body) {
     await rename(`${file}.dashboard.tmp`, file);
     return { ok: false, output: `Routing validation failed and was rolled back.\n${check.output}` };
   }
+  await rm(path.join(root, "state/circuit-breaker.json"), { force: true });
   return { ok: true, output: "Model routing saved. New model sessions will use these routes." };
 }
 

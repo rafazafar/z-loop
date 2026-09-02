@@ -30,6 +30,10 @@ say() { printf '[%s] %s\n' "$(date +%T)" "$*"; }
 paid_slot_available() {
   local active
   [ "$paid_mode" = 1 ] || return 1
+  if circuit_breaker_active; then
+    say "circuit-breaker active; model dispatch paused for cooldown"
+    return 1
+  fi
   active="$(tmux list-sessions -F '#S' 2>/dev/null |
     grep -Ec "^${tmux_session_prefix}-[0-9]+-(impl|rev)-" || true)"
   [ "$active" -lt "$dispatch_limit" ]
@@ -218,15 +222,24 @@ runtime_exit_reason() { # session-id role exit-code
 }
 
 record_runtime_failure() { # ticket session-id role exit-code [reason]
-  local n="$1" sid="$2" role="$3" exit_code="$4" file old retries limit status reason phase root
+  local n="$1" sid="$2" role="$3" exit_code="$4" file old retries limit status reason phase root is_rate_limit=0
+  if detect_api_rate_limit "$sid"; then
+    is_rate_limit=1
+    trip_circuit_breaker "$sid" "$role" "API rate limit or quota exceeded"
+  fi
   file="$(runtime_state_file "$n")"
   old="$(cat "$file" 2>/dev/null || echo '{}')"
   retries="$(printf '%s' "$old" | jq -r '.automatic_retries // 0')"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
   limit="$(rule max_clean_retries)"
   case "$limit" in ''|null|*[!0-9]*) limit=1 ;; esac
-  if [ "$retries" -lt "$limit" ]; then status=retry-ready; else status=needs-retry; fi
-  reason="${5:-$(runtime_exit_reason "$sid" "$role" "$exit_code")}"
+  if [ "$is_rate_limit" = 1 ]; then
+    status=retry-ready
+    reason="${5:-$role operational failure: API rate limit / quota exceeded (cooldown active)}"
+  else
+    if [ "$retries" -lt "$limit" ]; then status=retry-ready; else status=needs-retry; fi
+    reason="${5:-$(runtime_exit_reason "$sid" "$role" "$exit_code")}"
+  fi
   phase=in-progress
   [ -e "$STATE/$n.review" ] && phase=review
   [ -e "$STATE/$n.fix" ] && phase=fix
@@ -282,7 +295,8 @@ write_implement_prompt() { # ticket session clone title [verdict]
     printf '\n# Controller task\n\n'
     printf 'Issue #%s (%s) in %s.\n' "$n" "$title" "$GH_REPO"
     printf 'This checkout starts from authoritative GitHub state. Do not inspect any path outside this checkout.\n'
-    printf 'Required PR base: %s. The PR must include `Closes #%s`.\n\n' "$BASE_BRANCH" "$n"
+    printf 'Required PR base: %s. The PR must include `Closes #%s`.\n' "$BASE_BRANCH" "$n"
+    printf 'If this PR branch has merge conflicts or is behind `origin/%s`, merge `origin/%s` and resolve all conflicts cleanly.\n\n' "$BASE_BRANCH" "$BASE_BRANCH"
     if [ -n "$issue_body" ]; then
       printf '## Issue specification\n\n%s\n\n' "$issue_body"
     fi
@@ -754,10 +768,7 @@ fi
 # ---------- frontier (implement domain) --------------------------------------
 frontier() {
   domain_active implement || { say "implement paused"; return 0; }
-  # single-flight: at most one impl session alive
-  if tmux list-sessions 2>/dev/null | grep -q "^${tmux_session_prefix}-[0-9]*-impl-"; then
-    say "impl in flight; frontier idle this tick"; return 0
-  fi
+  paid_slot_available || { say "all concurrency slots in use; frontier idle this tick"; return 0; }
   local issues
   issues="$(gh issue list -R "$GH_REPO" --label "$LABEL" --state open --search 'sort:created-asc' --limit 100 \
             --json number,title,createdAt --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null)" || {
@@ -874,7 +885,7 @@ frontier() {
       rm -rf "$clone"
       timeline implement "ticket $n | frontier spawn failed; retry next tick"
     fi
-    return 0   # one per tick; single-flight
+    paid_slot_available || return 0
   done <<<"$issues"
 }
 tracked_paid_work_exists() {

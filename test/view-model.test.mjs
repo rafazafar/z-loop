@@ -175,3 +175,23 @@ test("parseJsonlLog structures raw JSONL events into readable steps and tools", 
   assert.equal(steps[0].tools[1].title, "lib/main.dart");
   assert.equal(steps[0].tokens.total, 1200);
 });
+
+test("a rate limit circuit breaker sets system mode to cooldown and recommends switching model", () => {
+  const state = {
+    circuitBreaker: {
+      active: true,
+      remainingSeconds: 150,
+      model: "10router/ag/gemini-3.7-flash-high"
+    },
+    summary: { running: 0, awaitingHarvest: 0, incomplete: 0, humanActions: 0, openDecisionCards: 0, degraded: 0, paidReady: 1, armed: 1, enabled: 1 },
+    frontier: { available: true }
+  };
+  const mode = systemMode(state);
+  assert.equal(mode.key, "attention");
+  assert.equal(mode.label, "COOLDOWN");
+  assert.match(mode.detail, /resumes in 2m 30s/);
+
+  const action = recommendedAction(state);
+  assert.match(action.title, /Rate limit cooldown/);
+  assert.equal(action.view, "control-center");
+});

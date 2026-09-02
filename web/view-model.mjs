@@ -38,6 +38,12 @@ export function isResolvedTicket(ticket) {
 }
 
 export function systemMode(state) {
+  if (state?.circuitBreaker?.active) {
+    const mins = Math.floor(state.circuitBreaker.remainingSeconds / 60);
+    const secs = state.circuitBreaker.remainingSeconds % 60;
+    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    return { key: "attention", label: "COOLDOWN", detail: `${state.circuitBreaker.model || "Provider"} rate-limited (429) · auto-resumes in ${timeStr}` };
+  }
   if (!state?.frontier?.available) return { key: "degraded", label: "DEGRADED", detail: "The GitHub issue queue is unavailable" };
   if (state.summary.degraded > 0) return { key: "degraded", label: "DEGRADED", detail: `${state.summary.degraded} workflow${state.summary.degraded === 1 ? "" : "s"} did not complete its last run` };
   if (state.summary.running > 0) return { key: "running", label: "RUNNING", detail: `${state.summary.running} model session${state.summary.running === 1 ? "" : "s"} active` };
@@ -50,6 +56,18 @@ export function systemMode(state) {
 }
 
 export function recommendedAction(state) {
+  if (state?.circuitBreaker?.active) {
+    const mins = Math.floor(state.circuitBreaker.remainingSeconds / 60);
+    const secs = state.circuitBreaker.remainingSeconds % 60;
+    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    return {
+      title: `Rate limit cooldown active on ${state.circuitBreaker.model || "provider"}`,
+      detail: `Model dispatches paused for ${timeStr}. Switch model in Control Center or wait for quota reset.`,
+      label: "Switch model in Control Center",
+      view: "control-center",
+      tone: "warn"
+    };
+  }
   if (state.summary.awaitingHarvest > 0) {
     return {
       title: `Collect ${state.summary.awaitingHarvest} completed result${state.summary.awaitingHarvest === 1 ? "" : "s"}`,
