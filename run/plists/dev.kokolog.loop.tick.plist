@@ -8,7 +8,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>__LOOP_ROOT__/run/dispatch-work</string>
+        <string>__LOOP_ROOT__/run/controller-heartbeat</string>
     </array>
     <key>WorkingDirectory</key>
     <string>__LOOP_ROOT__</string>
@@ -18,7 +18,7 @@
         <string>__LAUNCH_PATH__</string>
     </dict>
     <key>StartInterval</key>
-    <integer>900</integer>
+    <integer>60</integer>
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>

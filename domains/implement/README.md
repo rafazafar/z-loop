@@ -48,6 +48,301 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 39 | merged after unified assurance PASS at 187187556517
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | unified assurance PASS on revision 3 — PR awaits owner merge and bench validation
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | unified assurance review for revision 3 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | revision 3 classified for unified assurance at 187187556517
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 2/2 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a7-retry1
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | clean retry started as 39-impl-a8-retry1
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational runtime exit 143; clean retry status: retry-ready
+2026-09-02 | ticket 39 | implementer operational runtime exit 143; clean retry status: retry-ready
+2026-09-02 | dispatch | current work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | owner authorized a clean retry from GitHub state
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational failure: convergence watchdog: 89 model steps exceeded 80; clean retry status: retry-ready
+2026-09-02 | session 40-impl-a6 | stopped: convergence watchdog: 89 model steps exceeded 80
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | implementer operational failure: convergence watchdog: 85 model steps exceeded 80; clean retry status: needs-retry
+2026-09-02 | session 39-impl-a7 | stopped: convergence watchdog: 85 model steps exceeded 80
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational failure: convergence watchdog: 87 model steps exceeded 80; clean retry status: retry-ready
+2026-09-02 | session 40-impl-a5 | stopped: convergence watchdog: 87 model steps exceeded 80
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | implementer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | implementer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | implementer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 2/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | ticket 39 | clean retry started as 39-impl-a5-retry2
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | implementer operational failure: convergence watchdog: 88 model steps exceeded 80; clean retry status: retry-ready
+2026-09-02 | session 39-impl-a5-retry1 | stopped: convergence watchdog: 88 model steps exceeded 80
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational failure: convergence watchdog: 84 model steps exceeded 80; clean retry status: retry-ready
+2026-09-02 | session 40-impl-a4-retry1 | stopped: convergence watchdog: 84 model steps exceeded 80
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | repair 2 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | repair 2 spawn deferred
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | repair 1 spawn deferred
+2026-09-02 | ticket 39 | repair 2 spawn deferred
+2026-09-02 | dispatch | scheduled work: 2/2 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a4-retry1
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | clean retry started as 39-impl-a5-retry1
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 4 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | ticket 39 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-02 | ticket 39 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | dispatch | current work: 2/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | dispatch | scheduled work: 2/2 model sessions started
+2026-09-02 | ticket 40 | clean retry started as 40-impl-a3-retry1
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | clean retry started as 39-impl-a4-retry1
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 3 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | ticket 40 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | ticket 39 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | dispatch | current work: 3/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | current work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: needs-retry
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | clean retry started as 42-impl-a2-retry3
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | clean retry clone failed
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | clean retry clone failed
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | clean retry clone failed
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | implementer operational runtime exit 1; clean retry status: retry-ready
+2026-09-02 | dispatch | current work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | operational failure: implementer operational failure after 3/1 automatic retry: inactivity watchdog: no model or tool event for 953s
+2026-09-02 | session 40-impl-a2-retry3 | stopped: inactivity watchdog: no model or tool event for 953s
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | parked: result must name exactly one PR
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | session 39-impl-a3-retry3 | transient runtime exit 143; retry 4/1 spawned as 39-impl-a3-retry4
+2026-09-02 | ticket 39 | repair runtime retry queued on dac1e80f229e
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | operational failure: implementer operational failure after 3/1 automatic retry: context watchdog: 242665 tokens exceeded 240000
+2026-09-02 | session 39-impl-a3-retry3 | stopped: context watchdog: 242665 tokens exceeded 240000
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | session 42-impl-a2-retry1 | transient runtime exit 143; retry 2/1 spawned as 42-impl-a2-retry2
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | session 40-impl-a2-retry2 | transient runtime exit 143; retry 3/1 spawned as 40-impl-a2-retry3
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | session 39-impl-a3-retry2 | transient runtime exit 143; retry 3/1 spawned as 39-impl-a3-retry3
+2026-09-02 | ticket 42 | repair runtime retry queued on 8a55363ec6b6
+2026-09-02 | ticket 40 | repair runtime retry queued on 6a70203ff4d4
+2026-09-02 | ticket 39 | repair runtime retry queued on dac1e80f229e
+2026-09-02 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | operational failure: implementer operational runtime exit 143 after 1/1 automatic retry
+2026-09-02 | ticket 40 | operational failure: implementer operational runtime exit 143 after 2/1 automatic retry
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | operational failure: implementer operational failure after 2/1 automatic retry: context watchdog: 276969 tokens exceeded 240000
+2026-09-02 | session 39-impl-a3-retry2 | stopped: context watchdog: 276969 tokens exceeded 240000
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | session 42-impl-a2-retry1 | spawn blocked: workdir has a live writer
+2026-09-02 | dispatch | current work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | session 42-impl-a2-retry1 | spawn blocked: workdir has a live writer
+2026-09-02 | session 40-impl-a2 | transient runtime exit 143; retry 2/1 spawned as 40-impl-a2-retry2
+2026-09-02 | ticket 40 | repair runtime retry queued on 6a70203ff4d4
+2026-09-02 | dispatch | current work: 1/2 model sessions started
+2026-09-02 | ticket 42 | repair 1 spawn deferred
+2026-09-02 | session 42-impl-a2-retry1 | spawn blocked: workdir has a live writer
+2026-09-02 | session 39-impl-a3-retry1 | transient runtime exit 143; retry 2/1 spawned as 39-impl-a3-retry2
+2026-09-02 | ticket 39 | repair runtime retry queued on dac1e80f229e
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 39 | parked: invalid assurance action runtime-failed
+2026-09-02 | session 42-impl-a2 | transient runtime exit 1; retry 1/1 spawned as 42-impl-a2-retry1
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | operational failure: implementer operational failure after 1/1 automatic retry: context watchdog: 313052 tokens exceeded 240000
+2026-09-02 | session 39-impl-a3-retry1 | stopped: context watchdog: 313052 tokens exceeded 240000
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | session 42-impl-a2 | result collected; paid retry pending
+2026-09-02 | session 42-impl-a2 | transient retry ready for paid dispatch
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | parked: implementer runtime exited with status 143 after 1/1 automatic transient retry
+2026-09-02 | session 40-impl-a2 | reaped: timeout 7260s
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | current work: 1/2 model sessions started
+2026-09-02 | session 39-impl-a3 | transient runtime exit 1; retry 1/1 spawned as 39-impl-a3-retry1
+2026-09-02 | ticket 39 | repair runtime retry queued on dac1e80f229e
+2026-09-02 | ticket 40 | stale exit-143 sentinel cleared; live retry retained
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | parked: implementer runtime exited with status 1
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | parked: implementer runtime exited with status 143 after 1/1 automatic transient retry
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 2/2 model sessions started
+2026-09-02 | ticket 42 | unified assurance review for revision 1 spawned
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | current work: 2/2 model sessions started
+2026-09-02 | ticket 42 | unified assurance review spawn deferred (revision 1)
+2026-09-02 | ticket 39 | unified assurance review for revision 2 spawned
+2026-09-02 | session 40-impl-a2 | transient runtime exit 143; retry 1/1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | completed implementation result reconciled after runtime exit 143
+2026-09-02 | ticket 42 | revision 1 classified for unified assurance at 8a55363ec6b6
+2026-09-02 | ticket 40 | repair runtime retry queued on 6a70203ff4d4
+2026-09-02 | ticket 39 | same-head assurance runtime retry 1 queued at dac1e80f229e
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 42 | parked: implementer runtime exited with status 1
+2026-09-02 | session 42-impl-a1 | reaped: timeout 3635s
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 42 | implementer spawned (frontier)
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | parked: implementer runtime exited with status 1
+2026-09-02 | session 40-impl-a2 | reaped: timeout 3633s
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | unified assurance review for revision 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 40 | revision 1 classified for unified assurance at 6a70203ff4d4
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 40 | implementer spawned (frontier)
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | parked: no verdict file
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 39 | unified assurance review for revision 2 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | ticket 39 | revision 2 classified for unified assurance at dac1e80f229e
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 0/2 model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 39 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-02 | dispatch | scheduled work: 1/2 model sessions started
+2026-09-02 | ticket 39 | unified assurance review for revision 1 spawned
 2026-09-02 | collect | 1 completed result(s) updated; no model sessions started
 2026-09-02 | ticket 39 | revision 1 classified for unified assurance at 1d4beca46cd1
 2026-09-02 | dispatch | scheduled work: 0/2 model sessions started

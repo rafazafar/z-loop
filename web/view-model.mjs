@@ -121,6 +121,13 @@ export function ticketStages(ticket) {
 
   add(ticket.pr ? "PR opened" : "Implementation", ticket.pr ? "done" : session?.status === "running" ? "running" : "current");
 
+  if (ticket.operationalFailure?.status === "needs-retry") {
+    add("Automation runtime", "blocked", ticket.operationalFailure.reason || "Worker stopped before it completed");
+    add("Clean retry", "current");
+    if (ticket.pr) add("Owner merge", "future");
+    return stages;
+  }
+
   if (session?.status === "running" && session.kind === "implementation") {
     add(ticket.action === "fix" ? "Fix running" : "Implementation running", "running", session.id);
   }
@@ -158,7 +165,83 @@ export function ticketDisplayStatus(ticket) {
   if (ticket.status === "merged-unverified") return { key: "blocked", label: "OWNER AUDIT" };
   if (ticket.status === "merged-audited") return { key: "resolved", label: "EXCEPTION RECORDED" };
   if (ticket.status === "manual-takeover") return { key: "resolved", label: "OWNER-MANAGED" };
+  if (ticket.operationalFailure?.status === "needs-retry") return { key: "attention", label: "RUNTIME FAILURE" };
   if (["parked", "blocked-decision"].includes(ticket.status)) return { key: "blocked", label: "NEEDS DECISION" };
   if (ticket.status === "done") return { key: "ready", label: "READY FOR MERGE" };
   return { key: "active", label: ticket.status.replaceAll("-", " ").toUpperCase() };
+}
+
+export function parseJsonlLog(rawText) {
+  if (!rawText || typeof rawText !== "string") return [];
+  const lines = rawText.split("\n").filter(Boolean);
+  const events = [];
+  for (const line of lines) {
+    try {
+      events.push(JSON.parse(line));
+    } catch {}
+  }
+  const steps = [];
+  let currentStep = { index: 1, tools: [], tokens: null, timestamp: null, finishReason: null };
+  for (const event of events) {
+    if (event.type === "step_start") {
+      if (currentStep.tools.length > 0 || currentStep.tokens) {
+        steps.push(currentStep);
+        currentStep = { index: steps.length + 1, tools: [], tokens: null, timestamp: event.timestamp || null, finishReason: null };
+      } else if (event.timestamp) {
+        currentStep.timestamp = event.timestamp;
+      }
+    } else if (event.type === "tool_use") {
+      const p = event.part || {};
+      const tool = p.tool || "tool";
+      const st = p.state || {};
+      const input = st.input || {};
+      const metadata = st.metadata || {};
+      let title = st.title || "";
+      let detail = "";
+      if (tool === "bash") {
+        detail = input.command || "";
+        title = title || detail;
+      } else if (tool === "read") {
+        detail = input.path || input.AbsolutePath || "";
+        title = title || detail;
+      } else if (tool === "edit" || tool === "replace_file_content") {
+        detail = input.path || input.TargetFile || "";
+        title = title || detail;
+      } else if (tool === "write" || tool === "write_to_file") {
+        detail = input.path || input.TargetFile || "";
+        title = title || detail;
+      } else if (tool === "grep" || tool === "grep_search") {
+        detail = input.pattern || input.Query || "";
+        title = title || `${detail} ${input.path ? `in ${input.path}` : ""}`.trim();
+      } else if (tool === "glob" || tool === "find_by_name") {
+        detail = input.pattern || input.Pattern || "";
+        title = title || detail;
+      } else if (tool === "todowrite") {
+        title = `${(input.todos || []).length} todos`;
+      }
+      currentStep.tools.push({
+        tool,
+        title: title || tool,
+        detail,
+        input,
+        output: st.output || "",
+        exitCode: metadata.exit ?? null,
+        matches: metadata.matches ?? metadata.count ?? null,
+        status: st.status || "completed",
+        time: st.time || null
+      });
+    } else if (event.type === "step_finish") {
+      const p = event.part || {};
+      if (p.tokens) {
+        currentStep.tokens = p.tokens;
+      }
+      if (p.reason) {
+        currentStep.finishReason = p.reason;
+      }
+    }
+  }
+  if (currentStep.tools.length > 0 || currentStep.tokens) {
+    steps.push(currentStep);
+  }
+  return steps;
 }

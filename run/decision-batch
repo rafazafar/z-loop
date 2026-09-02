@@ -7,9 +7,8 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$LOOP_ROOT/run/common.sh"
 
 cards="$( { grep -l '^status: *open' "$LOOP_ROOT"/decisions/*.card.md 2>/dev/null || true; } | wc -l | tr -d ' ')"
-parked="$( { ls "$STATE"/*.parked 2>/dev/null || true; } | wc -l | tr -d ' ')"
-echo "open cards: $cards; parked tickets: $parked"
-if [ "$cards" = "0" ] && [ "$parked" = "0" ]; then
+echo "open cards: $cards"
+if [ "$cards" = "0" ]; then
   echo "nothing to decide; no queue this batch"
   timeline decision-desk "batch | nothing to decide"
   exit 0

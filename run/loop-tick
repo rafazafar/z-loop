@@ -17,7 +17,7 @@ done
 
 paid_mode=0
 case "$mode" in dispatch|advance|frontier) paid_mode=1 ;; esac
-dispatch_limit="$(rule max_new_sessions_per_dispatch)"
+dispatch_limit="$(rule max_concurrent_sessions)"
 case "$dispatch_limit" in ''|null|*[!0-9]*|0) dispatch_limit=1 ;; esac
 started_sessions=0
 collected_count=0
@@ -28,11 +28,19 @@ trap release_lock EXIT
 say() { printf '[%s] %s\n' "$(date +%T)" "$*"; }
 
 paid_slot_available() {
-  [ "$paid_mode" = 1 ] && [ "$started_sessions" -lt "$dispatch_limit" ]
+  local active
+  [ "$paid_mode" = 1 ] || return 1
+  active="$(tmux list-sessions -F '#S' 2>/dev/null |
+    grep -Ec "^${tmux_session_prefix}-[0-9]+-(impl|rev)-" || true)"
+  [ "$active" -lt "$dispatch_limit" ]
 }
 
 paid_spawn() { # session-id model variant workdir prompt-file
   paid_slot_available || return 75
+  if workdir_has_live_owner "$4"; then
+    timeline implement "session $1 | spawn blocked: workdir has a live writer"
+    return 76
+  fi
   if KOKOLOG_PAID_DISPATCH=1 "$LOOP_ROOT/run/spawn" start "$1" "$2" "$3" "$4" "$5" >/dev/null; then
     started_sessions=$((started_sessions + 1))
     metric implement runs.jsonl "\"event\":\"paid-session-start\",\"session\":\"$1\",\"model\":\"$2\",\"variant\":\"$3\",\"dispatch_limit\":$dispatch_limit"
@@ -83,6 +91,10 @@ fi
 
 # ---------- reap timed-out sessions -------------------------------------------
 timeout_sec="$(rule session_timeout_sec)"
+inactivity_timeout_sec="$(rule session_inactivity_timeout_sec)"
+termination_grace_sec="$(rule session_termination_grace_sec)"
+case "$inactivity_timeout_sec" in ''|null|*[!0-9]*) inactivity_timeout_sec=900 ;; esac
+case "$termination_grace_sec" in ''|null|*[!0-9]*) termination_grace_sec=5 ;; esac
 if [ "$mode" = collect ]; then
 for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep "^${tmux_session_prefix}-" | sed "s/^${tmux_session_prefix}-//"); do
   [ -f "$SESSIONS/$sess.done" ] && continue
@@ -90,14 +102,35 @@ for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep "^${tmux_session_pre
   [ -f "$started" ] || started="$SESSIONS/$sess.prompt"
   [ -f "$started" ] || continue
   age=$(( $(date +%s) - $(stat -f %m "$started") ))
-  if [ "$age" -gt "${timeout_sec:-3600}" ]; then
-    tmux kill-session -t "${tmux_session_prefix}-${sess}" 2>/dev/null
-    [ -s "$SESSIONS/$sess.result" ] || printf 'TIMEOUT: reaped after %ss by tick\n' "$age" > "$SESSIONS/$sess.result"
-    touch "$SESSIONS/$sess.done"
+  activity="$started"
+  [ ! -s "$LOGS/$sess.jsonl" ] || activity="$LOGS/$sess.jsonl"
+  idle=$(( $(date +%s) - $(stat -f %m "$activity") ))
+  termination_reason=""
+  if [ "$idle" -gt "$inactivity_timeout_sec" ]; then
+    termination_reason="inactivity watchdog: no model or tool event for ${idle}s"
+  elif [ "$age" -gt "${timeout_sec:-7200}" ]; then
+    termination_reason="wall-clock timeout: ${age}s exceeded ${timeout_sec:-7200}s"
+  fi
+  if [ -n "$termination_reason" ]; then
+    printf '%s\n' "$termination_reason" > "$SESSIONS/$sess.termination-reason.tmp" &&
+      mv "$SESSIONS/$sess.termination-reason.tmp" "$SESSIONS/$sess.termination-reason"
+    if ! terminate_session "$sess" "$termination_grace_sec"; then
+      if [ ! -e "$SESSIONS/$sess.termination-failed" ]; then
+        timeline implement "session $sess | CRITICAL: worker process group survived TERM and KILL"
+      fi
+      touch "$SESSIONS/$sess.termination-failed"
+      continue
+    fi
+    rm -f "$SESSIONS/$sess.termination-failed"
+    [ -s "$SESSIONS/$sess.result" ] || printf 'RUNTIME LIMIT: %s\n' "$termination_reason" > "$SESSIONS/$sess.result"
+    if [ ! -f "$SESSIONS/$sess.done" ]; then
+      printf '143\n' > "$SESSIONS/$sess.exit.tmp" && mv "$SESSIONS/$sess.exit.tmp" "$SESSIONS/$sess.exit"
+      touch "$SESSIONS/$sess.done"
+    fi
     case "$sess" in
-      dist-*)  timeline spec-sync "session $sess | reaped: timeout ${age}s" ;;
-      desk-*)  timeline decision-desk "session $sess | reaped: timeout ${age}s" ;;
-      *)       timeline implement "session $sess | reaped: timeout ${age}s" ;;
+      dist-*)  timeline spec-sync "session $sess | stopped: $termination_reason" ;;
+      desk-*)  timeline decision-desk "session $sess | stopped: $termination_reason" ;;
+      *)       timeline implement "session $sess | stopped: $termination_reason" ;;
     esac
   fi
 done
@@ -107,6 +140,17 @@ fi
 # A tmux session that vanishes (crash, reboot) leaves no .done: spawn-exec's
 # traps never ran. Review and fix sessions re-spawn from desired state on
 # their own; only frontier implementer sessions need recovery here.
+record_lost_session() { # ticket session reason status
+  local n="$1" sid="$2" reason="$3" status="$4" file limit
+  file="$STATE/$n.runtime.json"
+  limit="$(rule max_clean_retries)"
+  case "$limit" in ''|null|*[!0-9]*) limit=1 ;; esac
+  jq -n --argjson ticket "$n" --arg sid "$sid" --arg reason "$reason" --arg status "$status" \
+    --arg at "$(date -u +%FT%TZ)" --argjson limit "$limit" \
+    '{schema:1,ticket:$ticket,phase:"in-progress",role:"implementer",failed_session:$sid,root_session:$sid,
+      exit_code:70,reason:$reason,status:$status,automatic_retry_limit:$limit,automatic_retries:0,
+      retry_sequence:0,updated_at:$at}' > "$file.tmp" && mv "$file.tmp" "$file"
+}
 if [ "$mode" = collect ]; then
 for pf in "$SESSIONS"/*.prompt; do
   [ -e "$pf" ] || continue
@@ -122,19 +166,11 @@ for pf in "$SESSIONS"/*.prompt; do
   maxa="$(rule max_impl_attempts)"
   metric implement runs.jsonl "\"event\":\"session-lost\",\"ticket\":$n,\"session\":\"$id\",\"lost\":$lost"
   if [ "$lost" -le "${maxa:-3}" ]; then
-    rm -f "$STATE/$n.in-progress"
-    rm -rf "$CLONES/$n-a1"
-    timeline implement "ticket $n | recovered: session $id lost without completion ($lost/$maxa); re-queued"
+    record_lost_session "$n" "$id" "implementer session disappeared without completion ($lost/$maxa)" retry-ready
+    timeline implement "ticket $n | lost session queued for a clean retry ($lost/$maxa)"
   else
-    reason="$lost implementer sessions lost; owner decision required"
-    st_set "$n" parked "$reason"
-    timeline implement "ticket $n | parked: $reason"
-    park_auto_card "impl-lost-$n" implement \
-      "Ticket $n lost $lost implementer sessions — retry, drop, or take over?" \
-      "A lost session may have pushed an orphan ${BRANCH_PREFIX}-$n/* branch on GitHub before vanishing. Inspect before retrying." \
-      "- lost sessions: $SESSIONS/$n-impl-a*.prompt.lost
-- ticket: https://github.com/$(ghrepo)/issues/$n
-- stray branches: git -C $KOKOLOG_REPO ls-remote origin 'refs/heads/${BRANCH_PREFIX}-$n/*'"
+    record_lost_session "$n" "$id" "$lost implementer sessions disappeared; clean retry needs owner authorization" needs-retry
+    timeline implement "ticket $n | operational retry limit reached after $lost lost sessions"
   fi
 done
 fi
@@ -144,9 +180,9 @@ fi
 review_state_file() { printf '%s/%s.review.json\n' "$STATE" "$1"; }
 
 PR_CHECK_ROLLUP=""
-pr_checks_ready() { # PR URL; 0 terminal, 1 pending/not registered, 2 unavailable
-  local pr="$1" rollup count pending
-  if ! rollup="$(gh pr view "$pr" -R "$GH_REPO" --json statusCheckRollup 2>/dev/null)"; then
+pr_checks_ready() { # PR URL [head-sha]; 0 terminal, 1 pending/not registered, 2 unavailable
+  local pr="$1" head="${2:-}" rollup count pending
+  if ! rollup="$(github_pr_checks "$pr" "$GH_REPO" "$head")"; then
     return 2
   fi
   PR_CHECK_ROLLUP="$rollup"
@@ -167,110 +203,134 @@ write_json() { # destination; JSON on stdin
   if jq -S . > "$tmp"; then mv "$tmp" "$destination"; else rm -f "$tmp"; return 1; fi
 }
 
-can_retry_transient_session() { # session-id exit-code
-  local sid="$1" exit_code="$2" metadata retries max_retries workdir prompt_file
-  [ "$exit_code" = 143 ] || return 1
-  metadata="$SESSIONS/$sid.spawn.json"
-  [ -s "$metadata" ] || return 1
-  max_retries="$(rule max_transient_session_retries)"
-  case "$max_retries" in ''|null|*[!0-9]*) max_retries=1 ;; esac
-  retries="$(cat "$SESSIONS/$sid.transient-retries" 2>/dev/null || echo 0)"
-  case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
-  [ "$retries" -lt "$max_retries" ] || return 1
-  workdir="$(jq -r '.workdir // empty' "$metadata")"
-  prompt_file="$(jq -r '.prompt_file // empty' "$metadata")"
-  [ -n "$(jq -r '.model // empty' "$metadata")" ] &&
-    [ -n "$(jq -r '.variant // empty' "$metadata")" ] &&
-    [ -d "$workdir" ] && [ -f "$prompt_file" ]
-}
-
-stage_transient_retry() { # session-id exit-code
-  can_retry_transient_session "$1" "$2" || return 1
-  touch "$SESSIONS/$1.retry-pending"
-  timeline implement "session $1 | transient retry ready for paid dispatch"
-}
-
-retry_transient_session() { # session-id exit-code; paid dispatch only
-  local sid="$1" exit_code="$2" metadata retries_file retries max_retries retry
-  local model variant workdir prompt_file suffix archived
-  can_retry_transient_session "$sid" "$exit_code" || return 1
-  paid_slot_available || return 75
-  metadata="$SESSIONS/$sid.spawn.json"
-  [ -s "$metadata" ] || return 1
-  max_retries="$(rule max_transient_session_retries)"
-  case "$max_retries" in ''|null|*[!0-9]*) max_retries=1 ;; esac
-  retries_file="$SESSIONS/$sid.transient-retries"
-  retries="$(cat "$retries_file" 2>/dev/null || echo 0)"
-  case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
-  [ "$retries" -lt "$max_retries" ] || return 1
-
-  model="$(jq -r '.model // empty' "$metadata")"
-  variant="$(jq -r '.variant // empty' "$metadata")"
-  workdir="$(jq -r '.workdir // empty' "$metadata")"
-  prompt_file="$(jq -r '.prompt_file // empty' "$metadata")"
-  [ -n "$model" ] && [ -n "$variant" ] && [ -d "$workdir" ] && [ -f "$prompt_file" ] || return 1
-
-  retry=$((retries + 1))
-  printf '%s\n' "$retry" > "$retries_file.tmp" && mv "$retries_file.tmp" "$retries_file" || return 1
-  for suffix in result exit done harvested; do
-    [ -e "$SESSIONS/$sid.$suffix" ] || continue
-    mv "$SESSIONS/$sid.$suffix" "$SESSIONS/$sid.$suffix.transient-$retry"
-  done
-  if paid_spawn "$sid" "$model" "$variant" "$workdir" "$prompt_file"; then
-    metric implement runs.jsonl "\"event\":\"transient-retry\",\"session\":\"$sid\",\"exit\":143,\"retry\":$retry,\"limit\":$max_retries"
-    timeline implement "session $sid | transient runtime exit 143; retry $retry/$max_retries spawned"
-    return 0
-  fi
-
-  printf '%s\n' "$retries" > "$retries_file.tmp" && mv "$retries_file.tmp" "$retries_file"
-  for suffix in result exit done harvested; do
-    archived="$SESSIONS/$sid.$suffix.transient-$retry"
-    [ -e "$archived" ] && mv "$archived" "$SESSIONS/$sid.$suffix"
-  done
-  return 1
-}
-
-dispatch_transient_retry() {
-  local pending sid exit_code n role result
-  for pending in "$SESSIONS"/*.retry-pending; do
-    [ -e "$pending" ] || return 1
-    sid="${pending%.retry-pending}"; sid="${sid##*/}"
-    exit_code="$(cat "$SESSIONS/$sid.exit" 2>/dev/null || echo 1)"
-    retry_transient_session "$sid" "$exit_code"
-    result=$?
-    if [ "$result" = 0 ]; then
-      rm -f "$pending"
-      return 0
-    fi
-    [ "$result" = 75 ] && return 75
-    case "$sid" in
-      *-impl-*) n="${sid%%-impl-*}"; role=implementer ;;
-      *-rev-*) n="${sid%%-rev-*}"; role=reviewer ;;
-      *) rm -f "$pending"; continue ;;
-    esac
-    park_session_failure "$n" "$sid" "$role" "$exit_code"
-    rm -f "$pending"
-  done
-  return 1
-}
+runtime_state_file() { printf '%s/%s.runtime.json\n' "$STATE" "$1"; }
 
 runtime_exit_reason() { # session-id role exit-code
-  local sid="$1" role="$2" exit_code="$3" retries max_retries
-  retries="$(cat "$SESSIONS/$sid.transient-retries" 2>/dev/null || echo 0)"
-  max_retries="$(rule max_transient_session_retries)"
-  case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
-  case "$max_retries" in ''|null|*[!0-9]*) max_retries=1 ;; esac
-  if [ "$exit_code" = 143 ] && [ "$retries" -gt 0 ]; then
-    printf '%s runtime exited with status 143 after %s/%s automatic transient retry\n' "$role" "$retries" "$max_retries"
-  elif [ "$exit_code" = 143 ] && [ "$max_retries" = 0 ]; then
-    printf '%s runtime exited with status 143; automatic transient retry is disabled\n' "$role"
-  elif [ "$exit_code" = 143 ] && [ ! -s "$SESSIONS/$sid.spawn.json" ]; then
-    printf '%s runtime exited with status 143; automatic retry metadata was unavailable\n' "$role"
-  elif [ "$exit_code" = 143 ]; then
-    printf '%s runtime exited with status 143; automatic transient retry could not start\n' "$role"
+  local sid="$1" role="$2" exit_code="$3" termination_reason
+  termination_reason="$(cat "$SESSIONS/$sid.termination-reason" 2>/dev/null || true)"
+  if [ -n "$termination_reason" ]; then
+    printf '%s operational failure: %s\n' "$role" "$termination_reason"
+  elif [ "$exit_code" = 70 ]; then
+    printf '%s operational failure: worker wrote no result\n' "$role"
   else
-    printf '%s runtime exited with status %s\n' "$role" "$exit_code"
+    printf '%s operational runtime exit %s\n' "$role" "$exit_code"
   fi
+}
+
+record_runtime_failure() { # ticket session-id role exit-code [reason]
+  local n="$1" sid="$2" role="$3" exit_code="$4" file old retries limit status reason phase root
+  file="$(runtime_state_file "$n")"
+  old="$(cat "$file" 2>/dev/null || echo '{}')"
+  retries="$(printf '%s' "$old" | jq -r '.automatic_retries // 0')"
+  case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
+  limit="$(rule max_clean_retries)"
+  case "$limit" in ''|null|*[!0-9]*) limit=1 ;; esac
+  if [ "$retries" -lt "$limit" ]; then status=retry-ready; else status=needs-retry; fi
+  reason="${5:-$(runtime_exit_reason "$sid" "$role" "$exit_code")}"
+  phase=in-progress
+  [ -e "$STATE/$n.review" ] && phase=review
+  [ -e "$STATE/$n.fix" ] && phase=fix
+  root="${sid%-retry[0-9]*}"
+  printf '%s' "$old" | jq --argjson ticket "$n" --arg phase "$phase" --arg role "$role" \
+    --arg sid "$sid" --arg root "$root" --argjson exit "$exit_code" --arg reason "$reason" \
+    --arg status "$status" --arg at "$(date -u +%FT%TZ)" --argjson limit "$limit" '
+      .schema=1 | .ticket=$ticket | .phase=$phase | .role=$role |
+      .failed_session=$sid | .root_session=$root | .exit_code=$exit |
+      .reason=$reason | .status=$status | .automatic_retry_limit=$limit |
+      .updated_at=$at | .retry_sequence=(.retry_sequence // 0) |
+      .automatic_retries=(.automatic_retries // 0)' | write_json "$file"
+  timeline implement "ticket $n | $reason; clean retry status: $status"
+}
+
+prepare_clean_clone() { # ticket session-id prior-session-id
+  local n="$1" sid="$2" prior_sid="$3" target pr meta prn head_ref head_oid old_workdir branch
+  target="$CLONES/$n-${sid#"$n-"}"
+  case "$target" in "$CLONES/$n-"*) ;; *) return 1 ;; esac
+  [ ! -e "$target" ] || rm -rf "$target"
+  git clone -q "$CLIENT_REMOTE" "$target" || return 1
+  pr="$(github_known_pr "$n")"
+  if [ -n "$pr" ]; then
+    meta="$(github_pr_view "$pr" "$GH_REPO" "number,state,headRefName,headRefOid")" || return 1
+    [ "$(printf '%s' "$meta" | jq -r .state)" = OPEN ] || return 1
+    prn="$(printf '%s' "$meta" | jq -r .number)"
+    head_ref="$(printf '%s' "$meta" | jq -r .headRefName)"
+    head_oid="$(printf '%s' "$meta" | jq -r .headRefOid)"
+    git -C "$target" fetch -q origin "+refs/pull/$prn/head:refs/remotes/origin/kokolog-pr-$prn" || return 1
+    git -C "$target" checkout -q -b "$head_ref" "refs/remotes/origin/kokolog-pr-$prn" || return 1
+    [ "$(git -C "$target" rev-parse HEAD)" = "$head_oid" ] || return 1
+  else
+    old_workdir="$(jq -r '.workdir // empty' "$SESSIONS/$prior_sid.spawn.json" 2>/dev/null || true)"
+    branch="$(git -C "$old_workdir" branch --show-current 2>/dev/null || true)"
+    [ -n "$branch" ] || branch="${BRANCH_PREFIX}-${n}/$(branch_slug "retry")"
+    if git ls-remote --exit-code "$CLIENT_REMOTE" "refs/heads/$branch" >/dev/null 2>&1; then
+      git -C "$target" fetch -q origin "refs/heads/$branch:refs/remotes/origin/$branch" || return 1
+      git -C "$target" checkout -q -b "$branch" "refs/remotes/origin/$branch" || return 1
+    else
+      git -C "$target" checkout -q -b "$branch" "origin/$BASE_BRANCH" || return 1
+    fi
+  fi
+  printf '%s\n' "$target"
+}
+
+write_implement_prompt() { # ticket session clone title [verdict]
+  local n="$1" sid="$2" clone="$3" title="$4" verdict="${5:-}" output issue_json issue_body
+  output="$(worker_result_path "$clone" "$sid")"
+  issue_json="$(github_issue_view "$n" "$GH_REPO" "url,title,body" 2>/dev/null || true)"
+  issue_body="$(printf '%s' "$issue_json" | jq -r '.body // empty' 2>/dev/null || true)"
+  {
+    cat "$LOOP_ROOT/agents/implementer.md"
+    printf '\n# Controller task\n\n'
+    printf 'Issue #%s (%s) in %s.\n' "$n" "$title" "$GH_REPO"
+    printf 'This checkout starts from authoritative GitHub state. Do not inspect any path outside this checkout.\n'
+    printf 'Required PR base: %s. The PR must include `Closes #%s`.\n\n' "$BASE_BRANCH" "$n"
+    if [ -n "$issue_body" ]; then
+      printf '## Issue specification\n\n%s\n\n' "$issue_body"
+    fi
+    if [ -n "$verdict" ]; then
+      printf 'Repair only these current P0/P1 blockers. Do not implement advisories:\n\n'
+      sed -n '/^blockers:$/,/^advisories:$/p' "$verdict" | sed '$d'
+    fi
+    printf '\nWrite the final result atomically to %s. Do not write controller state or read prior session logs.\n' "$output"
+  } > "$SESSIONS/$sid.prompt"
+}
+
+dispatch_runtime_retries() {
+  local file status n old_sid role seq retry_sid clone title rs action started=1
+  for file in "$STATE"/*.runtime.json; do
+    [ -e "$file" ] || break
+    status="$(jq -r '.status // empty' "$file")"
+    [ "$status" = retry-ready ] || continue
+    n="$(jq -r .ticket "$file")"; old_sid="$(jq -r .failed_session "$file")"; role="$(jq -r .role "$file")"
+    ticket_session_live "$n" && continue
+    paid_slot_available || return 75
+    seq=$(( $(jq -r '.retry_sequence // 0' "$file") + 1 ))
+    retry_sid="$(jq -r .root_session "$file")-retry$seq"
+    while [ -e "$SESSIONS/$retry_sid.prompt" ] || [ -e "$SESSIONS/$retry_sid.done" ]; do
+      seq=$((seq + 1))
+      retry_sid="$(jq -r .root_session "$file")-retry$seq"
+    done
+    jq --argjson seq "$seq" '.retry_sequence=$seq' "$file" | write_json "$file"
+    clone="$(prepare_clean_clone "$n" "$retry_sid" "$old_sid")" || { timeline implement "ticket $n | clean retry clone failed"; continue; }
+    rs="$(review_state_file "$n")"
+    if [ "$role" = reviewer ] && [ -s "$rs" ]; then
+      jq --arg sid "$retry_sid" '.action="review" | .session_id=$sid' "$rs" | write_json "$rs" || continue
+      spawn_profile_review "$rs" "$clone" || continue
+    elif [ -s "$rs" ] && [ "$(jq -r '.action // empty' "$rs")" = fix ]; then
+      jq --arg sid "$retry_sid" '.session_id=$sid' "$rs" | write_json "$rs" || continue
+      spawn_fix "$rs" "$clone" || continue
+    else
+      title="$(github_issue_view "$n" "$GH_REPO" title | jq -r .title 2>/dev/null || echo "Tracked work")"
+      write_implement_prompt "$n" "$retry_sid" "$clone" "$title"
+      paid_spawn "$retry_sid" "$(route_model implementer)" "$(route_variant implementer)" "$clone" "$SESSIONS/$retry_sid.prompt" || continue
+    fi
+    jq --arg sid "$retry_sid" --arg at "$(date -u +%FT%TZ)" --argjson seq "$seq" '
+      .status="running" | .retry_session=$sid | .retry_sequence=$seq |
+      .automatic_retries=(.automatic_retries + (if .owner_authorized == true then 0 else 1 end)) |
+      .owner_authorized=false | .updated_at=$at' "$file" | write_json "$file"
+    timeline implement "ticket $n | clean retry started as $retry_sid"
+    started=0
+  done
+  return "$started"
 }
 
 park_review() { # desired-state file source-session reason
@@ -281,16 +341,12 @@ park_review() { # desired-state file source-session reason
   timeline implement "ticket $n | parked: $reason"
 }
 
-park_session_failure() { # ticket session-id role exit-code
-  local n="$1" sid="$2" role="$3" exit_code="$4" rs reason
-  rs="$(review_state_file "$n")"
-  reason="$(runtime_exit_reason "$sid" "$role" "$exit_code")"
-  if [ -s "$rs" ] && [ "$(jq -r '.session_id // empty' "$rs")" = "$sid" ]; then
-    park_review "$rs" "$sid" "$reason"
-  else
-    st_set "$n" parked "$reason"
-    timeline implement "ticket $n | parked: $reason"
-  fi
+review_contract_failure() { # desired-state file source-session reason
+  local rs="$1" sid="$2" reason="$3" n
+  n="$(jq -r .ticket "$rs")"
+  record_runtime_failure "$n" "$sid" reviewer 70 "$reason"
+  jq --arg reason "$reason" '.contract_failure=$reason' "$rs" | write_json "$rs" || return 1
+  timeline implement "ticket $n | reviewer contract failure: $reason"
 }
 
 mark_merged_unverified() { # desired-state file source-session
@@ -326,8 +382,9 @@ start_review_cycle() { # ticket PR source-session
     round=$(( $(jq -r '.round // 0' "$rs") + 1 ))
     blocking_repairs="$(jq -r '.blocking_repairs // 0' "$rs")"
   fi
-  clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
-  [ -n "$clone" ] || { reason="review clone missing"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return 1; }
+  clone="$(prepare_clean_clone "$n" "$n-assurance-r$round" "$source")" || {
+    timeline implement "ticket $n | review preparation deferred: clean PR clone failed"; return 1;
+  }
   if ! "$LOOP_ROOT/run/assurance-classify" "$n" "$pr" "$clone" "$assurance" >/dev/null; then
     reason="assurance classification failed"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return 1
   fi
@@ -356,42 +413,47 @@ start_review_cycle() { # ticket PR source-session
 }
 
 harvest_impl() { # ticket session-id
-  local n="$1" sid="$2" res="$SESSIONS/$2.result" prs pr rs clone checkout_head pr_meta pr_head pr_base closes reviewed_head reason
+  local n="$1" sid="$2" res="$SESSIONS/$2.result" pr rs clone branch checkout_head pr_meta pr_head pr_base closes reviewed_head reason
   rs="$(review_state_file "$n")"
   [ -f "$rs" ] && [ "$(jq -r '.source_session // ""' "$rs")" = "$sid" ] && return 0
   if grep -q 'DECOMPOSE' "$res" 2>/dev/null; then
     reason="needs decomposition"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
   fi
-  prs="$(grep -o 'https://github.com/[^ )]*/pull/[0-9]*' "$res" 2>/dev/null | sort -u)"
-  [ "$(printf '%s\n' "$prs" | grep -c .)" = 1 ] || {
-    reason="result must name exactly one PR"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
-  }
-  pr="$prs"
-  case "$pr" in
-    "https://github.com/$GH_REPO/pull/"[0-9]*) ;;
-    *) reason="PR is outside $GH_REPO"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return ;;
-  esac
-  clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+  clone="$(jq -r '.workdir // empty' "$SESSIONS/$sid.spawn.json" 2>/dev/null || true)"
+  branch="$(git -C "$clone" branch --show-current 2>/dev/null || true)"
+  pr="$(github_known_pr "$n")"
+  if [ -z "$pr" ] && [ -n "$branch" ]; then
+    pr="$(github_open_pr_for_branch "$GH_REPO" "$branch")"
+  fi
+  if [ -z "$pr" ]; then
+    record_runtime_failure "$n" "$sid" implementer 70
+    timeline implement "ticket $n | implementation contract incomplete: no open PR for branch ${branch:-unknown}"
+    return 0
+  fi
   checkout_head="$(git -C "$clone" rev-parse HEAD 2>/dev/null || true)"
-  pr_meta="$(gh pr view "$pr" -R "$GH_REPO" --json headRefOid,baseRefName,closingIssuesReferences 2>/dev/null || true)"
+  pr_meta="$(github_pr_view "$pr" "$GH_REPO" "headRefOid,baseRefName,closingIssuesReferences" 2>/dev/null || true)"
   pr_head="$(printf '%s' "$pr_meta" | jq -r '.headRefOid // empty')"
   pr_base="$(printf '%s' "$pr_meta" | jq -r '.baseRefName // empty')"
   closes="$(printf '%s' "$pr_meta" | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length')"
   [ -n "$checkout_head" ] && [ "$checkout_head" = "$pr_head" ] || {
-    reason="PR head does not match implementation"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
+    record_runtime_failure "$n" "$sid" implementer 70
+    timeline implement "ticket $n | implementation contract incomplete: checkout does not match PR head"; return 0
   }
   [ "$pr_base" = "$BASE_BRANCH" ] || {
-    reason="PR base $pr_base is not $BASE_BRANCH"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
+    record_runtime_failure "$n" "$sid" implementer 70
+    timeline implement "ticket $n | implementation contract incomplete: PR base $pr_base is not $BASE_BRANCH"; return 0
   }
   [ "$closes" = 1 ] || {
-    reason="PR must close issue #$n"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
+    record_runtime_failure "$n" "$sid" implementer 70
+    timeline implement "ticket $n | implementation contract incomplete: PR must close issue #$n"; return 0
   }
   reviewed_head="$(jq -r '.head_oid // empty' "$rs" 2>/dev/null || true)"
   if [ -n "$reviewed_head" ] && [ "$pr_head" = "$reviewed_head" ]; then
-    reason="repair did not create a new PR revision"
-    park_review "$rs" "$sid" "$reason"
-    return
+    record_runtime_failure "$n" "$sid" implementer 70
+    timeline implement "ticket $n | repair contract incomplete: PR head did not change"
+    return 0
   fi
+  rm -f "$(runtime_state_file "$n")"
   printf '%s\n' "$pr" > "$STATE/$n.pr"
   start_review_cycle "$n" "$pr" "$sid"
 }
@@ -401,13 +463,19 @@ spawn_profile_review() { # desired-state file
   local patch_file evidence_dir evidence_file patch_sha issue_snapshot
   n="$(jq -r .ticket "$rs")"; pr="$(jq -r .pr "$rs")"; round="$(jq -r .round "$rs")"
   profile="$(jq -r .profile "$rs")"; head="$(jq -r .head_oid "$rs")"; base="$(jq -r .base_oid "$rs")"
-  sid="$(jq -r .session_id "$rs")"; clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
+  sid="$(jq -r .session_id "$rs")"; clone="${2:-}"
   case "$profile" in
     assurance) role_file="$LOOP_ROOT/agents/reviewer.md"; role_name="Unified Assurance Reviewer"; route_role="reviewer" ;;
     *) park_review "$rs" "$sid" "unknown assurance profile $profile"; return 1 ;;
   esac
+  ticket_session_live "$n" && return 0
   [ -f "$SESSIONS/$sid.done" ] && return 0
   session_live "$sid" && return 0
+  if [ -z "$clone" ]; then
+    clone="$(prepare_clean_clone "$n" "$sid" "$(jq -r '.source_session // empty' "$rs")")" || {
+      say "ticket #$n review deferred: clean PR clone failed"; return 1;
+    }
+  fi
   check_state=0
   pr_checks_ready "$pr" || check_state=$?
   case "$check_state" in
@@ -418,7 +486,7 @@ spawn_profile_review() { # desired-state file
   esac
   patch_file="$STATE/$n.assurance-r$round.patch"
   [ -s "$patch_file" ] || { park_review "$rs" "$sid" "immutable review patch is missing"; return 1; }
-  if ! issue_snapshot="$(gh issue view "$n" -R "$GH_REPO" --json url,title,body,labels 2>/dev/null)"; then
+  if ! issue_snapshot="$(github_issue_view "$n" "$GH_REPO" "url,title,body,labels")"; then
     say "ticket #$n review deferred: issue evidence is unavailable"
     return 0
   fi
@@ -433,18 +501,32 @@ spawn_profile_review() { # desired-state file
       patch:$patch,patch_sha256:$patch_sha256,issue:$issue,checks:$checks.statusCheckRollup}' | write_json "$evidence_file" || {
         park_review "$rs" "$sid" "review evidence snapshot could not be created"; return 1
       }
+  local private_evidence private_patch private_assurance private_impl private_verdict private_result
+  private_evidence="$clone/.git/kokolog-loop/evidence"
+  mkdir -p "$private_evidence"
+  private_patch="$private_evidence/patch.diff"
+  private_assurance="$private_evidence/assurance.json"
+  private_impl="$private_evidence/implementation-result.md"
+  cp "$patch_file" "$private_patch"
+  cp "$STATE/$n.assurance-r$round.json" "$private_assurance"
+  cp "$evidence_file" "$private_evidence/review-evidence.json"
+  cp "$(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null | head -1)" "$private_impl" 2>/dev/null || printf 'No implementation result was retained.\n' > "$private_impl"
+  private_verdict="$(worker_verdict_path "$clone" "$sid")"
+  private_result="$(worker_result_path "$clone" "$sid")"
   rm -f "$VERDICTS/$n-verdict.md" "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
   pf="$SESSIONS/$sid.prompt"
   {
-    printf 'You are the %s. Read %s and obey it fully.\n' "$role_name" "$role_file"
+    cat "$role_file"
+    printf '\n# Controller task\n\nYou are the %s.\n' "$role_name"
     printf 'Review all dimensions selected in the assurance artifact. Issue: %s. Revision: %s.\n' "$n" "$round"
     printf 'PR: %s\nBASE_OID: %s\nHEAD_OID: %s\n' "$pr" "$base" "$head"
-    printf 'Read immutable patch %s and assurance artifact %s.\n' "$patch_file" "$STATE/$n.assurance-r$round.json"
-    printf 'Read issue and terminal CI evidence from %s.\n' "$evidence_file"
-    printf 'Implementation evidence: %s\n' "$(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null | head -1)"
-    printf 'Do not use shell commands. Use read and search tools on the immutable artifacts and checkout.\n'
-    printf 'Write %s atomically. Include PROFILE, ROUND, PR, BASE_OID, and HEAD_OID exactly once.\n' "$VERDICTS/$n-verdict.md"
-    printf 'Also write %s with exactly one line: VERDICT: PASS | BLOCK. The verdict file is authoritative.\n' "$SESSIONS/$sid.result"
+    printf 'Read immutable patch %s and assurance artifact %s.\n' "$private_patch" "$private_assurance"
+    printf 'Read issue and terminal CI evidence from %s.\n' "$private_evidence/review-evidence.json"
+    printf 'Implementation evidence: %s\n' "$private_impl"
+    printf 'Do not use shell commands to inspect or change the checkout. Use read and search tools on the immutable artifacts and checkout.\n'
+    printf 'For the two required outputs only, use the runtime-permitted printf-to-.tmp and mv operations described in the reviewer protocol.\n'
+    printf 'Write %s atomically. Include PROFILE, ROUND, PR, BASE_OID, and HEAD_OID exactly once.\n' "$private_verdict"
+    printf 'Also write %s with exactly one line: VERDICT: PASS | BLOCK. The verdict file is authoritative.\n' "$private_result"
   } > "$pf"
   if paid_spawn "$sid" "$(route_model "$route_role")" "$(route_variant "$route_role")" "$clone" "$pf"; then
     timeline implement "ticket $n | unified assurance review for revision $round spawned"; return 0
@@ -455,7 +537,7 @@ spawn_profile_review() { # desired-state file
 set_fix_desired() { # state file source-session archived-verdict
   local rs="$1" sid="$2" archived_verdict="$3" n round profile attempt blocking_repairs maxf fix_sid pr_state
   n="$(jq -r .ticket "$rs")"; round="$(jq -r .round "$rs")"; profile="$(jq -r .profile "$rs")"
-  pr_state="$(gh pr view "$(jq -r .pr "$rs")" -R "$GH_REPO" --json state --jq .state 2>/dev/null || true)"
+  pr_state="$(github_pr_view "$(jq -r .pr "$rs")" "$GH_REPO" state | jq -r '.state // empty' 2>/dev/null || true)"
   if [ "$pr_state" != OPEN ]; then
     if [ "$pr_state" = MERGED ]; then
       mark_merged_unverified "$rs" "$sid"
@@ -480,25 +562,29 @@ set_fix_desired() { # state file source-session archived-verdict
   st_set "$n" fix
 }
 
-spawn_fix() { # desired-state file
+spawn_fix() { # desired-state file [prepared clean clone]
   local rs="$1" n sid attempt blocking_repairs profile verdict clone pf model variant reason
-  n="$(jq -r .ticket "$rs")"; sid="$(jq -r .session_id "$rs")"; attempt="$(jq -r .attempt "$rs")"
+  n="$(jq -r .ticket "$rs")"; sid="$(jq -r .session_id "$rs")"; attempt="$(jq -r '.attempt // 1' "$rs")"
   blocking_repairs="$(jq -r '.blocking_repairs // .fix_attempt // 0' "$rs")"
   profile="$(jq -r .profile "$rs")"; verdict="$(jq -r .verdict_file "$rs")"
-  [ -f "$SESSIONS/$sid.done" ] && return 0
+  ticket_session_live "$n" && return 0
   session_live "$sid" && return 0
-  clone="$(ls -d "$CLONES/$n"-* 2>/dev/null | tail -1)"
-  [ -n "$clone" ] || { reason="fix clone missing"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return 1; }
+  while [ -f "$SESSIONS/$sid.done" ]; do
+    attempt=$((attempt + 1))
+    sid="$n-impl-a$attempt"
+    jq --arg sid "$sid" --argjson attempt "$attempt" '.session_id=$sid | .attempt=$attempt' "$rs" | write_json "$rs"
+  done
+  [ -f "$SESSIONS/$sid.done" ] && return 0
+  clone="${2:-}"
+  if [ -z "$clone" ]; then
+    clone="$(prepare_clean_clone "$n" "$sid" "$(jq -r '.last_applied_session // empty' "$rs")")" || {
+      timeline implement "ticket $n | repair deferred: clean PR clone failed"; return 1;
+    }
+  fi
   model="$(route_model repairer)"; variant="$(route_variant repairer)"
   rm -f "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
   pf="$SESSIONS/$sid.prompt"
-  {
-    printf 'You are the Implementer. Read %s and obey it fully.\n' "$LOOP_ROOT/agents/implementer.md"
-    printf 'Issue: %s. P0/P1 repair cycle: %s. Implementation session: %s.\n' "$n" "$blocking_repairs" "$attempt"
-    printf 'Existing clone+branch: %s\nFix ONLY the blockers. Do not implement advisories. Same diff review threshold.\n\n' "$clone"
-    sed -n '/^blockers:$/,/^advisories:$/p' "$verdict" | sed '$d'
-    printf '\nWrite %s atomically. Do not touch its .done sentinel.\n' "$SESSIONS/$sid.result"
-  } > "$pf"
+  write_implement_prompt "$n" "$sid" "$clone" "P0/P1 repair cycle $blocking_repairs" "$verdict"
   if paid_spawn "$sid" "$model" "$variant" "$clone" "$pf"; then
     timeline implement "ticket $n | P0/P1 BLOCK -> repair $blocking_repairs spawned"; return 0
   fi
@@ -509,54 +595,54 @@ harvest_review() { # ticket session-id
   local n="$1" sid="$2" rs profile round pr base head v archived verdict task bench_pending blocker_count advisory_count
   local blocker_lines advisory_lines field count reason
   rs="$(review_state_file "$n")"
-  [ -f "$rs" ] || { reason="missing review state"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return; }
+  [ -f "$rs" ] || { record_runtime_failure "$n" "$sid" reviewer 70 "missing review state"; timeline implement "ticket $n | reviewer contract failure: missing review state"; return; }
   [ "$(jq -r '.last_applied_session // ""' "$rs")" = "$sid" ] && return 0
-  [ "$(jq -r .session_id "$rs")" = "$sid" ] || { park_review "$rs" "$sid" "unexpected review session $sid"; return; }
+  [ "$(jq -r .session_id "$rs")" = "$sid" ] || { review_contract_failure "$rs" "$sid" "unexpected review session $sid"; return; }
   profile="$(jq -r .profile "$rs")"; round="$(jq -r .round "$rs")"; pr="$(jq -r .pr "$rs")"
   base="$(jq -r .base_oid "$rs")"; head="$(jq -r .head_oid "$rs")"
   archived="$VERDICTS/$n-$profile-r$round-${head:0:12}-verdict.md"; v="$VERDICTS/$n-verdict.md"
   if [ ! -f "$archived" ]; then
-    [ -f "$v" ] || { park_review "$rs" "$sid" "no verdict file"; return; }
+    [ -f "$v" ] || { review_contract_failure "$rs" "$sid" "no verdict file"; return; }
     for field in VERDICT TASK PROFILE ROUND PR BASE_OID HEAD_OID expected observed evidence blockers advisories; do
       count="$(grep -c "^${field}:" "$v" 2>/dev/null || true)"
-      [ "$count" = 1 ] || { park_review "$rs" "$sid" "invalid $profile verdict field $field"; return; }
+      [ "$count" = 1 ] || { review_contract_failure "$rs" "$sid" "invalid $profile verdict field $field"; return; }
     done
     verdict="$(grep '^VERDICT:' "$v" | cut -d' ' -f2 | tr -d '"\\')"
     task="$(grep '^TASK:' "$v" | cut -d' ' -f2 | tr -d '"\\')"
     case "$verdict:$task" in
       PASS:works|BLOCK:broken|BLOCK:unproven) ;;
-      *) park_review "$rs" "$sid" "invalid assurance verdict and task combination"; return ;;
+      *) review_contract_failure "$rs" "$sid" "invalid assurance verdict and task combination"; return ;;
     esac
     if grep -q '^BENCH:' "$v"; then
       count="$(grep -c '^BENCH:' "$v")"
-      [ "$count" = 1 ] || { park_review "$rs" "$sid" "invalid BENCH field count"; return; }
-      grep -qE '^BENCH: (pending|none)$' "$v" || { park_review "$rs" "$sid" "invalid BENCH value"; return; }
+      [ "$count" = 1 ] || { review_contract_failure "$rs" "$sid" "invalid BENCH field count"; return; }
+      grep -qE '^BENCH: (pending|none)$' "$v" || { review_contract_failure "$rs" "$sid" "invalid BENCH value"; return; }
     fi
     [ "$(grep '^PROFILE:' "$v" | cut -d' ' -f2-)" = "$profile" ] &&
     [ "$(grep '^ROUND:' "$v" | cut -d' ' -f2-)" = "$round" ] &&
     [ "$(grep '^PR:' "$v" | cut -d' ' -f2-)" = "$pr" ] &&
     [ "$(grep '^BASE_OID:' "$v" | cut -d' ' -f2-)" = "$base" ] &&
     [ "$(grep '^HEAD_OID:' "$v" | cut -d' ' -f2-)" = "$head" ] || {
-      park_review "$rs" "$sid" "verdict identity mismatch"; return
+      review_contract_failure "$rs" "$sid" "verdict identity mismatch"; return
     }
     blocker_lines="$(sed -n '/^blockers:$/,/^advisories:$/p' "$v" | sed '1d;$d')"
     advisory_lines="$(sed -n '/^advisories:$/,$p' "$v" | sed '1d')"
     [ -n "$blocker_lines" ] && ! printf '%s\n' "$blocker_lines" | grep -Eqv '^(- none|- P[01] · .+)$' || {
-      park_review "$rs" "$sid" "invalid blocker severity; only P0 and P1 may block"; return
+      review_contract_failure "$rs" "$sid" "invalid blocker severity; only P0 and P1 may block"; return
     }
     [ -n "$advisory_lines" ] && ! printf '%s\n' "$advisory_lines" | grep -Eqv '^(- none|- P[23] · .+)$' || {
-      park_review "$rs" "$sid" "invalid advisory severity; only P2 and P3 are advisory"; return
+      review_contract_failure "$rs" "$sid" "invalid advisory severity; only P2 and P3 are advisory"; return
     }
     if [ "$verdict" = PASS ]; then
-      [ "$blocker_lines" = "- none" ] || { park_review "$rs" "$sid" "PASS verdict contains blockers"; return; }
+      [ "$blocker_lines" = "- none" ] || { review_contract_failure "$rs" "$sid" "PASS verdict contains blockers"; return; }
     else
       printf '%s\n' "$blocker_lines" | grep -Eq '^- P[01] · .+' &&
         ! printf '%s\n' "$blocker_lines" | grep -q '^- none$' || {
-          park_review "$rs" "$sid" "BLOCK verdict must contain one or more P0/P1 blockers"; return
+          review_contract_failure "$rs" "$sid" "BLOCK verdict must contain one or more P0/P1 blockers"; return
         }
     fi
     if printf '%s\n' "$advisory_lines" | grep -q '^- none$'; then
-      [ "$advisory_lines" = "- none" ] || { park_review "$rs" "$sid" "advisories mix none with findings"; return; }
+      [ "$advisory_lines" = "- none" ] || { review_contract_failure "$rs" "$sid" "advisories mix none with findings"; return; }
     fi
     mv "$v" "$archived"
   fi
@@ -585,7 +671,7 @@ reconcile_assurance() {
     case "$action" in
       review|done|complete)
         pr="$(jq -r .pr "$rs")"; stored_base="$(jq -r .base_oid "$rs")"; stored_head="$(jq -r .head_oid "$rs")"
-        if ! live_revision="$(gh pr view "$pr" -R "$GH_REPO" --json state,baseRefOid,headRefOid 2>/dev/null)"; then
+        if ! live_revision="$(github_pr_view "$pr" "$GH_REPO" "state,baseRefOid,headRefOid")"; then
           say "assurance deferred: cannot read PR revision for #$n"; continue
         fi
         live_state="$(printf '%s' "$live_revision" | jq -r .state)"
@@ -627,7 +713,7 @@ reconcile_assurance() {
         esac
         ;;
       fix) spawn_fix "$rs" ;;
-      parked|merged|merged-unverified|merged-audited|manual-takeover) ;;
+      parked|runtime-failed|merged|merged-unverified|merged-audited|manual-takeover) ;;
       *) park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "invalid assurance action $action" ;;
     esac
   done
@@ -642,21 +728,16 @@ for donef in "$SESSIONS"/*.done; do
   run_exit="$(cat "$SESSIONS/$local_id.exit" 2>/dev/null || echo 1)"
   harvest_ok=1
   if [ "$run_exit" != 0 ]; then
-    if stage_transient_retry "$local_id" "$run_exit"; then
-      timeline implement "session $local_id | result collected; paid retry pending"
-    fi
-    if [ ! -e "$SESSIONS/$local_id.retry-pending" ]; then
-      case "$local_id" in
-        *-impl-*) n="${local_id%%-impl-*}"; park_session_failure "$n" "$local_id" implementer "$run_exit" ;;
-        *-rev-*)  n="${local_id%%-rev-*}";  park_session_failure "$n" "$local_id" reviewer "$run_exit" ;;
-        dist-*)   timeline spec-sync "session $local_id | failed: runtime exit $run_exit" ;;
-        desk-*)   timeline decision-desk "session $local_id | failed: runtime exit $run_exit" ;;
-      esac
-    fi
+    case "$local_id" in
+      *-impl-*) n="${local_id%%-impl-*}"; record_runtime_failure "$n" "$local_id" implementer "$run_exit" ;;
+      *-rev-*)  n="${local_id%%-rev-*}";  record_runtime_failure "$n" "$local_id" reviewer "$run_exit" ;;
+      dist-*)   timeline spec-sync "session $local_id | failed: runtime exit $run_exit" ;;
+      desk-*)   timeline decision-desk "session $local_id | failed: runtime exit $run_exit" ;;
+    esac
   else
     case "$local_id" in
-      *-impl-*) n="${local_id%%-impl-*}"; harvest_impl "$n" "$local_id" || harvest_ok=0 ;;
-      *-rev-*)  n="${local_id%%-rev-*}";  harvest_review "$n" "$local_id" || harvest_ok=0 ;;
+      *-impl-*) n="${local_id%%-impl-*}"; rm -f "$(runtime_state_file "$n")"; harvest_impl "$n" "$local_id" || harvest_ok=0 ;;
+      *-rev-*)  n="${local_id%%-rev-*}";  rm -f "$(runtime_state_file "$n")"; harvest_review "$n" "$local_id" || harvest_ok=0 ;;
       dist-*)   timeline spec-sync "distiller session finished: $local_id" ;;
       desk-*)   timeline decision-desk "decision-batch session finished: $local_id" ;;
     esac
@@ -680,8 +761,7 @@ frontier() {
   local issues
   issues="$(gh issue list -R "$GH_REPO" --label "$LABEL" --state open --search 'sort:created-asc' --limit 100 \
             --json number,title,createdAt --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null)" || {
-    say "frontier unavailable: cannot list GitHub issues"
-    return 1
+    issues="$(gh api "repos/$GH_REPO/issues?labels=$(printf '%s' "$LABEL" | jq -sRr @uri)&state=open&per_page=100" --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null || true)"
   }
   [ -n "$issues" ] || { say "frontier empty"; return 0; }
   while IFS=$'\t' read -r n title; do
@@ -690,7 +770,7 @@ frontier() {
     # "Blocked by" references remain a conservative compatibility check.
     local metadata native_blockers is_parent is_integration open_subissues body
     local slug branch remote_issue_branches existing_branch existing_pr reason
-    metadata="$(gh issue view "$n" -R "$GH_REPO" --json body,blockedBy,subIssues,labels 2>/dev/null)" || {
+    metadata="$(github_issue_view "$n" "$GH_REPO" "body,blockedBy,subIssues,labels")" || {
       say "frontier unavailable: cannot read dependencies for #$n"
       return 1
     }
@@ -725,7 +805,7 @@ frontier() {
     body="$(printf '%s' "$metadata" | jq -r '.body // ""')"
     blocked=0
     for b in $(printf '%s' "$body" | sed -n '/[Bb]locked by/,/^[A-Z*#]/p' | grep -o '#[0-9]\+' | tr -d '#'); do
-      s="$(gh issue view "$b" -R "$GH_REPO" --json state -q .state 2>/dev/null || echo open)"
+      s="$(github_issue_view "$b" "$GH_REPO" state | jq -r '.state // "open"' 2>/dev/null || echo open)"
       case "$s" in CLOSED|MERGED) ;; *) blocked=1; break ;; esac
     done
     if [ "$blocked" = 1 ]; then
@@ -752,7 +832,7 @@ frontier() {
     fi
     existing_branch="$(printf '%s\n' "$remote_issue_branches" | awk 'NR==1 {sub(/^.*refs\/heads\//, ""); print}')"
     if [ -n "$existing_branch" ]; then
-      existing_pr="$(gh pr list -R "$GH_REPO" --head "$existing_branch" --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)"
+      existing_pr="$(github_open_pr_for_branch "$GH_REPO" "$existing_branch")"
       [ -z "$existing_pr" ] || printf '%s\n' "$existing_pr" > "$STATE/$n.pr"
       reason="branch $existing_branch already exists"
       st_set "$n" parked "$reason"
@@ -783,17 +863,8 @@ frontier() {
       timeline implement "ticket $n | branch from origin/$BASE_BRANCH failed; retry next tick"
       continue
     fi
-    budget="$(jq -c .rules.diff_budget "$ROUTING")"
     pf="$SESSIONS/$n-impl-a1.prompt"
-    {
-      printf 'You are the Implementer. Read %s first and obey it fully.\n' "$LOOP_ROOT/agents/implementer.md"
-      printf 'Issue number: %s (%s) in repo %s.\n' "$n" "$title" "$(ghrepo)"
-      printf 'Your clone: %s (branch %s already created; work ONLY here).\n' "$clone" "$branch"
-      printf 'Required PR base: %s. Open with --base %s and include Closes #%s.\n' "$BASE_BRANCH" "$BASE_BRANCH" "$n"
-      printf 'Default diff review threshold: %s\n' "$budget"
-      printf 'When done: push, open ONE PR, then write %s atomically.\n' "$SESSIONS/$n-impl-a1.result"
-      printf 'Do not touch its .done sentinel; spawn-exec owns completion.\n'
-    } > "$pf"
+    write_implement_prompt "$n" "$n-impl-a1" "$clone" "$title"
     if paid_spawn "$n-impl-a1" "$(route_model implementer)" \
       "$(route_variant implementer)" "$clone" "$pf"; then
       st_set "$n" in-progress
@@ -823,7 +894,7 @@ case "$mode" in
     say "collection complete: $collected_count result(s); no model sessions started"
     ;;
   advance)
-    dispatch_transient_retry || true
+    dispatch_runtime_retries || true
     [ "$started_sessions" -ge "$dispatch_limit" ] || reconcile_assurance
     metric implement runs.jsonl "\"event\":\"dispatch\",\"scope\":\"current\",\"started\":$started_sessions,\"limit\":$dispatch_limit"
     timeline implement "dispatch | current work: $started_sessions/$dispatch_limit model sessions started"
@@ -842,7 +913,7 @@ case "$mode" in
     say "new-issue dispatch complete: $started_sessions/$dispatch_limit model sessions started"
     ;;
   dispatch)
-    dispatch_transient_retry || true
+    dispatch_runtime_retries || true
     [ "$started_sessions" -ge "$dispatch_limit" ] || reconcile_assurance
     if [ "$started_sessions" -lt "$dispatch_limit" ] && ! tracked_paid_work_exists; then
       if ! frontier; then

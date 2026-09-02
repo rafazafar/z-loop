@@ -1,16 +1,17 @@
 #!/bin/bash
-# resolve-ticket — record a human disposition for one parked implementation ticket.
+# resolve-ticket — retry an operational failure or record a genuine human disposition.
 set -euo pipefail
 LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
 . "$LOOP_ROOT/run/common.sh"
 
-[ "$#" -ge 2 ] && [ "$#" -le 3 ] || { echo "usage: resolve-ticket <ticket> <resume|retry|manual> [note]" >&2; exit 64; }
-ticket="$1"
-mode="$2"
-note="${3:-}"
+[ "$#" -ge 2 ] && [ "$#" -le 3 ] || {
+  echo "usage: resolve-ticket <ticket> <retry|resume|manual> [note]" >&2
+  exit 64
+}
+ticket="$1"; mode="$2"; note="${3:-}"
 case "$ticket" in ''|*[!0-9]*) echo "invalid ticket" >&2; exit 64 ;; esac
-case "$mode" in resume|retry|manual) ;; *) echo "invalid disposition" >&2; exit 64 ;; esac
+case "$mode" in retry|resume|manual) ;; *) echo "invalid disposition" >&2; exit 64 ;; esac
 if [ "$mode" != retry ]; then
   [ "${#note}" -ge 12 ] || { echo "add a specific note of at least 12 characters" >&2; exit 64; }
   [ "${#note}" -le 4000 ] || { echo "note is too long" >&2; exit 64; }
@@ -20,55 +21,45 @@ acquire_lock || { echo "another loop action is running" >&2; exit 75; }
 trap release_lock EXIT
 
 review="$STATE/$ticket.review.json"
-[ -f "$STATE/$ticket.parked" ] && [ -s "$review" ] || { echo "ticket #$ticket is not parked" >&2; exit 65; }
-[ "$(jq -r '.action // empty' "$review")" = parked ] || { echo "ticket #$ticket does not have a parked review" >&2; exit 65; }
+runtime="$STATE/$ticket.runtime.json"
+recorded_at="$(date -u +%FT%TZ)"
+
+if [ "$mode" = retry ]; then
+  [ -s "$runtime" ] || { echo "ticket #$ticket has no operational failure to retry" >&2; exit 65; }
+  case "$(jq -r '.status // empty' "$runtime")" in
+    needs-retry|retry-ready) ;;
+    running) echo "ticket #$ticket already has a clean retry running" >&2; exit 65 ;;
+    *) echo "ticket #$ticket does not have a retryable operational failure" >&2; exit 65 ;;
+  esac
+  jq --arg at "$recorded_at" '.status="retry-ready" | .owner_authorized=true | .updated_at=$at' \
+    "$runtime" > "$runtime.tmp" && mv "$runtime.tmp" "$runtime"
+  phase="$(jq -r '.phase // "in-progress"' "$runtime")"
+  case "$phase" in in-progress|review|fix) ;; *) phase=in-progress ;; esac
+  if [ -e "$STATE/$ticket.parked" ] || [ -e "$STATE/$ticket.runtime-failed" ]; then
+    st_set "$ticket" "$phase"
+  fi
+  metric implement runs.jsonl "\"event\":\"owner-clean-retry\",\"ticket\":$ticket"
+  timeline implement "ticket $ticket | owner authorized a clean retry from GitHub state"
+  printf 'Ticket #%s clean retry queued from authoritative GitHub state\n' "$ticket"
+  exit 0
+fi
+
+[ -f "$STATE/$ticket.parked" ] || { echo "ticket #$ticket is not awaiting a human decision" >&2; exit 65; }
+[ -s "$review" ] || { echo "ticket #$ticket has no review record" >&2; exit 65; }
 
 repo="$(ghrepo)"
 pr="$(jq -r '.pr // empty' "$review")"
 [ -n "$pr" ] || { echo "ticket #$ticket has no recorded PR" >&2; exit 65; }
-meta="$(gh pr view "$pr" -R "$repo" --json state,baseRefOid,headRefOid,url)"
+meta="$(gh pr view "$pr" -R "$repo" --json state,baseRefOid,headRefOid)"
 pr_state="$(printf '%s' "$meta" | jq -r .state)"
 live_base="$(printf '%s' "$meta" | jq -r .baseRefOid)"
 live_head="$(printf '%s' "$meta" | jq -r .headRefOid)"
 old_head="$(jq -r '.head_oid // empty' "$review")"
 old_reason="$(cat "$STATE/$ticket.parked")"
-recorded_at="$(date -u +%FT%TZ)"
 record="$STATE/$ticket.manual-intervention.json"
 temporary="$record.tmp.$$"
 
-if [ "$mode" = retry ]; then
-  [ "$pr_state" = OPEN ] || { echo "PR must be open to retry assurance" >&2; exit 65; }
-  [ "$live_base" = "$(jq -r '.base_oid // empty' "$review")" ] && [ "$live_head" = "$old_head" ] || {
-    echo "PR revision changed; use Resume automated assurance instead" >&2
-    exit 65
-  }
-  old_sid="$(jq -r '.session_id // empty' "$review")"
-  round="$(jq -r '.round // 0' "$review")"
-  case "$round" in ''|0|*[!0-9]*) echo "ticket does not have a valid assurance review round" >&2; exit 65 ;; esac
-  [[ "$old_sid" =~ ^${ticket}-rev-assurance-r${round}(-retry[0-9]+)?$ ]] || {
-    echo "ticket does not have a retryable assurance review session" >&2
-    exit 65
-  }
-  old_exit="$(cat "$SESSIONS/$old_sid.exit" 2>/dev/null || true)"
-  case "$old_exit" in ''|0|*[!0-9]*) echo "review session did not record a retryable runtime exit" >&2; exit 65 ;; esac
-  grep -q '^NO RESULT WRITTEN\.' "$SESSIONS/$old_sid.result" 2>/dev/null || {
-    echo "review session wrote a result; same-head runtime retry is not allowed" >&2
-    exit 65
-  }
-  archived_verdict="$VERDICTS/$ticket-assurance-r$round-${old_head:0:12}-verdict.md"
-  [ ! -e "$archived_verdict" ] || { echo "an assurance verdict already exists for this revision" >&2; exit 65; }
-  retry=$(( $(jq -r '.runtime_retries // 0' "$review") + 1 ))
-  retry_sid="$ticket-rev-assurance-r$round-retry$retry"
-  [ ! -e "$SESSIONS/$retry_sid.prompt" ] || { echo "retry session $retry_sid already exists" >&2; exit 65; }
-  jq --arg old_sid "$old_sid" --arg retry_sid "$retry_sid" --arg note "$note" --arg at "$recorded_at" --argjson retry "$retry" '
-    .action="review" | .session_id=$retry_sid | .runtime_retries=$retry |
-    .last_runtime_failure=$old_sid | .runtime_retry_note=$note |
-    .runtime_retry_requested_at=$at' "$review" > "$review.tmp" && mv "$review.tmp" "$review"
-  st_set "$ticket" review
-  metric implement runs.jsonl "\"event\":\"runtime-review-requeued\",\"ticket\":$ticket,\"round\":$round,\"retry\":$retry,\"previous_session\":\"$old_sid\""
-  timeline implement "ticket $ticket | same-head assurance runtime retry $retry queued at ${live_head:0:12}"
-  printf 'Ticket #%s assurance review requeued on %s as %s\n' "$ticket" "${live_head:0:12}" "$retry_sid"
-elif [ "$mode" = resume ]; then
+if [ "$mode" = resume ]; then
   [ "$pr_state" = OPEN ] || { echo "PR must be open to resume assurance" >&2; exit 65; }
   [ "$live_head" != "$old_head" ] || { echo "push a new PR revision before assurance resumes" >&2; exit 65; }
   jq -n --argjson schema 1 --argjson ticket "$ticket" --arg pr "$pr" \
@@ -84,13 +75,6 @@ elif [ "$mode" = resume ]; then
   st_set "$ticket" review
   metric implement runs.jsonl "\"event\":\"manual-resume\",\"ticket\":$ticket,\"old_head\":\"${old_head:0:12}\",\"head\":\"${live_head:0:12}\""
   timeline implement "ticket $ticket | owner intervention recorded; assurance resumes on ${live_head:0:12}"
-  body="<!-- kokolog-loop:manual-resolution -->
-**Workflow disposition: resume assurance**
-
-An owner updated this PR after the workflow parked it. Automated assurance will restart on head \`${live_head:0:12}\`.
-
-Note: $note"
-  gh pr comment "$pr" -R "$repo" --body "$body" >/dev/null || printf 'warning: could not post the resume record to PR #%s\n' "$ticket" >&2
   printf 'Ticket #%s will resume assurance on %s\n' "$ticket" "${live_head:0:12}"
 else
   jq -n --argjson schema 1 --argjson ticket "$ticket" --arg pr "$pr" --arg state "$pr_state" \
@@ -100,16 +84,10 @@ else
     > "$temporary"
   mv "$temporary" "$record"
   jq --arg head "$live_head" --arg base "$live_base" --arg record "$(basename "$record")" \
-    '.action="manual-takeover" | .head_oid=$head | .base_oid=$base | .manual_intervention=$record' "$review" > "$review.tmp" && mv "$review.tmp" "$review"
+    '.action="manual-takeover" | .head_oid=$head | .base_oid=$base | .manual_intervention=$record' \
+    "$review" > "$review.tmp" && mv "$review.tmp" "$review"
   st_set "$ticket" manual-takeover
   metric implement runs.jsonl "\"event\":\"manual-takeover\",\"ticket\":$ticket,\"head\":\"${live_head:0:12}\""
   timeline implement "ticket $ticket | owner-managed at ${live_head:0:12}: $note"
-  body="<!-- kokolog-loop:manual-resolution -->
-**Workflow disposition: owner-managed**
-
-Automated work is closed for this PR. The owner is responsible for remaining validation and merge. This does not convert prior assurance failures to PASS.
-
-Note: $note"
-  gh pr comment "$pr" -R "$repo" --body "$body" >/dev/null || printf 'warning: could not post the human-owned record to PR #%s\n' "$ticket" >&2
   printf 'Ticket #%s is now owner-managed\n' "$ticket"
 fi

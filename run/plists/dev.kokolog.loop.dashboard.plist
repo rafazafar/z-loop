@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>dev.kokolog.loop.sync</string>
+    <string>dev.kokolog.loop.dashboard</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>__LOOP_ROOT__/run/sync-repository</string>
+        <string>__LOOP_ROOT__/run/dashboard --no-open</string>
     </array>
     <key>WorkingDirectory</key>
     <string>__LOOP_ROOT__</string>
@@ -16,14 +16,20 @@
     <dict>
         <key>PATH</key>
         <string>__LAUNCH_PATH__</string>
+        <key>KOKOLOG_DASHBOARD_PORT</key>
+        <string>4177</string>
     </dict>
-    <key>StartInterval</key>
-    <integer>300</integer>
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>StandardOutPath</key>
-    <string>__LOOP_ROOT__/logs/launchd-sync.out</string>
+    <string>__LOOP_ROOT__/logs/launchd-dashboard.out</string>
     <key>StandardErrorPath</key>
-    <string>__LOOP_ROOT__/logs/launchd-sync.err</string>
+    <string>__LOOP_ROOT__/logs/launchd-dashboard.err</string>
 </dict>
 </plist>

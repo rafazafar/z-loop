@@ -12,17 +12,13 @@ export const defaultRoot = path.dirname(webDir);
 
 export const definitions = {
   implement: {
-    runner: "dispatch-work", args: ["--current"], scheduledCommand: "dispatch-work", cadence: "Every 30m", timer: "dev.kokolog.loop.tick",
-    consumes: "Ready GitHub issues", produces: "PRs and verdicts",
-    maintenance: [
-      { id: "collect", label: "Collect results", note: "Processes completed results and recovery state. Never starts a model session.", runner: "collect-results", scheduledCommand: "collect-results", cadence: "Every minute", timer: "dev.kokolog.loop.collect", paid: false },
-      { id: "sync", label: "Refresh repository", note: "Refreshes PR, dependency, and queue state. Never starts a model session.", runner: "sync-repository", scheduledCommand: "sync-repository", cadence: "Every 10m", timer: "dev.kokolog.loop.sync", paid: false }
-    ]
+    runner: "controller-heartbeat", scheduledCommand: "controller-heartbeat", cadence: "Every minute", timer: "dev.kokolog.loop.tick",
+    consumes: "Ready GitHub issues", produces: "PRs and verdicts", maintenance: []
   },
   "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, scheduledCommand: "spec-sync-trigger", cadence: "Every 10m", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Doc PRs and decisions" },
   "ticket-factory": { runner: "domain-loop", role: "ticketer", args: ["ticket-factory"], background: true, cadence: "On demand", consumes: "Approved specs and epics", produces: "Breakdown cards" },
   gardener: { runner: "domain-loop", role: "gardener", args: ["gardener"], background: true, cadence: "Weekly", consumes: "Signals and verdicts", produces: "Signals and proposal cards" },
-  "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, scheduledCommand: "decision-batch", cadence: "09:00 and 17:00", timer: "dev.kokolog.loop.decisions", consumes: "Open cards and parked work", produces: "Owner decision queues" }
+  "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, scheduledCommand: "decision-batch", cadence: "09:00 and 17:00", timer: "dev.kokolog.loop.decisions", consumes: "Explicit human decision cards", produces: "Owner decision queues" }
 };
 
 const domainIds = Object.keys(definitions);
@@ -65,12 +61,13 @@ async function isTimerInstalled(label) {
 }
 
 export function sessionIdentity(id) {
-  let match = id.match(/^(\d+)-impl-a(\d+)$/);
+  let match = id.match(/^(\d+)-impl-a(\d+)(?:-retry(\d+))?$/);
   if (match) {
     const attempt = Number(match[2]);
     return {
       ticket: Number(match[1]), attempt, kind: "implementation",
-      phase: attempt === 1 ? "build" : "repair", repair: Math.max(0, attempt - 1)
+      phase: attempt === 1 ? "build" : "repair", repair: Math.max(0, attempt - 1),
+      ...(match[3] ? { runtimeRetry: Number(match[3]) } : {})
     };
   }
   match = id.match(/^(\d+)-rev-assurance-r(\d+)(?:-retry(\d+))?$/);
@@ -137,7 +134,7 @@ export async function collectSessions(root, routing) {
   const sessions = await Promise.all(ids.map(async (id) => {
     const identity = sessionIdentity(id);
     const resultPath = path.join(dir, `${id}.result`);
-    const [result, exitText, spawnMetadata, promptInfo, spawnInfo, resultInfo, doneInfo, harvestedInfo, logInfo, stderrInfo] = await Promise.all([
+    const [result, exitText, spawnMetadata, promptInfo, spawnInfo, resultInfo, doneInfo, harvestedInfo, logInfo, stderrInfo, termReasonText] = await Promise.all([
       readFile(resultPath, "utf8").catch(() => ""),
       readFile(path.join(dir, `${id}.exit`), "utf8").catch(() => ""),
       readJson(path.join(dir, `${id}.spawn.json`)),
@@ -147,7 +144,8 @@ export async function collectSessions(root, routing) {
       fileStat(path.join(dir, `${id}.done`)),
       fileStat(path.join(dir, `${id}.harvested`)),
       fileStat(path.join(root, "logs", `${id}.jsonl`)),
-      fileStat(path.join(root, "logs", `${id}.stderr`))
+      fileStat(path.join(root, "logs", `${id}.stderr`)),
+      readFile(path.join(dir, `${id}.termination-reason`), "utf8").catch(() => "")
     ]);
     const loop = domainIds.find((domain) => id.startsWith(`loop-${domain}-`)) || (/^dist-/.test(id) ? "spec-sync" : /^desk-/.test(id) ? "decision-desk" : "implement");
     const role = identity.profile
@@ -171,7 +169,8 @@ export async function collectSessions(root, routing) {
       || (reportCandidates.length === 1 ? reportCandidates[0] : null);
     const verifiedReport = assuranceReport?.verdict === verdict ? assuranceReport : null;
     const exitCode = /^\d+$/.test(exitText.trim()) ? Number(exitText.trim()) : null;
-    const resultSummary = result.split("\n").map((line) => line.trim()).find(Boolean) || "";
+    const terminationReason = termReasonText.trim();
+    const resultSummary = terminationReason || (result.split("\n").map((line) => line.trim()).find(Boolean) || "");
     return {
       id, loop, role, route: actualRoute?.model ? `${actualRoute.model} · ${actualRoute.variant || "default"}` : "", status,
       routeSource: spawnMetadata?.model ? "recorded" : "configured fallback",
@@ -179,7 +178,7 @@ export async function collectSessions(root, routing) {
       durationSeconds: started && end ? Math.max(0, Math.floor((end - started) / 1000)) : null,
       startedAt: started ? new Date(started).toISOString() : null,
       finishedAt: doneInfo ? doneInfo.mtime.toISOString() : null,
-      verdict, exitCode, resultSummary,
+      verdict, exitCode, resultSummary, terminationReason,
       ...(verifiedReport ? {
         assuranceReport: verifiedReport.text.slice(0, 100000),
         assuranceReportFile: verifiedReport.file,
@@ -201,6 +200,8 @@ export function ticketNextAction(ticket, session) {
   if (ticket.status === "merged") return "No action: PR merged after unified assurance passed";
   if (ticket.status === "merged-audited") return "No action: post-merge audit is recorded";
   if (ticket.status === "manual-takeover") return "No controller action: the PR is owner-managed";
+  if (ticket.operationalFailure?.status === "needs-retry") return "Owner: start a clean retry from GitHub state";
+  if (ticket.operationalFailure?.status === "retry-ready") return "Clean retry is ready for the next controller heartbeat";
   if (ticket.status === "parked" && ticket.retryableReviewFailure) return "Owner: retry the same assurance review";
   if (["parked", "blocked-decision"].includes(ticket.status)) return "Owner: resolve the recorded reason";
   if (ticket.status === "review") return "Advance current work · starts at most one review session";
@@ -224,14 +225,14 @@ async function collectTickets(root, sessions, ghrepo, routing) {
 
   return Promise.all([...latest.values()].sort((a, b) => a.id - b.id).map(async (item) => {
     const reviewFile = path.join(stateDir, `${item.id}.review.json`);
-    const [review, reviewInfo, prText, postMergeAudit, manualIntervention] = await Promise.all([
+    const [review, reviewInfo, prText, postMergeAudit, manualIntervention, runtime] = await Promise.all([
       readJson(reviewFile), fileStat(reviewFile), readFile(path.join(stateDir, `${item.id}.pr`), "utf8").catch(() => ""),
       readJson(path.join(stateDir, `${item.id}.post-merge-audit.json`)),
-      readJson(path.join(stateDir, `${item.id}.manual-intervention.json`))
+      readJson(path.join(stateDir, `${item.id}.manual-intervention.json`)),
+      readJson(path.join(stateDir, `${item.id}.runtime.json`))
     ]);
     const ticketSessions = sessions.filter((session) => session.ticket === item.id);
     const desiredSession = review?.session_id ? sessions.find((session) => session.id === review.session_id) : null;
-    const failedReviewSession = desiredSession?.kind === "review" ? desiredSession : null;
     const currentSession = desiredSession && desiredSession.status !== "harvested" ? desiredSession : ticketSessions.find((session) => ["running", "awaiting harvest", "incomplete"].includes(session.status));
     const attempts = ticketSessions.reduce((max, session) => Math.max(max, session.attempt || 0), 0);
     const completed = review?.completed || [];
@@ -245,8 +246,21 @@ async function collectTickets(root, sessions, ghrepo, routing) {
     let liveHead = "";
     let title = "";
     if (pr && ghrepo) {
-      const result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title"], root, 5000);
-      if (result.ok) {
+      let result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title"], root, 5000);
+      if (!result.ok) {
+        const prNumber = pr.match(/\/pull\/(\d+)/)?.[1];
+        if (prNumber) {
+          result = await runCommand("gh", ["api", `repos/${ghrepo}/pulls/${prNumber}`], root, 5000);
+          if (result.ok) {
+            try {
+              const metadata = JSON.parse(result.stdout);
+              prState = (metadata.state || "").toUpperCase();
+              liveHead = metadata.head?.sha || "";
+              title = metadata.title || "";
+            } catch {}
+          }
+        }
+      } else {
         try {
           const metadata = JSON.parse(result.stdout);
           prState = metadata.state || "";
@@ -256,13 +270,14 @@ async function collectTickets(root, sessions, ghrepo, routing) {
       }
     }
     const ticket = {
-      id: item.id, title, status: item.status, reason: item.reason === item.status || ["merged", "merged-audited", "manual-takeover"].includes(item.status) ? "" : item.reason,
+      id: item.id, title, status: item.status,
+      reason: runtime?.status === "needs-retry" ? runtime.reason : item.reason === item.status || ["merged", "merged-audited", "manual-takeover"].includes(item.status) ? "" : item.reason,
       pr, prNumber: Number(pr.match(/\/pull\/(\d+)/)?.[1] || 0) || null, prState,
       head: review?.head_oid || "", headShort: review?.head_oid?.slice(0, 12) || "",
       round: review?.round || 0,
       attempt: attempts, repair: repairs, repairLimit: Number(routing.rules?.max_fix_attempts || 0), action: review?.action || item.status,
       assurance: { passed: completed.length, total: completed.length + remaining.length, profiles },
-      postMergeAudit, manualIntervention, mergedAt: review?.merged_at || null, liveHead, liveHeadShort: liveHead.slice(0, 12), revisionChanged: Boolean(liveHead && review?.head_oid && liveHead !== review.head_oid),
+      postMergeAudit, manualIntervention, operationalFailure: runtime || null, mergedAt: review?.merged_at || null, liveHead, liveHeadShort: liveHead.slice(0, 12), revisionChanged: Boolean(liveHead && review?.head_oid && liveHead !== review.head_oid),
       session: currentSession ? {
         id: currentSession.id, status: currentSession.status, durationSeconds: currentSession.durationSeconds,
         kind: currentSession.kind || "", profile: currentSession.profile || "", verdict: currentSession.verdict || "",
@@ -271,12 +286,8 @@ async function collectTickets(root, sessions, ghrepo, routing) {
       lastActivity: lastMs ? new Date(lastMs).toISOString() : null,
       ageSeconds: lastMs ? Math.max(0, Math.floor((Date.now() - lastMs) / 1000)) : null
     };
-    ticket.retryableReviewFailure = Boolean(
-      item.status === "parked" && review?.action === "parked" && failedReviewSession &&
-      Number.isInteger(failedReviewSession.exitCode) && failedReviewSession.exitCode !== 0 &&
-      /^NO RESULT WRITTEN\./.test(failedReviewSession.resultSummary) &&
-      prState === "OPEN" && liveHead === review?.head_oid
-    );
+    ticket.retryableReviewFailure = false;
+    ticket.retryableRuntimeFailure = runtime?.status === "needs-retry";
     ticket.nextAction = ticketNextAction(ticket, currentSession);
     return ticket;
   }));
@@ -284,10 +295,16 @@ async function collectTickets(root, sessions, ghrepo, routing) {
 
 async function collectFrontier(root, routing, ghrepo, tickets) {
   const args = ["issue", "list", "-R", ghrepo, "--state", "open", "--label", routing.github.frontier_label, "--limit", "200", "--json", "number,title,createdAt,body,labels,blockedBy,subIssues"];
-  const [frontierResult, openResult] = await Promise.all([
+  let [frontierResult, openResult] = await Promise.all([
     runCommand("gh", args, root, 8000),
     runCommand("gh", ["issue", "list", "-R", ghrepo, "--state", "open", "--limit", "1000", "--json", "number", "--jq", ".[].number"], root, 8000)
   ]);
+  if (!frontierResult.ok && ghrepo) {
+    frontierResult = await runCommand("gh", ["api", `repos/${ghrepo}/issues?labels=${encodeURIComponent(routing.github.frontier_label || "")}&state=open&per_page=100`], root, 8000);
+  }
+  if (!openResult.ok && ghrepo) {
+    openResult = await runCommand("gh", ["api", `repos/${ghrepo}/issues?state=open&per_page=100`, "--jq", ".[].number"], root, 8000);
+  }
   let issues = [];
   try { if (frontierResult.ok) issues = JSON.parse(frontierResult.stdout || "[]"); } catch {}
   const open = new Set(openResult.stdout.split("\n").filter(Boolean).map(Number));
@@ -330,8 +347,9 @@ function buildAttention(loops, sessions, tickets, cards) {
   }
   for (const ticket of tickets) {
     if (ticket.status === "merged-unverified") attention.push({ severity: "critical", kind: "ticket", ticket: ticket.id, title: `Issue #${ticket.id} merged without assurance`, detail: ticket.reason, action: ticket.nextAction });
+    else if (ticket.operationalFailure?.status === "needs-retry") attention.push({ severity: "warning", kind: "runtime", ticket: ticket.id, title: `Issue #${ticket.id} automation failed`, detail: ticket.operationalFailure.reason, action: ticket.nextAction });
     else if (["parked", "blocked-decision"].includes(ticket.status)) attention.push({ severity: "decision", kind: "ticket", ticket: ticket.id, title: `Issue #${ticket.id} needs a decision`, detail: ticket.reason, action: ticket.nextAction });
-    else if (["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.session || ticket.session.status === "incomplete")) attention.push({ severity: "ready", kind: "dispatch", ticket: ticket.id, title: `Issue #${ticket.id} has a paid step ready`, detail: ticket.nextAction, action: "Advance current work when the cost is authorized" });
+    else if (["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.operationalFailure || ticket.operationalFailure.status === "retry-ready") && (!ticket.session || ticket.session.status === "incomplete")) attention.push({ severity: "ready", kind: "dispatch", ticket: ticket.id, title: `Issue #${ticket.id} has a paid step ready`, detail: ticket.nextAction, action: "Advance current work when the cost is authorized" });
   }
   for (const card of cards.filter((item) => item.status === "open")) attention.push({ severity: "decision", kind: "card", title: card.title, detail: card.name, action: "Answer the decision card" });
   for (const loop of loops.filter((item) => item.status === "active" && item.timerConfigured && !item.timerLoaded)) {
@@ -428,7 +446,7 @@ export async function collectStatus(root = defaultRoot) {
   const logs = (await Promise.all(logFiles.map(async (name) => ({ name, info: await fileStat(path.join(root, "logs", name)) })))).filter((item) => item.info?.isFile()).sort((a, b) => b.info.mtimeMs - a.info.mtimeMs).slice(0, 30).map((item) => ({ name: item.name, size: item.info.size, modified: item.info.mtime.toISOString() }));
   const frontier = await collectFrontier(root, routing, ghrepo, tickets);
   const currentSessions = sessions.filter((session) => ["running", "awaiting harvest", "incomplete"].includes(session.status));
-  const paidReady = tickets.filter((ticket) => ["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.session || ticket.session.status === "incomplete")).length;
+  const paidReady = tickets.filter((ticket) => ["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.operationalFailure || ticket.operationalFailure.status === "retry-ready") && (!ticket.session || ticket.session.status === "incomplete")).length;
   const attention = buildAttention(loops, currentSessions, tickets, cards);
   const activity = await collectActivity(root, sessions);
   return {
@@ -442,7 +460,7 @@ export async function collectStatus(root = defaultRoot) {
       awaitingHarvest: currentSessions.filter((session) => session.status === "awaiting harvest").length,
       incomplete: currentSessions.filter((session) => session.status === "incomplete").length,
       openDecisionCards: cards.filter((card) => card.status === "open").length,
-      humanActions: tickets.filter((ticket) => ["parked", "blocked-decision", "merged-unverified"].includes(ticket.status)).length,
+      humanActions: tickets.filter((ticket) => ["parked", "blocked-decision", "merged-unverified"].includes(ticket.status) || ticket.operationalFailure?.status === "needs-retry").length,
       degraded: loops.filter((loop) => loop.status === "active" && loop.health === "failed").length,
       paidReady
     }

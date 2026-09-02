@@ -13,11 +13,29 @@ donef="$SESSIONS/$id.done"
 exitf="$SESSIONS/$id.exit"
 jsonlog="$LOGS/$id.jsonl"
 exit_code=0
+workdir_lock=""
+owns_workdir=0
+worker_result=""
+worker_verdict=""
 
 finish() {
-  # result file must exist even if the agent never wrote one
+  if [ -n "$worker_result" ] && [ -s "$worker_result" ]; then
+    cp "$worker_result" "$result.tmp" && mv "$result.tmp" "$result"
+  fi
+  if [ -n "$worker_verdict" ] && [ -s "$worker_verdict" ]; then
+    ticket="${id%%-rev-*}"
+    cp "$worker_verdict" "$VERDICTS/$ticket-verdict.md.tmp" &&
+      mv "$VERDICTS/$ticket-verdict.md.tmp" "$VERDICTS/$ticket-verdict.md"
+  fi
+  if [ "$owns_workdir" = 1 ] && [ -d "$workdir_lock" ] &&
+     [ "$(cat "$workdir_lock/session" 2>/dev/null || true)" = "$id" ] &&
+     [ "$(cat "$workdir_lock/pid" 2>/dev/null || true)" = "$$" ]; then
+    rm -rf "$workdir_lock"
+  fi
+  # A missing result is an operational failure, never successful model output.
   if [ ! -s "$result" ]; then
-    printf 'NO RESULT WRITTEN. Exit status: %s. See %s\n' "$exit_code" "$jsonlog" > "$result"
+    [ "$exit_code" != 0 ] || exit_code=70
+    printf 'RUNTIME_ERROR: worker wrote no result (exit %s)\n' "$exit_code" > "$result"
   fi
   printf '%s\n' "$exit_code" > "$exitf.tmp" && mv "$exitf.tmp" "$exitf"
   touch "$donef"
@@ -28,15 +46,64 @@ trap 'exit_code=130; exit 130' INT
 
 cd "$workdir" 2>/dev/null || { printf 'workdir missing: %s\n' "$workdir" > "$result"; exit_code=1; exit 1; }
 
-# providers (9router, openai, zai coding plan, ...) resolve from the user's
-# GLOBAL opencode config — deliberately no OPENCODE_CONFIG override here.
+case "$id" in
+  *-impl-*|*-rev-*)
+    worker_output_dir="$workdir/.git/kokolog-loop"
+    mkdir -p "$worker_output_dir"
+    worker_result="$worker_output_dir/$id.result"
+    rm -f "$worker_result"
+    case "$id" in
+      *-rev-*) worker_verdict="$worker_output_dir/$id.verdict.md"; rm -f "$worker_verdict" ;;
+    esac
+    ;;
+esac
+
+session_pgid_value="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+printf '%s\n' "$$" > "$SESSIONS/$id.pid"
+printf '%s\n' "$session_pgid_value" > "$SESSIONS/$id.pgid"
+
+case "$id" in
+  *-impl-*|loop-spec-sync-*)
+    mkdir -p "$SESSIONS/workdir-locks"
+    workdir_lock="$(workdir_lock_path "$workdir")"
+    for _ in 1 2; do
+      if mkdir "$workdir_lock" 2>/dev/null; then
+        printf '%s\n' "$id" > "$workdir_lock/session"
+        printf '%s\n' "$$" > "$workdir_lock/pid"
+        printf '%s\n' "$session_pgid_value" > "$workdir_lock/pgid"
+        printf '%s\n' "$workdir" > "$workdir_lock/workdir"
+        owns_workdir=1
+        break
+      fi
+      if workdir_has_live_owner "$workdir"; then
+        owner="$(cat "$workdir_lock/session" 2>/dev/null || echo unknown)"
+        printf 'OPERATIONAL COLLISION: workdir is owned by live session %s\n' "$owner" > "$result"
+        exit_code=75
+        exit 75
+      fi
+      stale="$workdir_lock.stale.$$"
+      if mv "$workdir_lock" "$stale" 2>/dev/null; then rm -rf "$stale"; fi
+    done
+    if [ "$owns_workdir" != 1 ]; then
+      printf 'OPERATIONAL COLLISION: could not acquire workdir ownership\n' > "$result"
+      exit_code=75
+      exit 75
+    fi
+    ;;
+esac
+
+# Providers and model limits resolve from the user's global OpenCode config.
+# Headless workers do not load interactive package plugins or unrelated MCPs.
+# Inline config has the highest user-controlled precedence and merges with the
+# provider configuration instead of replacing it.
+export OPENCODE_CONFIG_CONTENT='{"plugin":[],"mcp":{"google-docs":{"enabled":false}}}'
 readonly_output=""
 extra_output=""
 case "$id" in
   *-verify) readonly_output="$result" ;;
   *-rev-*)
-    ticket="${id%%-rev-*}"; readonly_output="$VERDICTS/$ticket-verdict.md"
-    extra_output="$result" ;;
+    readonly_output="$worker_verdict"
+    extra_output="$worker_result" ;;
 esac
 if [ -n "$readonly_output" ]; then
   mv_pattern="mv *${readonly_output}"
@@ -50,19 +117,23 @@ if [ -n "$readonly_output" ]; then
     rwrite_pattern="printf * > ${extra_output}.tmp"
     quoted_rwrite_pattern="printf * > \"${extra_output}.tmp\""
     OPENCODE_PERMISSION="$(jq -cn --arg move "$mv_pattern" --arg qmove "$quoted_mv_pattern" --arg write "$write_pattern" --arg qwrite "$quoted_write_pattern" --arg rmove "$rmove_pattern" --arg rqmove "$quoted_rmove_pattern" --arg rwrite "$rwrite_pattern" --arg rqwrite "$quoted_rwrite_pattern" '
-      {edit:"deny",task:"deny",external_directory:"allow",
+      {edit:"deny",task:"deny",external_directory:"deny",
        bash:{"*":"deny",($write):"allow",($qwrite):"allow",($move):"allow",($qmove):"allow",
              ($rwrite):"allow",($rqwrite):"allow",($rmove):"allow",($rqmove):"allow"}}')"
   else
     OPENCODE_PERMISSION="$(jq -cn --arg move "$mv_pattern" --arg qmove "$quoted_mv_pattern" --arg write "$write_pattern" --arg qwrite "$quoted_write_pattern" '
-      {edit:"deny",task:"deny",external_directory:"allow",
+      {edit:"deny",task:"deny",external_directory:"deny",
        bash:{"*":"deny",($write):"allow",($qwrite):"allow",($move):"allow",($qmove):"allow"}}')"
   fi
 else
   case "$id" in
     *-impl-*|loop-spec-sync-*)
       export OPENCODE_PERMISSION
-      OPENCODE_PERMISSION='{"edit":"allow","task":"deny","external_directory":"allow"}'
+      if [[ "$id" = *-impl-* ]]; then
+        OPENCODE_PERMISSION='{"edit":"allow","task":"deny","external_directory":"deny"}'
+      else
+        OPENCODE_PERMISSION='{"edit":"allow","task":"deny","external_directory":"allow"}'
+      fi
       ;;
     loop-ticket-factory-*|loop-gardener-*|loop-decision-desk-*)
       stage_root="$STATE/staging/$id/**"
@@ -89,6 +160,7 @@ opencode run \
   --variant "$variant" \
   --format json \
   --title "$id" \
+  -- \
   "$(cat "$prompt_file")" 2>>"$LOGS/$id.stderr" | tee -a "$jsonlog"
 
 exit_code="${PIPESTATUS[0]}"

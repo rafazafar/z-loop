@@ -49,31 +49,37 @@ else
 fi
 if [ -n "${GH_REPO:-}" ] && [ -n "$base_branch" ]; then
   default_branch="$(gh repo view "$GH_REPO" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || true)"
+  [ -n "$default_branch" ] || default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch' 2>/dev/null || true)"
   [ "$default_branch" = "$base_branch" ] && ok "PR base matches repository default ($base_branch)" || \
     soft "configured PR base $base_branch differs from repository default ${default_branch:-unknown}"
 fi
 
+github_label_exists() {
+  local repo="$1" label="$2" labels
+  if labels="$(gh label list -R "$repo" --search "$label" --json name 2>/dev/null)"; then
+    jq -e --arg name "$label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1 && return 0
+  fi
+  gh api "repos/$repo/labels/$(printf '%s' "$label" | jq -sRr @uri)" >/dev/null 2>&1
+}
+
 echo "== github labels =="
 if [ -n "${GH_REPO:-}" ]; then
   frontier_label="$(jqget .github.frontier_label)"
-  labels="$(gh label list -R "$GH_REPO" --search "$frontier_label" --json name 2>/dev/null || true)"
-  if jq -e --arg name "$frontier_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
-    ok "label $(jqget .github.frontier_label) exists"
+  if github_label_exists "$GH_REPO" "$frontier_label"; then
+    ok "label $frontier_label exists"
   else
-    soft "label $(jqget .github.frontier_label) missing -> gh label create $(jqget .github.frontier_label) -R $GH_REPO"
+    soft "label $frontier_label missing -> gh label create $frontier_label -R $GH_REPO"
   fi
   integ_label="$(jqget .github.integration_label)"
   if [ -n "$integ_label" ] && [ "$integ_label" != "null" ]; then
-    labels="$(gh label list -R "$GH_REPO" --search "$integ_label" --json name 2>/dev/null || true)"
-    if jq -e --arg name "$integ_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
+    if github_label_exists "$GH_REPO" "$integ_label"; then
       ok "label $integ_label exists"
     else
       soft "label $integ_label missing -> gh label create $integ_label -R $GH_REPO"
     fi
   fi
   decision_label="$(jqget '.github.decision_label // empty')"
-  labels="$(gh label list -R "$GH_REPO" --search "$decision_label" --json name 2>/dev/null || true)"
-  if [ -n "$decision_label" ] && jq -e --arg name "$decision_label" 'any(.[]; .name == $name)' <<< "$labels" >/dev/null 2>&1; then
+  if [ -n "$decision_label" ] && github_label_exists "$GH_REPO" "$decision_label"; then
     ok "label $decision_label exists"
   else
     bad "github.decision_label is missing or unavailable"
@@ -92,15 +98,15 @@ case "$fix_attempts" in
   ''|null|*[!0-9]*|0) bad "rules.max_fix_attempts must be a positive integer" ;;
   *) ok "P0/P1 repairs per ticket: $fix_attempts" ;;
 esac
-transient_retries="$(rule max_transient_session_retries)"
-case "$transient_retries" in
-  ''|null|*[!0-9]*) bad "rules.max_transient_session_retries must be a non-negative integer" ;;
-  *) ok "transient status-143 retries: $transient_retries" ;;
+clean_retries="$(rule max_clean_retries)"
+case "$clean_retries" in
+  ''|null|*[!0-9]*) bad "rules.max_clean_retries must be a non-negative integer" ;;
+  *) ok "automatic clean retries: $clean_retries" ;;
 esac
-dispatch_limit="$(rule max_new_sessions_per_dispatch)"
+dispatch_limit="$(rule max_concurrent_sessions)"
 case "$dispatch_limit" in
-  ''|null|*[!0-9]*|0) bad "rules.max_new_sessions_per_dispatch must be a positive integer" ;;
-  *) ok "paid session starts per dispatch: $dispatch_limit" ;;
+  ''|null|*[!0-9]*|0) bad "rules.max_concurrent_sessions must be a positive integer" ;;
+  *) ok "maximum concurrent paid sessions: $dispatch_limit" ;;
 esac
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 

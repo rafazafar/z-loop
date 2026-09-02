@@ -9,6 +9,7 @@ DEST="$HOME/Library/LaunchAgents"
 NODE_BIN="$(command -v node)" || { echo "node not found" >&2; exit 1; }
 LAUNCH_PATH="$(dirname "$NODE_BIN"):$HOME/.opencode/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 mkdir -p "$DEST"
+rm -f "$DEST/dev.kokolog.loop.collect.plist" "$DEST/dev.kokolog.loop.sync.plist"
 
 for src in "$LOOP_ROOT"/run/plists/*.plist; do
   [ -e "$src" ] || { echo "no plists found"; exit 1; }
@@ -20,12 +21,16 @@ done
 cat <<'EOF'
 
 To load (only after the domain's prove-it run):
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.dashboard.plist
   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.tick.plist
   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.decisions.plist
   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.specsync.plist
 
 To unload:
   launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/<plist>
+
+The dashboard is not a paid workflow. Load it immediately to keep the local
+Operator Console running throughout the current macOS login session.
 
 Pause a single loop without launchd: set status: paused in that domain's
 domains/<name>/README.md — the tick respects it.

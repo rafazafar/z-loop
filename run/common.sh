@@ -45,6 +45,11 @@ domain_active() { # domain -> 0 if status: active
   grep -q '^status: *active' "$f"
 }
 
+ticket_session_live() { # ticket-number
+  local n="$1"
+  tmux list-sessions -F '#S' 2>/dev/null | grep -qE "^${tmux_session_prefix}-${n}-(impl|rev)-"
+}
+
 # --- state files: state/<ticket>.<state> -----------------------------------
 github_issue_number_from_pr() { # PR URL -> number
   local pr="$1" number="${1##*/}"
@@ -61,6 +66,69 @@ github_known_pr() { # ticket -> PR URL when recorded
   elif [ -s "$rs" ]; then
     jq -r '.pr // empty' "$rs"
   fi
+}
+
+github_pr_view() { # pr repo [fields]
+  local pr="$1" repo="$2" prn fields="${3:-number,state,headRefName,headRefOid}" json
+  prn="${pr##*/}"
+  if json="$(gh pr view "$pr" -R "$repo" --json "$fields" 2>/dev/null)"; then
+    printf '%s\n' "$json"
+    return 0
+  fi
+  gh api "repos/$repo/pulls/$prn" --jq '{
+    number: .number,
+    state: (.state | ascii_upcase),
+    headRefName: .head.ref,
+    headRefOid: .head.sha,
+    baseRefName: .base.ref,
+    baseRefOid: .base.sha,
+    title: .title,
+    url: .html_url,
+    closingIssuesReferences: []
+  }' 2>/dev/null
+}
+
+github_pr_checks() { # pr repo head_sha
+  local pr="$1" repo="$2" head="${3:-}" json
+  if json="$(gh pr view "$pr" -R "$repo" --json statusCheckRollup 2>/dev/null)"; then
+    printf '%s\n' "$json"
+    return 0
+  fi
+  [ -n "$head" ] || head="$(github_pr_view "$pr" "$repo" headRefOid | jq -r '.headRefOid // empty' 2>/dev/null || true)"
+  [ -n "$head" ] || return 1
+  gh api "repos/$repo/commits/$head/check-runs" --jq '{
+    statusCheckRollup: [.check_runs[] | {
+      name: .name,
+      status: (.status | ascii_upcase),
+      conclusion: .conclusion,
+      __typename: "CheckRun"
+    }]
+  }' 2>/dev/null
+}
+
+github_issue_view() { # issue_number repo [fields]
+  local n="$1" repo="$2" fields="${3:-url,title,body,labels}" json
+  if json="$(gh issue view "$n" -R "$repo" --json "$fields" 2>/dev/null)"; then
+    printf '%s\n' "$json"
+    return 0
+  fi
+  gh api "repos/$repo/issues/$n" --jq '{
+    url: .html_url,
+    title: .title,
+    body: (.body // ""),
+    labels: [.labels[] | {name: .name}],
+    subIssues: {totalCount: 0, nodes: []},
+    blockedBy: {nodes: []}
+  }' 2>/dev/null
+}
+
+github_open_pr_for_branch() { # repo branch
+  local repo="$1" branch="$2" url
+  if url="$(gh pr list -R "$repo" --state open --head "$branch" --json url --jq '.[0].url // empty' 2>/dev/null)" && [ -n "$url" ]; then
+    printf '%s\n' "$url"
+    return 0
+  fi
+  gh api "repos/$repo/pulls?state=open&head=${repo%%/*}:$branch" --jq '.[0].html_url // empty' 2>/dev/null
 }
 
 github_add_label() { # repo issue-or-pr-number label
@@ -100,14 +168,10 @@ github_mark_need_decision() { # ticket reason notify-comment(0|1)
 }
 
 github_clear_need_decision() { # ticket, resumed state
-  local n="$1" resumed="$2" repo label frontier pr prn
+  local n="$1" resumed="$2" repo label pr prn
   label="$(jqget '.github.decision_label // empty')"
-  frontier="$(jqget '.github.frontier_label // empty')"
   [ -n "$label" ] && repo="$(ghrepo 2>/dev/null)" && [ -n "$repo" ] || return 1
   github_remove_label "$repo" "$n" "$label"
-  case "$resumed" in
-    ready|in-progress|review|fix) [ -z "$frontier" ] || github_add_label "$repo" "$n" "$frontier" || return 1 ;;
-  esac
   pr="$(github_known_pr "$n")"
   if [ -n "$pr" ]; then
     prn="$(github_issue_number_from_pr "$pr")" || return 1
@@ -121,6 +185,7 @@ st_set() { # ticket state [reason]
   [ -e "$STATE/$1.parked" ] && was_parked=1
   rm -f "$STATE/$1.ready" "$STATE/$1.in-progress" "$STATE/$1.review" \
     "$STATE/$1.fix" "$STATE/$1.done" "$STATE/$1.parked" \
+    "$STATE/$1.runtime-failed" \
     "$STATE/$1.blocked-decision" "$STATE/$1.merged-unverified" \
     "$STATE/$1.merged" "$STATE/$1.merged-audited" \
     "$STATE/$1.manual-takeover"
@@ -186,6 +251,70 @@ metric() { # domain file json-line
 }
 
 tmux_session_prefix="kokoloop"
+
+worker_result_path() { # checkout session-id
+  printf '%s/.git/kokolog-loop/%s.result\n' "$1" "$2"
+}
+
+worker_verdict_path() { # checkout session-id
+  printf '%s/.git/kokolog-loop/%s.verdict.md\n' "$1" "$2"
+}
+
+valid_session_pgid() { # process-group-id
+  local pgid="$1" own
+  case "$pgid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  own="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+  [ "$pgid" != "$own" ]
+}
+
+session_pgid() { # session-id
+  local id="$1" pgid pane_pid
+  pgid="$(cat "$SESSIONS/$id.pgid" 2>/dev/null | tr -d ' ')"
+  if ! valid_session_pgid "$pgid"; then
+    pane_pid="$(tmux list-panes -t "${tmux_session_prefix}-${id}" -F '#{pane_pid}' 2>/dev/null | head -1)"
+    pgid="$(ps -o pgid= -p "$pane_pid" 2>/dev/null | tr -d ' ')"
+  fi
+  valid_session_pgid "$pgid" || return 1
+  printf '%s\n' "$pgid"
+}
+
+process_group_alive() { # process-group-id
+  valid_session_pgid "$1" && kill -0 -- "-$1" 2>/dev/null
+}
+
+terminate_session() { # session-id [TERM grace seconds]
+  local id="$1" grace="${2:-5}" pgid waited=0
+  pgid="$(session_pgid "$id" 2>/dev/null || true)"
+  if [ -n "$pgid" ]; then
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+    while process_group_alive "$pgid" && [ "$waited" -lt "$grace" ]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+    if process_group_alive "$pgid"; then
+      kill -KILL -- "-$pgid" 2>/dev/null || true
+      sleep 1
+    fi
+  fi
+  tmux kill-session -t "${tmux_session_prefix}-${id}" 2>/dev/null || true
+  [ -z "$pgid" ] || ! process_group_alive "$pgid"
+}
+
+workdir_lock_path() { # absolute workdir
+  local key
+  key="$(printf '%s' "$1" | shasum -a 256 | awk '{print $1}')"
+  printf '%s/workdir-locks/%s.lock\n' "$SESSIONS" "$key"
+}
+
+workdir_has_live_owner() { # absolute workdir [allowed session id]
+  local lock owner pgid allowed="${2:-}"
+  lock="$(workdir_lock_path "$1")"
+  [ -d "$lock" ] || return 1
+  owner="$(cat "$lock/session" 2>/dev/null || true)"
+  [ -n "$allowed" ] && [ "$owner" = "$allowed" ] && return 1
+  pgid="$(cat "$lock/pgid" 2>/dev/null | tr -d ' ')"
+  process_group_alive "$pgid"
+}
 
 acquire_lock() {
   local pid reap="$LOCK.reap"

@@ -173,7 +173,7 @@ export function applyDispatchPolicy(routing, maxStarts) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 8) throw new Error("Paid session limit must be between 1 and 8");
   const next = structuredClone(routing);
   next.rules ||= {};
-  next.rules.max_new_sessions_per_dispatch = limit;
+  next.rules.max_concurrent_sessions = limit;
   return next;
 }
 

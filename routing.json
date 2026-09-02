@@ -4,16 +4,16 @@
   },
   "roles": {
     "implementer": {
-      "model": "zai-coding-plan/glm-5.3-flash",
-      "variant": "max"
+      "model": "10router/ag/gemini-3.7-flash-high",
+      "variant": "high"
     },
     "repairer": {
-      "model": "10router/cx/gpt-5.6-luna",
-      "variant": "max"
+      "model": "10router/ag/gemini-3.7-flash-high",
+      "variant": "high"
     },
     "reviewer": {
-      "model": "10router/cx/gpt-5.6-sol",
-      "variant": "high"
+      "model": "10router/glm/glm-5.3",
+      "variant": "max"
     },
     "ticketer": {
       "model": "openai/gpt-5.6-sol",
@@ -35,14 +35,16 @@
   "rules": {
     "max_fix_attempts": 3,
     "max_impl_attempts": 3,
-    "max_transient_session_retries": 1,
-    "max_new_sessions_per_dispatch": 2,
+    "max_clean_retries": 1,
+    "max_concurrent_sessions": 2,
     "diff_budget": {
       "max_files": 12,
       "max_insertions": 800,
       "max_deletions": 400
     },
-    "session_timeout_sec": 3600,
+    "session_inactivity_timeout_sec": 900,
+    "session_termination_grace_sec": 5,
+    "session_timeout_sec": 7200,
     "clone_reap_days": 7
   },
   "github": {

@@ -1,7 +1,7 @@
 ---
 kind: domain
 domain: spec-sync
-status: active
+status: paused
 goal: Turn each new meeting transcript into a doc/spec/ARD PR with citations checked
 cadence: poll every 10m (launchd, not yet loaded)
 trigger: A new transcript file or a manual run

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isResolvedTicket, recommendedAction, sessionLabel, systemMode, ticketDisplayStatus, ticketStages } from "../web/view-model.mjs";
+import { isResolvedTicket, parseJsonlLog, recommendedAction, sessionLabel, systemMode, ticketDisplayStatus, ticketStages } from "../web/view-model.mjs";
 
 function status(overrides = {}) {
   return {
@@ -115,4 +115,63 @@ test("a manual takeover is a resolved workflow record without a PASS claim", () 
   assert.equal(isResolvedTicket(ticket), true);
   assert.deepEqual(ticketDisplayStatus(ticket), { key: "resolved", label: "OWNER-MANAGED" });
   assert.deepEqual(ticketStages(ticket).map((stage) => stage.label), ["Implementation", "Automation parked", "Owner takeover", "Owner validation", "Owner merge"]);
+});
+
+test("a runtime failure is displayed as operational and retryable", () => {
+  const ticket = {
+    status: "in-progress",
+    operationalFailure: { status: "needs-retry", reason: "inactivity watchdog" },
+    assurance: { profiles: [] }
+  };
+  assert.deepEqual(ticketDisplayStatus(ticket), { key: "attention", label: "RUNTIME FAILURE" });
+  assert.deepEqual(ticketStages(ticket).map((stage) => stage.label), ["Implementation", "Automation runtime", "Clean retry"]);
+  assert.equal(isResolvedTicket(ticket), false);
+});
+
+test("parseJsonlLog structures raw JSONL events into readable steps and tools", () => {
+  const sampleJsonl = [
+    JSON.stringify({ type: "step_start", timestamp: 1788334000000 }),
+    JSON.stringify({
+      type: "tool_use",
+      part: {
+        tool: "bash",
+        state: {
+          input: { command: "flutter test" },
+          output: "All tests passed!",
+          metadata: { exit: 0 },
+          title: "flutter test"
+        }
+      }
+    }),
+    JSON.stringify({
+      type: "tool_use",
+      part: {
+        tool: "read",
+        state: {
+          input: { path: "lib/main.dart" },
+          output: "void main() {}",
+          title: "lib/main.dart"
+        }
+      }
+    }),
+    JSON.stringify({
+      type: "step_finish",
+      part: {
+        tokens: { total: 1200, input: 1000, output: 200 },
+        reason: "tool-calls"
+      }
+    })
+  ].join("\n");
+
+  const steps = parseJsonlLog(sampleJsonl);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].index, 1);
+  assert.equal(steps[0].tools.length, 2);
+  assert.equal(steps[0].tools[0].tool, "bash");
+  assert.equal(steps[0].tools[0].title, "flutter test");
+  assert.equal(steps[0].tools[0].exitCode, 0);
+  assert.equal(steps[0].tools[0].output, "All tests passed!");
+  assert.equal(steps[0].tools[1].tool, "read");
+  assert.equal(steps[0].tools[1].title, "lib/main.dart");
+  assert.equal(steps[0].tokens.total, 1200);
 });

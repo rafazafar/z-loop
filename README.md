@@ -82,17 +82,31 @@ PR revision.
 owner note, clears the decision label, and retains prior failures without
 converting them to PASS.
 
-An implementation or review session that exits with status 143 is retried once
-with the same prompt, model, variant, and checkout. A second status 143 parks
-the ticket and records that the transient retry was exhausted. Other non-zero
-runtime exits park immediately.
+An implementation or review process failure does not change the ticket phase
+or add a GitHub decision label. The controller records it separately and may
+start one automatic clean retry. The retry reads the current GitHub issue and
+PR, creates a new checkout at the authoritative remote head, and receives only
+the current task or P0/P1 blockers. Failed local edits and prior JSONL are not
+reused. The Operator Console can authorize another clean retry after the
+automatic allowance is exhausted.
 
-A parked assurance session that exited before writing any verdict can be
-retried from the Operator Console on the same PR head. The retry reuses the
-immutable evidence, uses the currently configured reviewer route, and does not
-consume a P0/P1 repair. It requires no owner note or risk acknowledgment because
-it changes no product or assurance decision. The controller rejects this action
-if the PR changed or an authoritative verdict already exists.
+Each writing session owns its checkout through a durable lock. A retry cannot
+start until the previous process group is confirmed dead and the checkout has
+no live writer. The collector stops a worker after 15 minutes without a model
+or tool event, after 80 model steps, or at the final wall-clock limit. Shutdown
+sends TERM to the complete process
+group, escalates to KILL after the configured grace period, and verifies death
+before a retry can start.
+
+Model workers inherit providers, credentials, model limits, and compaction from
+the global OpenCode configuration. They disable interactive package plugins and
+the unrelated Google Docs MCP for the headless run, so a login prompt or MCP
+startup cannot hold the workflow open.
+
+Reviewer runtime failures use the same clean-retry path. The controller creates
+a new read-only checkout and copies only the immutable patch, issue snapshot,
+terminal CI evidence, and current implementation result into private review
+evidence. A runtime retry does not consume a P0/P1 repair round.
 
 Edit the objects under `roles` in `routing.json`. `model` is the full OpenCode
 provider/model ID. `variant` is the provider-specific reasoning effort passed
@@ -110,11 +124,10 @@ Each domain README is an executable seven-field contract: Goal, Trigger,
 Discover, Act, Verify, Persist, and Exit. A scheduled run handles one bounded
 cycle and then stops. Durable files carry understanding into the next cycle.
 
-`implement` is a deterministic queue-drain and maker-checker workflow. Result
-collection, repository sync, and paid dispatch are separate controller phases.
-Collection and sync cannot start model sessions. Paid dispatch is the only path
-that can start implementation, review, repair, or transient-retry sessions, and
-it obeys `rules.max_new_sessions_per_dispatch`. The other domains run one top-level
+`implement` is a deterministic queue-drain and maker-checker workflow. One
+controller heartbeat collects completed work, reconciles GitHub, and fills only
+the available paid-session slots. It obeys `rules.max_concurrent_sessions`.
+The other domains run one top-level
 OpenCode actor that owns semantic discovery. The runtime then launches a fresh
 verifier session. New loop artifacts stay under `state/staging/` until that
 verifier passes. Runtime scripts own a single-flight domain lock, clone
@@ -172,10 +185,14 @@ completed, running, awaiting-harvest, blocked, and future steps. `enabled`
 means that the domain configuration is active. `armed` means that its launchd
 timer is loaded. These states are separate.
 
+For an always-available console during the current macOS login session, install
+and load `dev.kokolog.loop.dashboard.plist`. It starts at login and launchd
+restarts it after an unexpected exit. The persistent service uses port 4177 and
+writes `logs/launchd-dashboard.out` and `logs/launchd-dashboard.err`.
+
 The Control Center is the normal operator surface. From it, you can:
 
 - collect completed results without starting a model session;
-- refresh repository state without starting a model session;
 - advance tracked work within the configured paid session limit;
 - start the next ready issue explicitly;
 - pause or resume each workflow;
@@ -185,10 +202,9 @@ The Control Center is the normal operator surface. From it, you can:
   controls that use it. Unified assurance and repair appear as independent
   Build & Verify steps.
 
-The paid implementation schedule uses `dispatch-work`. It prioritizes tracked
-work and can select a ready issue only when no tracked paid step is pending.
-The collector runs every minute and repository sync runs every 5 minutes.
-Their schedules do not require OpenCode. Every state-changing control has a
+One controller heartbeat runs every minute. It collects completed work,
+reconciles GitHub, and fills only the free paid-session slots. There is no
+separate repository snapshot timer. Every state-changing control has a
 confirmation step.
 Model changes apply to new workers only. Running sessions keep the route that
 they had when they started.
@@ -220,6 +236,7 @@ Truth is never the pane. Truth is the result file plus changed files.
 
 ```bash
 run/install-launchd         # copies plists to ~/Library/LaunchAgents (no load)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.dashboard.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kokolog.loop.tick.plist
 ```
 

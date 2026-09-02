@@ -171,7 +171,23 @@
       <footer class="audit-footer"><span id="scheduleFooterNote">The workflow command will not change.</span><menu><button type="button" data-close-schedule>Cancel</button><button class="primary" type="submit" disabled>Save schedule</button></menu></footer>
     </form>
   </dialog>
-  <dialog class="log-dialog" id="logDialog"><button class="close" id="closeLog" aria-label="Close">×</button><h2 id="logTitle">Log</h2><pre id="logText"></pre></dialog>
+  <dialog class="log-dialog" id="logDialog">
+    <button class="close" id="closeLog" aria-label="Close">×</button>
+    <header class="log-dialog-header">
+      <div>
+        <h2 id="logTitle">Log</h2>
+        <span id="logMeta" class="log-meta"></span>
+      </div>
+      <div class="log-mode-tabs">
+        <button type="button" class="tab-btn active" id="logTabFormatted">Formatted</button>
+        <button type="button" class="tab-btn" id="logTabRaw">Raw JSONL</button>
+      </div>
+    </header>
+    <div class="log-dialog-content">
+      <div id="logFormatted" class="log-formatted-view"></div>
+      <pre id="logText" class="log-raw-view" hidden></pre>
+    </div>
+  </dialog>
   <div class="toast" id="toast" role="status"></div>
   <script type="module" src="app.js"></script>
 </body>

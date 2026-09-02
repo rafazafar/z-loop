@@ -1,7 +1,7 @@
 ---
 kind: domain
 domain: decision-desk
-status: active
+status: paused
 goal: Every owner decision arrives as a formatted 1-3 option card, twice a day, logged and traceable to an ARD
 cadence: 09:00 and 17:00 (launchd, not yet loaded; manual until proven)
 trigger: Twice-daily batch or a manual run
@@ -31,6 +31,9 @@ first queue file has been answered end-to-end.
 - [ ] First queue file assembled and answered
 
 ## Timeline
+2026-09-02 | batch | nothing to decide
+2026-09-02 | cycle loop-decision-desk-20260902-090000 | FAIL: Queue fails Verify because its recommendations lack cited source support and ticket #40 Option A contradicts live resolver constraints.
+2026-09-02 | auto card parked: decisions/auto-decision-desk-parked-tickets-39-40-42.card.md
 2026-09-02 | batch | nothing to decide
 2026-09-01 | cycle loop-decision-desk-20260901-170003 | FAIL: NOOP is invalid because live discovery contains parked ticket 36 and no open queue contains it.
 2026-09-01 | auto card parked: decisions/auto-decision-desk-none.card.md

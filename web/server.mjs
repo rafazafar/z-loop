@@ -109,11 +109,9 @@ async function readTail(file, maxBytes = 250000) {
 
 async function action(body) {
   const def = definitions[body.loop];
-  if (!def || !["run", "advance", "collect", "sync", "toggle"].includes(body.action)) return { ok: false, output: "Unsupported action" };
-  if (["collect", "sync"].includes(body.action)) {
-    const task = def.maintenance?.find((item) => item.id === body.action);
-    if (!task) return { ok: false, output: "Unsupported maintenance action" };
-    return runCommand(path.join(root, `run/${task.runner}`), [], root, 120000);
+  if (!def || !["run", "advance", "collect", "toggle"].includes(body.action)) return { ok: false, output: "Unsupported action" };
+  if (body.action === "collect") {
+    return runCommand(path.join(root, "run/collect-results"), [], root, 120000);
   }
   if (body.action === "run" || body.action === "advance") {
     if (!def.runner) return { ok: false, output: def.unavailable };
@@ -291,7 +289,7 @@ async function dispatchPolicyAction(body) {
     await rename(`${file}.dashboard.tmp`, file);
     return { ok: false, output: `Paid dispatch policy validation failed and was rolled back.\n${check.output}` };
   }
-  return { ok: true, output: `Paid dispatch limit saved · ${next.rules.max_new_sessions_per_dispatch} model session(s) per run` };
+  return { ok: true, output: `Concurrency limit saved · ${next.rules.max_concurrent_sessions} model session(s) maximum` };
 }
 
 async function decide(body) {

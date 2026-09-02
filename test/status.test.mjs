@@ -36,6 +36,7 @@ test("a completed result takes priority in the next action", () => {
 test("session identity separates repair count from implementation session number", () => {
   assert.deepEqual(sessionIdentity("36-impl-a1"), { ticket: 36, attempt: 1, kind: "implementation", phase: "build", repair: 0 });
   assert.deepEqual(sessionIdentity("36-impl-a3"), { ticket: 36, attempt: 3, kind: "implementation", phase: "repair", repair: 2 });
+  assert.deepEqual(sessionIdentity("36-impl-a3-retry1"), { ticket: 36, attempt: 3, kind: "implementation", phase: "repair", repair: 2, runtimeRetry: 1 });
 });
 
 test("unified review runs count independently from PR revision history", () => {
@@ -62,6 +63,11 @@ test("an owner-managed PR needs no controller action", () => {
 
 test("a retryable reviewer runtime failure offers a same-head retry", () => {
   assert.equal(ticketNextAction({ status: "parked", retryableReviewFailure: true }), "Owner: retry the same assurance review");
+});
+
+test("an operational runtime failure asks for a retry, not a product decision", () => {
+  assert.equal(ticketNextAction({ status: "in-progress", operationalFailure: { status: "needs-retry" } }), "Owner: start a clean retry from GitHub state");
+  assert.equal(ticketNextAction({ status: "in-progress", operationalFailure: { status: "retry-ready" } }), "Clean retry is ready for the next controller heartbeat");
 });
 
 test("an incomplete session is explicitly restartable", () => {

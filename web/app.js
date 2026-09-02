@@ -1,4 +1,4 @@
-import { LOOP_NAMES, ROLE_NAMES, isResolvedTicket, loopTitle, recommendedAction, sessionLabel, systemMode, ticketDisplayStatus, ticketStages } from "./view-model.mjs";
+import { LOOP_NAMES, ROLE_NAMES, isResolvedTicket, loopTitle, parseJsonlLog, recommendedAction, sessionLabel, systemMode, ticketDisplayStatus, ticketStages } from "./view-model.mjs";
 import { captureUiState, restoreUiState, updateHtml } from "./ui-persistence.mjs";
 
 let state;
@@ -244,7 +244,7 @@ function renderCurrentWork() {
       <span class="work-status ${display.key}">${display.key === "running" ? "<i></i>" : ""}${esc(display.label)}</span>
     </header>
     <div class="stage-flow">${stages.map((stage, index) => `<div class="stage ${stage.state}" title="${esc(stage.detail)}"><small>${String(index + 1).padStart(2, "0")}</small><strong>${esc(stage.label)}</strong>${stage.detail ? `<span>${esc(stage.detail)}</span>` : ""}</div>`).join("")}</div>
-    <div class="next-action"><span>NEXT ACTION</span><strong>${esc(ticket.nextAction)}</strong>${ticket.reason ? `<p>${esc(ticket.reason)}</p>` : ""}${ticket.status === "merged-unverified" ? `<div class="next-controls"><button class="primary" data-audit-ticket="${ticket.id}">Record audit resolution</button></div>` : ""}${["parked", "blocked-decision"].includes(ticket.status) ? `<div class="next-controls"><button class="primary" data-parked-ticket="${ticket.id}">Choose workflow disposition</button></div>` : ""}${ticket.postMergeAudit ? `<div class="audit-record"><b>RECORDED ${esc(ticket.postMergeAudit.recorded_at)}</b><span>${esc(ticket.postMergeAudit.note)}</span></div>` : ""}</div>`);
+    <div class="next-action"><span>CURRENT STATUS</span><strong>${esc(ticket.nextAction)}</strong>${ticket.reason ? `<p>${esc(ticket.reason)}</p>` : ""}${ticket.status === "merged-unverified" ? `<div class="next-controls"><button class="primary" data-audit-ticket="${ticket.id}">Record audit resolution</button></div>` : ""}${["parked", "blocked-decision"].includes(ticket.status) || ticket.retryableRuntimeFailure ? `<div class="next-controls"><button class="primary" data-parked-ticket="${ticket.id}">${ticket.retryableRuntimeFailure ? "Start clean retry" : "Choose workflow disposition"}</button></div>` : ""}${ticket.postMergeAudit ? `<div class="audit-record"><b>RECORDED ${esc(ticket.postMergeAudit.recorded_at)}</b><span>${esc(ticket.postMergeAudit.note)}</span></div>` : ""}</div>`);
 }
 
 function renderActivity() {
@@ -252,18 +252,19 @@ function renderActivity() {
 }
 
 function renderAttention() {
-  updateHtml($("#attention"), state.attention.map((item) => `<article class="attention-item ${esc(item.severity)}"><span>${esc(item.severity.toUpperCase())}</span><div><strong>${esc(item.title)}</strong><p>${esc(item.detail || "")}</p><b>Next: ${esc(item.action)}</b></div>${item.ticket ? `<div class="attention-actions"><button data-ticket-jump="${item.ticket}">Open #${item.ticket}</button>${item.severity === "critical" ? `<button class="primary" data-audit-ticket="${item.ticket}">Resolve</button>` : item.severity === "decision" ? `<button class="primary" data-parked-ticket="${item.ticket}">Choose action</button>` : ""}</div>` : ""}</article>`).join("") || '<div class="empty-state good">No operator action is required.</div>');
+  updateHtml($("#attention"), state.attention.map((item) => `<article class="attention-item ${esc(item.severity)}"><span>${esc(item.severity.toUpperCase())}</span><div><strong>${esc(item.title)}</strong><p>${esc(item.detail || "")}</p><b>Next: ${esc(item.action)}</b></div>${item.ticket ? `<div class="attention-actions"><button data-ticket-jump="${item.ticket}">Open #${item.ticket}</button>${item.severity === "critical" ? `<button class="primary" data-audit-ticket="${item.ticket}">Resolve</button>` : item.severity === "decision" || item.kind === "runtime" ? `<button class="primary" data-parked-ticket="${item.ticket}">${item.kind === "runtime" ? "Retry" : "Choose action"}</button>` : ""}</div>` : ""}</article>`).join("") || '<div class="empty-state good">No operator action is required.</div>');
 }
 
 function renderTickets() {
   updateHtml($("#tickets"), activeTickets().map((ticket) => {
     const display = ticketDisplayStatus(ticket);
-    const profiles = ticket.assurance.profiles.map((profile) => `<span class="profile ${esc(profile.status)}">${esc(profile.name)} · ${profile.status === "passed" ? "PASS" : profile.status === "current" ? "NEXT" : "WAIT"}</span>`).join("") || '<span class="profile">No assurance plan</span>';
+    const stages = ticketStages(ticket);
+    const stagePills = stages.map((stage) => `<span class="stage-pill ${stage.state}" title="${esc(stage.detail || stage.label)}">${esc(stage.label)}</span>`).join('<i class="pill-arrow">→</i>');
     return `<article class="ticket-row">
       <div class="ticket-identity"><a href="https://github.com/${state.repo.ghrepo}/issues/${ticket.id}" target="_blank" rel="noopener noreferrer">#${ticket.id}</a><span class="work-status ${display.key}">${esc(display.label)}</span><strong>${esc(ticket.title || "Tracked work")}</strong></div>
       <div class="ticket-pr">${ticket.pr ? `<a href="${esc(ticket.pr)}" target="_blank" rel="noopener noreferrer">PR ${ticket.prNumber}</a> · ${esc(ticket.prState || "unknown")}` : "No PR"}<span>${ticket.headShort ? `head ${esc(ticket.headShort)} · ` : ""}last activity ${formatAge(ticket.lastActivity)}</span></div>
-      <div class="ticket-proof"><strong>${ticket.assurance.passed}/${ticket.assurance.total} review</strong><span>revision ${ticket.round} · P0/P1 repair ${ticket.repair}/${ticket.repairLimit}${ticket.session ? ` · session ${workerDuration(ticket)}` : ""}</span><div>${profiles}</div></div>
-      <div class="ticket-next"><span>NEXT ACTION</span><strong>${esc(ticket.nextAction)}</strong>${ticket.reason ? `<p>${esc(ticket.reason)}</p>` : ""}${ticket.postMergeAudit ? `<p class="resolved-note">${esc(ticket.postMergeAudit.note)}</p>` : ""}<button data-ticket-jump="${ticket.id}">View flow</button>${ticket.status === "merged-unverified" ? `<button class="primary" data-audit-ticket="${ticket.id}">Record audit resolution</button>` : ""}${["parked", "blocked-decision"].includes(ticket.status) ? `<button class="primary" data-parked-ticket="${ticket.id}">Choose action</button>` : ""}</div>
+      <div class="ticket-proof"><strong>Pipeline stage · round ${ticket.round}</strong><span>P0/P1 repair ${ticket.repair}/${ticket.repairLimit}${ticket.session ? ` · session ${workerDuration(ticket)}` : ""}</span><div class="stage-pills">${stagePills}</div></div>
+      <div class="ticket-next"><span>CURRENT STATUS</span><strong>${esc(ticket.nextAction)}</strong>${ticket.reason ? `<p>${esc(ticket.reason)}</p>` : ""}${ticket.postMergeAudit ? `<p class="resolved-note">${esc(ticket.postMergeAudit.note)}</p>` : ""}<button data-ticket-jump="${ticket.id}">View flow</button>${ticket.status === "merged-unverified" ? `<button class="primary" data-audit-ticket="${ticket.id}">Record audit resolution</button>` : ""}${["parked", "blocked-decision"].includes(ticket.status) || ticket.retryableRuntimeFailure ? `<button class="primary" data-parked-ticket="${ticket.id}">${ticket.retryableRuntimeFailure ? "Clean retry" : "Choose action"}</button>` : ""}</div>
     </article>`;
   }).join("") || '<div class="empty-state good">No active ticket needs work.</div>');
 
@@ -289,7 +290,7 @@ function renderHistory() {
     const outcome = session.assuranceReport
       ? `${session.verdict} · ${session.blockerCount} blocker${session.blockerCount === 1 ? "" : "s"}${severitySummary ? ` · ${severitySummary}` : ""}`
       : session.verdict || (session.exitCode === null ? "" : `exit ${session.exitCode}`);
-    const report = session.assuranceReport || session.result || "No result was written.";
+    const report = session.assuranceReport || (session.terminationReason ? `STOPPED BY CONTROLLER: ${session.terminationReason}\n\n${session.result || ""}`.trim() : session.result) || "No result was written.";
     const reportLabel = session.assuranceReport
       ? `<p class="report-label"><strong>Full assurance report</strong> · <code>${esc(session.assuranceReportFile)}</code></p>`
       : "";
@@ -313,9 +314,9 @@ function renderHealth() {
     const timerLabel = loop.timerLoaded ? (loop.health === "failed" ? "SCHEDULE DEGRADED" : "SCHEDULE ON") : loop.timerInstalled ? "SCHEDULE OFF" : "NOT INSTALLED";
     const timerButton = loop.timerConfigured ? `<button type="button" class="${loop.timerLoaded ? "outline-danger" : ""}" data-timer-action="${loop.timerLoaded ? "disarm" : "arm"}" data-loop="${loop.id}" ${loop.status !== "active" && !loop.timerLoaded ? "disabled" : ""}>${loop.timerLoaded ? "Stop schedule" : "Start schedule"}</button>` : "";
     const scheduleButton = loop.timerConfigured ? `<button type="button" data-schedule-loop="${loop.id}">Change schedule</button>` : "";
-    const dispatchPolicy = loop.id === "implement" ? `<section class="dispatch-policy"><div><strong>Paid session limit</strong><span>Maximum new model sessions per paid dispatch.</span></div><input type="number" min="1" max="8" step="1" value="${Number(state.routing.rules?.max_new_sessions_per_dispatch || 1)}" data-dispatch-limit aria-label="Paid session limit"><button type="button" data-save-dispatch-limit>Save limit</button></section>` : "";
+    const dispatchPolicy = loop.id === "implement" ? `<section class="dispatch-policy"><div><strong>Concurrent session limit</strong><span>Maximum paid model sessions running at one time.</span></div><input type="number" min="1" max="8" step="1" value="${Number(state.routing.rules?.max_concurrent_sessions || 1)}" data-dispatch-limit aria-label="Concurrent session limit"><button type="button" data-save-dispatch-limit>Save limit</button></section>` : "";
     const maintenance = loop.maintenance.length ? `<section class="maintenance-routes"><header><strong>No-model automation</strong><span>These tasks never start a model session.</span></header>${loop.maintenance.map((task) => `<div class="maintenance-row"><div><strong>${esc(task.label)} · ${esc(task.cadence)}</strong><span>${esc(task.note)}</span></div><div><button type="button" data-action="${esc(task.id)}" data-loop="${loop.id}">Run now</button><button type="button" data-schedule-loop="${loop.id}" data-schedule-task="${esc(task.id)}">Change timing</button><button type="button" class="${task.timerLoaded ? "outline-danger" : ""}" data-timer-action="${task.timerLoaded ? "disarm" : "arm"}" data-loop="${loop.id}" data-task="${esc(task.id)}">${task.timerLoaded ? "Stop" : "Start"}</button></div></div>`).join("")}</section>` : "";
-    return `<article class="workflow-card ${esc(loop.status)} ${loop.timerLoaded ? "scheduled" : ""} ${esc(loop.health)}"><header><div><strong>${esc(loopTitle(loop.id))}</strong><span>${loop.status === "active" ? "WORKFLOW ACTIVE" : "WORKFLOW PAUSED"}</span></div><i class="timer-state ${loop.timerLoaded && loop.health !== "failed" ? "armed" : ""}">${loop.timerConfigured ? timerLabel : "ON DEMAND"}</i></header><p>${esc(loop.goal)}</p><dl><div><dt>Manual action</dt><dd>${loop.id === "implement" ? "Advance tracked work · bounded paid dispatch" : "Start one cycle"}</dd></div>${loop.timerConfigured ? `<div><dt>Paid schedule</dt><dd>${esc(loop.cadence)}</dd></div><div><dt>Scheduled command</dt><dd><code>${esc(loop.scheduledCommand)}</code>${loop.id === "implement" ? `<small>Maximum ${state.routing.rules?.max_new_sessions_per_dispatch || 1} new model session(s) per dispatch.</small>` : ""}</dd></div>` : `<div><dt>Schedule</dt><dd>On demand only</dd></div>`}<div><dt>Current work</dt><dd>${running ? esc(sessionLabel(running)) : "Idle"}</dd></div><div><dt>Last event</dt><dd>${esc(loop.lastEvent || "Never")}</dd></div></dl>${dispatchPolicy}${maintenance}<section class="workflow-routes" data-cycle-routes="${loop.id}"></section><footer><button type="button" class="primary" data-action="run" data-loop="${loop.id}" ${!loop.triggerable || loop.status !== "active" ? "disabled" : ""}>${runLabel}</button>${loop.id === "implement" ? `<button type="button" class="outline-danger" data-action="advance" data-loop="implement" ${state.frontier.eligible === 0 || state.summary.paidReady > 0 || loop.status !== "active" ? "disabled" : ""}>Start next issue</button>` : ""}${scheduleButton}${timerButton}<button type="button" data-action="toggle" data-loop="${loop.id}">${loop.status === "active" ? "Pause workflow" : "Resume workflow"}</button><button type="button" data-inspect="${loop.id}">Inspect</button></footer></article>`;
+    return `<article class="workflow-card ${esc(loop.status)} ${loop.timerLoaded ? "scheduled" : ""} ${esc(loop.health)}"><header><div><strong>${esc(loopTitle(loop.id))}</strong><span>${loop.status === "active" ? "WORKFLOW ACTIVE" : "WORKFLOW PAUSED"}</span></div><i class="timer-state ${loop.timerLoaded && loop.health !== "failed" ? "armed" : ""}">${loop.timerConfigured ? timerLabel : "ON DEMAND"}</i></header><p>${esc(loop.goal)}</p><dl><div><dt>Manual action</dt><dd>${loop.id === "implement" ? "Advance tracked work · bounded paid dispatch" : "Start one cycle"}</dd></div>${loop.timerConfigured ? `<div><dt>Paid schedule</dt><dd>${esc(loop.cadence)}</dd></div><div><dt>Scheduled command</dt><dd><code>${esc(loop.scheduledCommand)}</code>${loop.id === "implement" ? `<small>Maximum ${state.routing.rules?.max_concurrent_sessions || 1} paid model session(s) running at once.</small>` : ""}</dd></div>` : `<div><dt>Schedule</dt><dd>On demand only</dd></div>`}<div><dt>Current work</dt><dd>${running ? esc(sessionLabel(running)) : "Idle"}</dd></div><div><dt>Last event</dt><dd>${esc(loop.lastEvent || "Never")}</dd></div></dl>${dispatchPolicy}${maintenance}<section class="workflow-routes" data-cycle-routes="${loop.id}"></section><footer><button type="button" class="primary" data-action="run" data-loop="${loop.id}" ${!loop.triggerable || loop.status !== "active" ? "disabled" : ""}>${runLabel}</button>${loop.id === "implement" ? `<button type="button" class="outline-danger" data-action="advance" data-loop="implement" ${state.frontier.eligible === 0 || state.summary.paidReady > 0 || loop.status !== "active" ? "disabled" : ""}>Start next issue</button>` : ""}${scheduleButton}${timerButton}<button type="button" data-action="toggle" data-loop="${loop.id}">${loop.status === "active" ? "Pause workflow" : "Resume workflow"}</button><button type="button" data-inspect="${loop.id}">Inspect</button></footer></article>`;
   }).join(""));
   renderRouting();
 }
@@ -446,14 +447,14 @@ function syncAuditSubmit() {
 
 function openParked(ticketId) {
   const ticket = state.tickets.find((item) => item.id === Number(ticketId));
-  if (!ticket || !["parked", "blocked-decision"].includes(ticket.status)) return toast("Parked resolution is not available for this ticket");
+  if (!ticket || (!ticket.retryableRuntimeFailure && !["parked", "blocked-decision"].includes(ticket.status))) return toast("Workflow resolution is not available for this ticket");
   parkedTicketId = ticket.id;
-  $("#parkedTarget").innerHTML = `<div><span>ISSUE #${ticket.id}</span><span>PR ${ticket.prNumber}</span><span>REVIEWED ${esc(ticket.headShort)}</span>${ticket.liveHeadShort ? `<span>CURRENT ${esc(ticket.liveHeadShort)}</span>` : ""}</div><strong>${esc(ticket.reason)}</strong>`;
+  $("#parkedTarget").innerHTML = `<div><span>ISSUE #${ticket.id}</span>${ticket.prNumber ? `<span>PR ${ticket.prNumber}</span>` : ""}${ticket.headShort ? `<span>REVIEWED ${esc(ticket.headShort)}</span>` : ""}${ticket.liveHeadShort ? `<span>CURRENT ${esc(ticket.liveHeadShort)}</span>` : ""}</div><strong>${esc(ticket.reason)}</strong>`;
   const form = $("#parkedForm");
   form.reset();
   const retry = form.querySelector('[value="retry"]');
   const resume = form.querySelector('[value="resume"]');
-  retry.disabled = !ticket.retryableReviewFailure;
+  retry.disabled = !ticket.retryableRuntimeFailure;
   resume.disabled = !(ticket.prState === "OPEN" && ticket.revisionChanged);
   $("#retryOption").classList.toggle("unavailable", retry.disabled);
   $("#resumeOption").classList.toggle("unavailable", resume.disabled);
@@ -465,6 +466,7 @@ function openParked(ticketId) {
 
 function syncParkedSubmit() {
   const form = $("#parkedForm");
+  const ticket = state?.tickets.find((item) => item.id === parkedTicketId);
   const disposition = form.querySelector('[name="disposition"]:checked')?.value;
   const retry = disposition === "retry";
   const evidence = $("#parkedDecisionEvidence");
@@ -474,9 +476,9 @@ function syncParkedSubmit() {
   const valid = retry || (form.note.value.trim().length >= 12 && form.acknowledged.checked);
   const submit = form.querySelector('[type="submit"]');
   submit.disabled = !(disposition && valid);
-  submit.textContent = retry ? "Retry review" : "Apply disposition";
+  submit.textContent = retry ? "Retry automation" : "Apply disposition";
   $("#parkedFooterNote").textContent = disposition === "retry"
-    ? "The same-head review will start with the current reviewer route. No P0/P1 repair is consumed."
+    ? "A new worker will start from the authoritative GitHub issue and PR head. Failed local edits and prior session logs are not reused."
     : disposition === "resume"
       ? "The safe reconcile starts after this record is written."
       : "The loop stops managing this PR; prior failures remain recorded.";
@@ -655,11 +657,66 @@ async function act() {
   }
 }
 
+function renderFormattedLog(rawText) {
+  const steps = parseJsonlLog(rawText);
+  if (!steps.length) {
+    return `<div class="log-empty">No formatted events in this log.</div>`;
+  }
+  return steps.map((step) => {
+    const timeStr = step.timestamp ? formatClock(step.timestamp) : "";
+    const tokenStr = step.tokens?.total ? `${step.tokens.total.toLocaleString()} tokens` : "";
+    const metaParts = [timeStr, tokenStr].filter(Boolean).join(" · ");
+    const toolsHtml = step.tools.map((t) => {
+      let badgeHtml = "";
+      if (t.exitCode !== null) {
+        badgeHtml = `<span class="log-tool-badge ${t.exitCode === 0 ? "ok" : "err"}">exit ${t.exitCode}</span>`;
+      } else if (t.matches !== null) {
+        badgeHtml = `<span class="log-tool-badge ok">${t.matches} match${t.matches === 1 ? "" : "es"}</span>`;
+      }
+      let contentHtml = "";
+      if (t.tool === "todowrite" && Array.isArray(t.input?.todos)) {
+        contentHtml = `<ul class="log-todo-list">${t.input.todos.map((todo) => {
+          const status = todo.status || "pending";
+          const icon = status === "completed" ? "✓" : status === "in_progress" ? "▶" : "○";
+          return `<li class="log-todo-item ${status}"><span>${icon}</span><span>${esc(todo.content)}</span></li>`;
+        }).join("")}</ul>`;
+      } else if (t.output) {
+        contentHtml = `<pre class="log-tool-output">${esc(t.output)}</pre>`;
+      }
+      return `<div class="log-tool-item">
+        <div class="log-tool-title-row">
+          <span class="tool-tag ${esc(t.tool)}">${esc(t.tool)}</span>
+          <span class="log-tool-target">${esc(t.title)}</span>
+          ${badgeHtml}
+        </div>
+        ${contentHtml}
+      </div>`;
+    }).join("");
+
+    return `<div class="log-step-card">
+      <div class="log-step-header">
+        <strong>Step ${step.index}</strong>
+        <span>${esc(metaParts)}</span>
+      </div>
+      ${toolsHtml}
+    </div>`;
+  }).join("");
+}
+
 async function openLog(name) {
   const response = await fetch(`/api/log?name=${encodeURIComponent(name)}`);
   if (!response.ok) return toast("FAILED · Log unavailable");
+  const text = await response.text();
   $("#logTitle").textContent = name;
-  $("#logText").textContent = await response.text();
+  $("#logMeta").textContent = `${Math.max(1, Math.round(text.length / 1024))} KB`;
+  $("#logText").textContent = text;
+  $("#logFormatted").innerHTML = renderFormattedLog(text);
+  
+  $("#logTabFormatted").classList.add("active");
+  $("#logTabRaw").classList.remove("active");
+  $("#logFormatted").hidden = false;
+  $("#logText").hidden = true;
+  
   $("#logDialog").showModal();
 }
 
@@ -759,6 +816,18 @@ $("#parkedForm").addEventListener("change", syncParkedSubmit);
 $("#closeDrawer").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
 $("#closeLog").addEventListener("click", () => $("#logDialog").close());
+$("#logTabFormatted").addEventListener("click", () => {
+  $("#logTabFormatted").classList.add("active");
+  $("#logTabRaw").classList.remove("active");
+  $("#logFormatted").hidden = false;
+  $("#logText").hidden = true;
+});
+$("#logTabRaw").addEventListener("click", () => {
+  $("#logTabRaw").classList.add("active");
+  $("#logTabFormatted").classList.remove("active");
+  $("#logFormatted").hidden = true;
+  $("#logText").hidden = false;
+});
 $("#confirm").addEventListener("close", () => { if ($("#confirm").returnValue === "confirm") act(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && (!eventSource || eventSource.readyState === EventSource.CLOSED)) connectEvents(); });

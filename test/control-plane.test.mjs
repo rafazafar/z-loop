@@ -42,8 +42,8 @@ test("route updates are immutable and reject models that are not installed", () 
 
 test("paid dispatch policy is bounded and immutable", () => {
   const next = applyDispatchPolicy(routing, 2);
-  assert.equal(next.rules.max_new_sessions_per_dispatch, 2);
-  assert.equal(routing.rules.max_new_sessions_per_dispatch, undefined);
+  assert.equal(next.rules.max_concurrent_sessions, 2);
+  assert.equal(routing.rules.max_concurrent_sessions, undefined);
   assert.throws(() => applyDispatchPolicy(routing, 0), /between 1 and 8/);
   assert.throws(() => applyDispatchPolicy(routing, 9), /between 1 and 8/);
 });

@@ -1,0 +1,7 @@
+#!/bin/bash
+# One controller heartbeat: collect completed work, reconcile GitHub, then fill free slots.
+set -euo pipefail
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+"$LOOP_ROOT/run/collect-results"
+"$LOOP_ROOT/run/dispatch-work"

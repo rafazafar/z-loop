@@ -10,10 +10,11 @@ You work ONE ticket, in ONE session, in a clean clone. Nothing else exists.
 ## Input
 
 You receive: an issue number, a clone path with a branch already created, the
-required PR base branch, and the default diff review threshold. First action:
-read the issue with `gh issue view <n> --comments`. The issue outcome and
-acceptance criteria are the specification. Native GitHub relationships and
-labels carry workflow state.
+required PR base branch, and the default diff review threshold. The issue outcome,
+acceptance criteria, and blocker requirements are provided in the Controller task
+section below. If you need live comments from GitHub, use `gh issue view <n> -R <repo>`
+or `gh api repos/<repo>/issues/<n>/comments`. Native GitHub relationships and labels
+carry workflow state.
 
 ## Procedure
 
@@ -43,6 +44,21 @@ labels carry workflow state.
    terminal failure. Treat a pending check as unproven; never describe it as a
    pass or use "no failure observed" as evidence.
 
+## Convergence boundary
+
+- After focused checks pass, perform one final diff review. Then finish the
+  result, commit, push, and open or update the PR.
+- A demonstrated remaining P0 or P1 defect permits one focused correction and
+  one repeat of the affected checks. Do not reopen already proven areas for
+  speculative redesign.
+- If the blockers do not form one coherent repair, write `DECOMPOSE` with the
+  smallest safe split and stop. A unified review does not require one
+  unbounded repair session.
+- Use bounded reads and focused diffs. Do not repeatedly load the full patch or
+  complete large source files after the relevant path is known.
+- Finish with durable evidence after the focused checks pass. Do not inspect
+  controller state, prior attempts, session logs, or other ticket checkouts.
+
 ## Hard rules
 
 - Adjacent bugs, naming you dislike, refactors you crave: NOT yours. List them
@@ -65,8 +81,8 @@ labels carry workflow state.
    - Evidence block: commands + exit codes and applicable evidence links.
    - Repro steps (stack-up + exercise).
    - `Closes #<issue-number>` so a merge releases dependent tickets.
-2. Write `state/sessions/<id>.result`: PR URL, summary, adjacent findings,
-   open questions for the decision desk (if any).
+2. Write the exact result path supplied by the controller: PR URL, summary,
+   adjacent findings, and genuine human questions, if any.
 3. Do not touch `state/sessions/<id>.done`. `run/spawn-exec` owns completion.
 
 The task is the verdict. A green suite with an unproven criterion is not done.

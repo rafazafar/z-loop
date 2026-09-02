@@ -30,12 +30,12 @@ test("the controller has one guarded implementation spawn gateway", async () => 
   assert.equal((source.match(/run\/spawn\" start/g) || []).length, 1);
   assert.match(source, /KOKOLOG_PAID_DISPATCH=1/);
   assert.match(source, /--collect-only\) mode=collect/);
-  assert.match(source, /max_new_sessions_per_dispatch/);
+  assert.match(source, /max_concurrent_sessions/);
   assert.match(source, /rule max_fix_attempts/);
   assert.match(source, /blocking_repairs/);
   assert.doesNotMatch(source, /rule max_verify_rounds/);
   assert.match(source, /route_model repairer/);
-  assert.match(source, /repair did not create a new PR revision/);
+  assert.match(source, /repair contract incomplete: PR head did not change/);
   assert.match(source, /rm -f "\$STATE\/\$n\.verified"/);
   assert.match(source, /started="\$SESSIONS\/\$sess\.spawn\.json"/);
   assert.match(source, /immutable review patch/);
@@ -77,7 +77,8 @@ test("one unified review blocks only on P0 and P1 issues", async () => {
   assert.match(review, /P2 and P3 observations are advisory/);
   assert.match(review, /changelog entries, style changes, naming, or cleanup\s+cannot exceed P2/);
   assert.match(review, /up to\s+seven/);
-  assert.match(review, /Do not use shell commands/);
+  assert.match(review, /Do not use shell commands to inspect or\s+change the checkout/);
+  assert.match(review, /printf.*\.tmp.*mv/s);
   assert.doesNotMatch(review, /Stop at the first FAIL/);
   assert.match(classifier, /required_json='\["assurance"\]'/);
   assert.deepEqual(Object.keys(routing.roles).filter((role) => role.endsWith("-reviewer")), []);
@@ -94,14 +95,13 @@ test("same-head review retry is limited to runtime failures without a verdict", 
   const resolution = await readFile(path.join(root, "run/resolve-ticket"), "utf8");
   const server = await readFile(path.join(root, "web/server.mjs"), "utf8");
   const app = await readFile(path.join(root, "web/app.js"), "utf8");
-  assert.match(resolution, /live_head.*old_head/);
-  assert.match(resolution, /NO RESULT WRITTEN/);
-  assert.match(resolution, /an assurance verdict already exists/);
-  assert.match(resolution, /runtime-review-requeued/);
-  assert.match(resolution, /runtime_retries/);
+  assert.match(resolution, /live_head/);
+  assert.match(resolution, /old_head/);
+  assert.match(resolution, /owner-clean-retry/);
+  assert.match(resolution, /if \[ "\$mode" = retry \]/);
   assert.match(resolution, /if \[ "\$mode" != retry \]/);
   assert.match(server, /if \(disposition !== "retry"\)/);
-  assert.match(app, /submit\.textContent = retry \? "Retry review"/);
+  assert.match(app, /submit\.textContent = retry \? "Retry automation"/);
   assert.match(app, /evidence\.hidden = retry/);
 });
 
@@ -111,11 +111,60 @@ test("same-head retry accepts single-digit review rounds", async () => {
   await assert.rejects(exec("bash", ["-c", 'ticket=37; round=1; old_sid=37-rev-assurance-r2; [[ "$old_sid" =~ ^${ticket}-rev-assurance-r${round}(-retry[0-9]+)?$ ]]']));
 });
 
+test("successful review exits remain retryable when no result was written", async () => {
+  const resolution = await readFile(path.join(root, "run/resolve-ticket"), "utf8");
+  assert.doesNotMatch(resolution, /case "\$old_exit" in ''\|0\|\*\[!0-9\]\*\).*review session/);
+});
+
+test("timeouts record a transient exit and completed implementation results reconcile", async () => {
+  const source = await readFile(path.join(root, "run/loop-tick"), "utf8");
+  const common = await readFile(path.join(root, "run/common.sh"), "utf8");
+  const runtime = await readFile(path.join(root, "run/spawn-exec"), "utf8");
+  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
+  assert.match(source, /printf '143\\n'.*\$sess\.exit\.tmp/);
+  assert.match(source, /harvest_impl/);
+  assert.match(source, /retry_sid=/);
+  assert.match(source, /terminate_session "\$sess" "\$termination_grace_sec"/);
+  assert.match(source, /inactivity watchdog/);
+  assert.doesNotMatch(source, /context watchdog/);
+  assert.doesNotMatch(source, /convergence watchdog/);
+  assert.match(common, /kill -TERM -- "-\$pgid"/);
+  assert.match(common, /kill -KILL -- "-\$pgid"/);
+  assert.match(common, /process_group_alive/);
+  assert.match(runtime, /workdir_lock_path/);
+  assert.match(runtime, /OPERATIONAL COLLISION/);
+  assert.match(runtime, /OPENCODE_CONFIG_CONTENT='\{"plugin":\[\],"mcp":\{"google-docs":\{"enabled":false\}\}\}'/);
+  assert.equal(routing.rules.session_inactivity_timeout_sec, 900);
+  assert.equal(routing.rules.session_max_steps, undefined);
+  assert.equal(routing.rules.session_context_hard_limit, undefined);
+});
+
+test("runtime failures remain operational and owner retries bypass only the automatic retry count", async () => {
+  const controller = await readFile(path.join(root, "run/loop-tick"), "utf8");
+  const resolution = await readFile(path.join(root, "run/resolve-ticket"), "utf8");
+  const common = await readFile(path.join(root, "run/common.sh"), "utf8");
+  assert.match(controller, /record_runtime_failure/);
+  assert.match(controller, /dispatch_runtime_retries/);
+  assert.match(resolution, /status="retry-ready"/);
+  assert.match(resolution, /owner_authorized=true/);
+  const stateSetter = common.match(/st_set\(\)[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(stateSetter, /if \[ "\$2" = parked \]; then\s+github_mark_need_decision/);
+  assert.doesNotMatch(stateSetter, /if \[ "\$2" = runtime-failed \]; then/);
+});
+
+test("implementers have a bounded convergence contract", async () => {
+  const instructions = await readFile(path.join(root, "agents/implementer.md"), "utf8");
+  assert.match(instructions, /one final diff review/);
+  assert.match(instructions, /Do not reopen already proven areas/);
+  assert.match(instructions, /Do not inspect\s+controller state, prior attempts, session logs/);
+  assert.doesNotMatch(instructions, /OPERATIONAL COLLISION/);
+});
+
 test("writing sessions use a working OpenCode edit policy", async () => {
   const runtime = await readFile(path.join(root, "run/spawn-exec"), "utf8");
   const writingPolicy = runtime.match(/\*-impl-\*\|loop-spec-sync-\*\)([\s\S]*?)\n      ;;/)?.[1] || "";
   assert.ok(writingPolicy, "writing-session runtime policy was not found");
-  assert.match(writingPolicy, /'\{"edit":"allow","task":"deny","external_directory":"allow"\}'/);
+  assert.match(writingPolicy, /OPENCODE_PERMISSION='\{"edit":"allow","task":"deny","external_directory":"deny"\}'/);
   assert.doesNotMatch(writingPolicy, /edit:\{"\*":"deny"/);
 });
 
