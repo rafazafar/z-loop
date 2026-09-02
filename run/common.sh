@@ -115,7 +115,7 @@ github_known_pr() { # ticket -> PR URL when recorded
 }
 
 github_pr_view() { # pr repo [fields]
-  local pr="$1" repo="$2" prn fields="${3:-number,state,headRefName,headRefOid}" json
+  local pr="$1" repo="$2" prn fields="${3:-number,state,headRefName,headRefOid,mergeable,mergeStateStatus}" json
   prn="${pr##*/}"
   if json="$(gh pr view "$pr" -R "$repo" --json "$fields" 2>/dev/null)"; then
     printf '%s\n' "$json"
@@ -128,10 +128,20 @@ github_pr_view() { # pr repo [fields]
     headRefOid: .head.sha,
     baseRefName: .base.ref,
     baseRefOid: .base.sha,
+    mergeable: (if .mergeable == null then "UNKNOWN" elif .mergeable then "MERGEABLE" else "CONFLICTING" end),
+    mergeStateStatus: (.mergeable_state | if . == null then "UNKNOWN" else ascii_upcase end),
     title: .title,
     url: .html_url,
     closingIssuesReferences: []
   }' 2>/dev/null
+}
+
+github_pr_is_conflicted() { # pr repo
+  local pr="$1" repo="$2" meta mergeable state_status
+  meta="$(github_pr_view "$pr" "$repo" "mergeable,mergeStateStatus")" || return 1
+  mergeable="$(printf '%s' "$meta" | jq -r '.mergeable // empty' 2>/dev/null)"
+  state_status="$(printf '%s' "$meta" | jq -r '.mergeStateStatus // empty' 2>/dev/null)"
+  [ "$mergeable" = "CONFLICTING" ] || [ "$state_status" = "DIRTY" ]
 }
 
 github_pr_checks() { # pr repo head_sha

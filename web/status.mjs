@@ -197,6 +197,7 @@ export function ticketNextAction(ticket, session) {
   if (ticket.status === "merged") return "No action: PR merged after unified assurance passed";
   if (ticket.status === "merged-audited") return "No action: post-merge audit is recorded";
   if (ticket.status === "manual-takeover") return "No controller action: the PR is owner-managed";
+  if (ticket.conflicted) return "PR has merge conflicts with main · rebase & conflict resolution required";
   if (ticket.status === "parked" && ticket.retryableReviewFailure) return "Owner: retry the same assurance review";
   if (["parked", "blocked-decision"].includes(ticket.status)) return "Owner: resolve the recorded reason";
   if (ticket.operationalFailure?.status === "needs-retry") return "Owner: start a clean retry from GitHub state";
@@ -218,18 +219,25 @@ async function collectTickets(root, sessions, ghrepo, routing) {
   const states = await Promise.all(candidates.map(async (item) => {
     const file = path.join(stateDir, item.name);
     const info = await fileStat(file);
-    return { id: Number(item.match[1]), status: item.match[2], reason: (await readFile(file, "utf8").catch(() => "")).trim(), mtime: info?.mtimeMs || 0 };
+    let reason = "";
+    if (["parked", "merged-unverified"].includes(item.match[2])) {
+      reason = (await readFile(file, "utf8").catch(() => "")).trim();
+    }
+    return { id: Number(item.match[1]), status: item.match[2], mtime: info ? info.mtimeMs : 0, reason };
   }));
-  const latest = new Map();
-  for (const item of states) if (!latest.has(item.id) || latest.get(item.id).mtime < item.mtime) latest.set(item.id, item);
-
-  return Promise.all([...latest.values()].sort((a, b) => a.id - b.id).map(async (item) => {
+  const deduped = [...new Map(states.map((item) => [item.id, item])).values()];
+  return Promise.all(deduped.map(async (item) => {
     const reviewFile = path.join(stateDir, `${item.id}.review.json`);
-    const [review, reviewInfo, prText, postMergeAudit, manualIntervention, runtime] = await Promise.all([
-      readJson(reviewFile), fileStat(reviewFile), readFile(path.join(stateDir, `${item.id}.pr`), "utf8").catch(() => ""),
-      readJson(path.join(stateDir, `${item.id}.post-merge-audit.json`)),
-      readJson(path.join(stateDir, `${item.id}.manual-intervention.json`)),
-      readJson(path.join(stateDir, `${item.id}.runtime.json`))
+    const runtimeFile = path.join(stateDir, `${item.id}.runtime.json`);
+    const prFile = path.join(stateDir, `${item.id}.pr`);
+    const auditFile = path.join(root, "verdicts", `${item.id}-post-merge-audit.json`);
+    const [review, reviewInfo, runtime, prText, postMergeAudit, manualIntervention] = await Promise.all([
+      readJson(reviewFile),
+      fileStat(reviewFile),
+      readJson(runtimeFile),
+      readFile(prFile, "utf8").catch(() => ""),
+      readJson(auditFile),
+      readJson(path.join(stateDir, `${item.id}.manual-intervention.json`))
     ]);
     const ticketSessions = sessions.filter((session) => session.ticket === item.id);
     const desiredSession = review?.session_id ? sessions.find((session) => session.id === review.session_id) : null;
@@ -245,8 +253,10 @@ async function collectTickets(root, sessions, ghrepo, routing) {
     let prState = "";
     let liveHead = "";
     let title = "";
+    let mergeable = "";
+    let mergeStateStatus = "";
     if (pr && ghrepo) {
-      let result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title"], root, 5000);
+      let result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title,mergeable,mergeStateStatus"], root, 5000);
       if (!result.ok) {
         const prNumber = pr.match(/\/pull\/(\d+)/)?.[1];
         if (prNumber) {
@@ -257,6 +267,8 @@ async function collectTickets(root, sessions, ghrepo, routing) {
               prState = (metadata.state || "").toUpperCase();
               liveHead = metadata.head?.sha || "";
               title = metadata.title || "";
+              mergeable = metadata.mergeable === null ? "UNKNOWN" : metadata.mergeable ? "MERGEABLE" : "CONFLICTING";
+              mergeStateStatus = (metadata.mergeable_state || "UNKNOWN").toUpperCase();
             } catch {}
           }
         }
@@ -266,9 +278,12 @@ async function collectTickets(root, sessions, ghrepo, routing) {
           prState = metadata.state || "";
           liveHead = metadata.headRefOid || "";
           title = metadata.title || "";
+          mergeable = metadata.mergeable || "";
+          mergeStateStatus = metadata.mergeStateStatus || "";
         } catch {}
       }
     }
+    const conflicted = Boolean(prState === "OPEN" && (mergeable === "CONFLICTING" || mergeStateStatus === "DIRTY"));
     const ticket = {
       id: item.id, title, status: item.status,
       reason: runtime?.status === "needs-retry" ? runtime.reason : item.reason === item.status || ["merged", "merged-audited", "manual-takeover"].includes(item.status) ? "" : item.reason,
@@ -278,6 +293,7 @@ async function collectTickets(root, sessions, ghrepo, routing) {
       attempt: attempts, repair: repairs, repairLimit: Number(routing.rules?.max_fix_attempts || 0), action: review?.action || item.status,
       assurance: { passed: completed.length, total: completed.length + remaining.length, profiles },
       postMergeAudit, manualIntervention, operationalFailure: runtime || null, mergedAt: review?.merged_at || null, liveHead, liveHeadShort: liveHead.slice(0, 12), revisionChanged: Boolean(liveHead && review?.head_oid && liveHead !== review.head_oid),
+      conflicted, mergeable, mergeStateStatus,
       session: currentSession ? {
         id: currentSession.id, status: currentSession.status, durationSeconds: currentSession.durationSeconds,
         kind: currentSession.kind || "", profile: currentSession.profile || "", verdict: currentSession.verdict || "",

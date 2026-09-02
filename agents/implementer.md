@@ -41,9 +41,12 @@ carry workflow state.
    identify the criteria that remain for a human.
 7. CI proof: if the diff changes CI, inspect the actual runner OS, labels, and
    required toolchains before you choose `runs-on` or combine platform steps.
-   After the PR exists, inspect its relevant checks for the current HEAD. Fix a
-   terminal failure. Treat a pending check as unproven; never describe it as a
-   pass or use "no failure observed" as evidence.
+   After the PR exists, inspect its relevant checks for the current HEAD. Use
+   GitHub REST API check-runs (`gh api repos/<repo>/commits/<sha>/check-runs`)
+   or `gh run list` rather than `gh pr checks` to avoid exhausting GitHub
+   GraphQL rate limits. Fix a terminal failure. Treat a pending check as
+   unproven; never describe it as a pass or use "no failure observed" as
+   evidence.
 
 ## Convergence boundary
 

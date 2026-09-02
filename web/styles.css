@@ -184,6 +184,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .stage-pill.running { color: #75e3be; background: #133a30; border-color: #3b826d; font-weight: 700; }
 .stage-pill.current { color: var(--amber); background: var(--amber-deep); border-color: #a4603e; font-weight: 700; }
 .stage-pill.blocked { color: var(--red); background: var(--red-deep); border-color: #9a493d; }
+.badge-conflict { display: inline-block; margin-left: 6px; padding: 1px 5px; font-size: 8px; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 2px; text-transform: uppercase; }
 .pill-arrow { color: #415263; font-style: normal; font-size: 9px; }
 .ticket-proof > div { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 .profile { padding: 3px 5px; color: var(--faint); border: 1px solid var(--line); font: 800 7px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }

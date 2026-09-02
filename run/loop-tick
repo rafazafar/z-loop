@@ -677,20 +677,68 @@ harvest_review() { # ticket session-id
   fi
 }
 
+reconcile_conflict() { # desired-state-file pr ticket
+  local rs="$1" pr="$2" n="$3" attempt sid clone branch pf model variant
+  timeline implement "ticket $n | merge conflicts detected on PR; starting rebase reconciliation"
+  attempt=$(( $(ls "$SESSIONS/$n-impl"-a*.prompt 2>/dev/null | wc -l | tr -d ' ') + 1 ))
+  sid="$n-impl-a$attempt"
+  clone="$(prepare_clean_clone "$n" "$sid" "$(jq -r '.last_applied_session // empty' "$rs")")" || {
+    timeline implement "ticket $n | rebase deferred: clean clone failed"; return 1
+  }
+  branch="$(git -C "$clone" branch --show-current)"
+
+  # Fast-path: try deterministic merge first
+  if git -C "$clone" merge "origin/$BASE_BRANCH" -m "Merge branch 'origin/$BASE_BRANCH' into $branch" >/dev/null 2>&1; then
+    if git -C "$clone" push -q origin "$branch" >/dev/null 2>&1; then
+      timeline implement "ticket $n | fast-path rebase clean; pushed new head without tokens"
+      rm -rf "$clone"
+      return 0
+    fi
+  fi
+
+  # Semantic line conflict exists: spawn AI rebase worker
+  git -C "$clone" merge --abort 2>/dev/null || true
+  git -C "$clone" reset --hard "origin/$branch" 2>/dev/null || true
+  model="$(route_model repairer)"; variant="$(route_variant repairer)"
+  rm -f "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
+  pf="$SESSIONS/$sid.prompt"
+  {
+    cat "$LOOP_ROOT/agents/implementer.md"
+    printf '\n# Controller task\n\n'
+    printf 'PR #%s for ticket #%s has merge conflicts against base branch %s.\n' "${pr##*/}" "$n" "$BASE_BRANCH"
+    printf '1. Run `git merge origin/%s` in this checkout.\n' "$BASE_BRANCH"
+    printf '2. Inspect and resolve all conflict markers across packages/flutter, tests, and documentation.\n'
+    printf '3. Harmonize both features safely without dropping required logic.\n'
+    printf '4. Run `flutter analyze` and `flutter test` across changed packages to verify everything passes.\n'
+    printf '5. Push the resolved branch to GitHub and complete your result file.\n'
+  } > "$pf"
+
+  jq --arg sid "$sid" --argjson attempt "$attempt" \
+    '.action="fix" | .session_id=$sid | .attempt=$attempt | .last_applied_session=$sid' "$rs" | write_json "$rs"
+  st_set "$n" fix "resolving merge conflicts"
+
+  if paid_spawn "$sid" "$model" "$variant" "$clone" "$pf"; then
+    timeline implement "ticket $n | merge conflict -> rebase worker spawned as $sid"; return 0
+  fi
+  timeline implement "ticket $n | rebase worker spawn deferred"; return 1
+}
+
 reconcile_assurance() {
-  local rs action n pr stored_base stored_head live_revision live_state live_base live_head round note
+  local rs action n pr stored_base stored_head live_revision live_state live_base live_head live_mergeable live_state_status round note is_conflicted
   for rs in "$STATE"/*.review.json; do
     [ -e "$rs" ] || continue
     action="$(jq -r .action "$rs")"; n="$(jq -r .ticket "$rs")"
     case "$action" in
       review|done|complete)
         pr="$(jq -r .pr "$rs")"; stored_base="$(jq -r .base_oid "$rs")"; stored_head="$(jq -r .head_oid "$rs")"
-        if ! live_revision="$(github_pr_view "$pr" "$GH_REPO" "state,baseRefOid,headRefOid")"; then
+        if ! live_revision="$(github_pr_view "$pr" "$GH_REPO" "state,baseRefOid,headRefOid,mergeable,mergeStateStatus")"; then
           say "assurance deferred: cannot read PR revision for #$n"; continue
         fi
         live_state="$(printf '%s' "$live_revision" | jq -r .state)"
         live_base="$(printf '%s' "$live_revision" | jq -r .baseRefOid)"
         live_head="$(printf '%s' "$live_revision" | jq -r .headRefOid)"
+        live_mergeable="$(printf '%s' "$live_revision" | jq -r '.mergeable // empty')"
+        live_state_status="$(printf '%s' "$live_revision" | jq -r '.mergeStateStatus // empty')"
         if [ "$live_state" = MERGED ]; then
           if [ "$action" = review ] || [ "$live_base" != "$stored_base" ] || [ "$live_head" != "$stored_head" ]; then
             mark_merged_unverified "$rs" "$(jq -r '.session_id // ""' "$rs")"
@@ -705,6 +753,14 @@ reconcile_assurance() {
         fi
         if [ "$live_base" != "$stored_base" ] || [ "$live_head" != "$stored_head" ]; then
           start_review_cycle "$n" "$pr" "revision-change:$live_base:$live_head"; continue
+        fi
+        is_conflicted=0
+        if [ "$live_mergeable" = "CONFLICTING" ] || [ "$live_state_status" = "DIRTY" ]; then
+          is_conflicted=1
+        fi
+        if [ "$is_conflicted" = 1 ] && ! ticket_session_live "$n"; then
+          reconcile_conflict "$rs" "$pr" "$n"
+          continue
         fi
         case "$action" in
           review) spawn_profile_review "$rs" ;;

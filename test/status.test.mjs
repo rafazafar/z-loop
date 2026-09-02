@@ -73,3 +73,8 @@ test("an operational runtime failure asks for a retry, not a product decision", 
 test("an incomplete session is explicitly restartable", () => {
   assert.equal(ticketNextAction({ status: "review" }, { id: "36-rev-assurance-r3", status: "incomplete" }), "Advance current work · restarts the missing session");
 });
+
+test("a conflicted PR asks for rebase and conflict resolution", () => {
+  assert.equal(ticketNextAction({ status: "done", conflicted: true }), "PR has merge conflicts with main · rebase & conflict resolution required");
+  assert.equal(ticketNextAction({ status: "review", conflicted: true }), "PR has merge conflicts with main · rebase & conflict resolution required");
+});

@@ -36,13 +36,13 @@
     "max_fix_attempts": 5,
     "max_impl_attempts": 5,
     "max_clean_retries": 1,
-    "max_concurrent_sessions": 2,
+    "max_concurrent_sessions": 3,
     "diff_budget": {
       "max_files": 12,
       "max_insertions": 800,
       "max_deletions": 400
     },
-    "session_inactivity_timeout_sec": 900,
+    "session_inactivity_timeout_sec": 1800,
     "session_termination_grace_sec": 5,
     "session_timeout_sec": 7200,
     "clone_reap_days": 7
