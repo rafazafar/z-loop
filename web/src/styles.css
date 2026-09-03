@@ -498,6 +498,11 @@ pre {
   text-decoration: none;
 }
 
+.context-row.selected {
+  background: #252d2a;
+  box-shadow: inset 3px 0 #75bbaa;
+}
+
 .context-row > span {
   display: flex;
   align-items: center;
@@ -522,6 +527,13 @@ pre {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.context-row > small {
+  display: block;
+  margin-top: 5px;
+  color: #7f8b86;
+  font-size: 10px;
 }
 
 .inbox-heading {
@@ -1426,6 +1438,255 @@ button:disabled {
   font-size: 12px;
 }
 
+.front-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 17px;
+}
+
+.front-card {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  padding: 19px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.front-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 8px 24px rgb(24 32 30 / 7%);
+}
+
+.front-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.front-card--external {
+  border-top-color: var(--warning);
+}
+
+.front-card--decision {
+  border-top-color: var(--blue);
+}
+
+.front-card--quality {
+  border-top-color: var(--success);
+}
+
+.front-card-top,
+.front-card-metrics {
+  display: flex;
+  align-items: center;
+}
+
+.front-card-top {
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.front-card-top b {
+  color: var(--ink);
+}
+
+.front-card-top em {
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.front-card > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 18px;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.32;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.front-card > p {
+  margin: 8px 0 18px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.front-card-metrics {
+  gap: 5px;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.front-card-metrics b {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.front-card-metrics i {
+  width: 3px;
+  height: 3px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.selected-front > header {
+  align-items: center;
+}
+
+.selected-front > header > div {
+  min-width: 0;
+}
+
+.selected-front > header h2 {
+  margin-top: 7px;
+}
+
+.front-type {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.front-type--external {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.front-type--decision {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.front-type--quality {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.front-plan {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 17px;
+}
+
+.front-plan > section {
+  min-height: 132px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.front-plan > section h3 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.front-plan > section > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.front-plan > section > a {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.front-plan > section > a:first-of-type {
+  border-top: 0;
+}
+
+.front-plan > section > a b {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.front-plan > section > a span {
+  font-size: 12px;
+}
+
+.front-plan > section > a svg {
+  color: var(--muted);
+}
+
+.sequence-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.sequence-list a {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-alt);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.sequence-list svg,
+.sequence-list > span {
+  color: var(--muted);
+}
+
+.convergence-card {
+  grid-column: 1 / -1;
+  min-height: auto !important;
+  border-left: 3px solid var(--warning) !important;
+}
+
+.convergence-card > div {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.convergence-card > div span {
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.convergence-card > div strong {
+  font-size: 13px;
+}
+
+.convergence-card > p {
+  margin-top: 6px !important;
+}
+
 .plain-section > header {
   display: flex;
   align-items: flex-start;
@@ -1699,6 +1960,45 @@ textarea:focus {
   margin: 0 0 16px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.front-side-title {
+  margin-top: 16px !important;
+}
+
+.side-issue-list {
+  display: grid;
+}
+
+.side-issue-list a {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 7px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.side-issue-list a b {
+  color: var(--accent);
+}
+
+.remaining-blockers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.remaining-blockers a {
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  font-weight: 650;
 }
 
 .details-header {
@@ -2384,6 +2684,28 @@ textarea:focus {
     min-height: 72px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .front-grid,
+  .front-plan {
+    grid-template-columns: 1fr;
+  }
+
+  .front-card {
+    min-height: 160px;
+  }
+
+  .selected-front > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .selected-front > header .button {
+    align-self: flex-start;
+  }
+
+  .convergence-card {
+    grid-column: auto;
   }
 
   .table-row {

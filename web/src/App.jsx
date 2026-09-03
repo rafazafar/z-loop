@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Archive,
   ArrowLeft,
+  ArrowRight,
   Bot,
   Check,
   ChevronDown,
@@ -54,7 +55,7 @@ const NAV_ICONS = {
 
 const PAGE_COPY = {
   work: ["Work", "Choose one item and move it forward."],
-  queue: ["Issue queue", "See what can start and what is waiting."],
+  queue: ["Issue queue", "Choose a parallel front and see what it unlocks."],
   decisions: ["Decisions", "Resolve the choices that need your judgment."],
   runs: ["Run history", "Inspect results, evidence, and execution logs."],
   automations: ["Automations", "Control schedules, capacity, and model routes."]
@@ -109,6 +110,7 @@ function App() {
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [logName, setLogName] = useState("");
   const [healthOpen, setHealthOpen] = useState(false);
+  const [selectedFrontNumber, setSelectedFrontNumber] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -147,6 +149,13 @@ function App() {
       || state.tickets[0];
     setSelectedTicketId(preferred?.id ?? null);
   }, [state, selectedTicketId]);
+
+  useEffect(() => {
+    const fronts = state?.frontier?.fronts || [];
+    if (!fronts.length) return;
+    if (fronts.some((front) => front.number === selectedFrontNumber)) return;
+    setSelectedFrontNumber(fronts[0].number);
+  }, [state, selectedFrontNumber]);
 
   useEffect(() => {
     const onHash = () => setPageState(pageFromHash(window.location.hash));
@@ -204,6 +213,7 @@ function App() {
   }
 
   const selectedTicket = state.tickets?.find((ticket) => ticket.id === selectedTicketId) || null;
+  const selectedFront = state.frontier?.fronts?.find((front) => front.number === selectedFrontNumber) || state.frontier?.fronts?.[0] || null;
   const openTickets = state.tickets?.filter(isActiveTicket) || [];
 
   const selectTicket = (id) => {
@@ -237,6 +247,8 @@ function App() {
         search={search}
         setSearch={setSearch}
         onLog={setLogName}
+        selectedFrontNumber={selectedFront?.number || null}
+        onSelectFront={setSelectedFrontNumber}
       />
 
       <main className="focus-column">
@@ -257,7 +269,7 @@ function App() {
               onLog={setLogName}
             />
           )}
-          {page === "queue" && <QueuePage state={state} onSelect={selectTicket} />}
+          {page === "queue" && <QueuePage state={state} selectedFront={selectedFront} onSelectFront={setSelectedFrontNumber} onSelect={selectTicket} />}
           {page === "decisions" && <DecisionsPage state={state} mutate={mutate} busy={busy} />}
           {page === "runs" && <RunsPage state={state} onLog={setLogName} />}
           {page === "automations" && (
@@ -276,6 +288,7 @@ function App() {
         state={state}
         ticket={selectedTicket}
         page={page}
+        front={selectedFront}
         onClose={() => setMobilePane("focus")}
         onLog={setLogName}
       />
@@ -312,6 +325,7 @@ function WorkspaceHeader({ state, page, setPage, connection, healthOpen, setHeal
         {NAV_ITEMS.map((item) => (
           <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => setPage(item.id)}>
             {item.label}
+            {item.id === "queue" && (state.frontier?.fronts?.length || 0) > 0 && <b>{state.frontier.fronts.length}</b>}
             {item.id === "decisions" && state.summary.openDecisionCards > 0 && <b>{state.summary.openDecisionCards}</b>}
           </button>
         ))}
@@ -350,7 +364,7 @@ function WorkspaceHeader({ state, page, setPage, connection, healthOpen, setHeal
   );
 }
 
-function LeftColumn({ state, page, selectedTicketId, selectTicket, filter, setFilter, search, setSearch, onLog }) {
+function LeftColumn({ state, page, selectedTicketId, selectTicket, filter, setFilter, search, setSearch, onLog, selectedFrontNumber, onSelectFront }) {
   const tickets = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (state.tickets || []).filter((ticket) => {
@@ -383,7 +397,7 @@ function LeftColumn({ state, page, selectedTicketId, selectTicket, filter, setFi
           {!tickets.length && <p className="list-empty">No work matches this filter.</p>}
         </div>
       </section>}
-      {page === "queue" && <SidebarList title="Issue queue" count={state.frontier?.issues?.length || 0}>{(state.frontier?.issues || []).map((issue) => <a className="context-row" key={issue.number} href={`https://github.com/${state.repo.ghrepo}/issues/${issue.number}`} target="_blank" rel="noreferrer"><span><b>#{issue.number}</b>{issue.eligible ? "Ready" : issue.reason}</span><strong>{issue.title}</strong></a>)}</SidebarList>}
+      {page === "queue" && <SidebarList title="Parallel fronts" count={state.frontier?.fronts?.length || 0}>{(state.frontier?.fronts || []).map((front) => <button className={`context-row ${selectedFrontNumber === front.number ? "selected" : ""}`} key={front.number} onClick={() => onSelectFront(front.number)}><span><b>#{front.number}</b>{front.label}</span><strong>{front.title}</strong><small>{front.priority}</small></button>)}</SidebarList>}
       {page === "decisions" && <SidebarList title="Decision desk" count={state.cards?.length || 0}>{(state.cards || []).map((card) => <div className="context-row" key={card.name}><span><b>{card.status === "open" ? "Open" : "Recorded"}</b></span><strong>{card.title}</strong></div>)}</SidebarList>}
       {page === "runs" && <SidebarList title="Recent runs" count={state.sessions?.length || 0}>{(state.sessions || []).slice(0, 40).map((session) => <button className="context-row" key={session.id} onClick={() => session.log && onLog(session.log)}><span><b>{session.verdict || session.status}</b>{formatAge(session.lastActivity)}</span><strong>{sessionLabel(session)}</strong></button>)}</SidebarList>}
       {page === "automations" && <SidebarList title="Workflows" count={state.loops?.length || 0}>{(state.loops || []).map((loop) => <div className="context-row" key={loop.id}><span><b>{loop.status}</b>{loop.timerLoaded ? loop.cadence : "Schedule off"}</span><strong>{loop.id.replaceAll("-", " ")}</strong></div>)}</SidebarList>}
@@ -549,17 +563,54 @@ function Evidence({ sessions, onLog }) {
   );
 }
 
-function QueuePage({ state, onSelect }) {
+function QueuePage({ state, selectedFront, onSelectFront, onSelect }) {
   const issues = state.frontier?.issues || [];
+  const fronts = state.frontier?.fronts || [];
+  const sequence = selectedFront?.availableSequence || [];
   return (
     <div className="page-content">
       <section className="queue-summary">
-        <div><strong>{state.frontier?.eligible || 0}</strong><span>Ready to start</span></div>
-        <div><strong>{state.frontier?.deferred || 0}</strong><span>Waiting on dependencies</span></div>
-        <div><strong>{state.frontier?.labeled || 0}</strong><span>Tracked issues</span></div>
+        <div><strong>{state.frontier?.eligible || 0}</strong><span>Worker issues ready</span></div>
+        <div><strong>{fronts.length}</strong><span>Root fronts actionable</span></div>
+        <div><strong>{state.frontier?.deferred || 0}</strong><span>Worker issues waiting</span></div>
       </section>
+      <section className="plain-section fronts-section">
+        <header><div><h2>What can move now</h2><p>These fronts are independent. The first card has the largest downstream impact.</p></div></header>
+        <div className="front-grid">
+          {fronts.map((front) => (
+            <button key={front.number} className={`front-card front-card--${front.key} ${selectedFront?.number === front.number ? "selected" : ""}`} onClick={() => onSelectFront(front.number)} aria-pressed={selectedFront?.number === front.number}>
+              <span className="front-card-top"><b>#{front.number}</b><em>{front.label}</em></span>
+              <strong>{front.title}</strong>
+              <p>{front.priority}</p>
+              <span className="front-card-metrics"><b>{front.immediateUnlocks.length}</b> immediate <i /> <b>{front.downstreamCount}</b> downstream</span>
+            </button>
+          ))}
+          {!fronts.length && <Empty title="No root blocker was found" detail="Refresh GitHub state or inspect the queued issue dependencies." />}
+        </div>
+      </section>
+      {selectedFront && <section className="plain-section selected-front">
+        <header>
+          <div><span className={`front-type front-type--${selectedFront.key}`}>{selectedFront.status}</span><h2>#{selectedFront.number} · {selectedFront.title}</h2><p>{selectedFront.priority}. This front remains visible beside the other valid paths.</p></div>
+          <a className="button" href={selectedFront.url || `https://github.com/${state.repo.ghrepo}/issues/${selectedFront.number}`} target="_blank" rel="noreferrer">Open issue <ExternalLink size={14} /></a>
+        </header>
+        <div className="front-plan">
+          <section>
+            <h3>First unlock</h3>
+            {selectedFront.immediateUnlocks.length ? selectedFront.immediateUnlocks.map((issue) => <a key={issue.number} href={issue.url} target="_blank" rel="noreferrer"><b>#{issue.number}</b><span>{issue.title}</span><ArrowRight size={14} /></a>) : <p>Closing this front clears one part of a later convergence. It does not make a worker issue ready by itself.</p>}
+          </section>
+          <section>
+            <h3>Available before convergence</h3>
+            {sequence.length ? <div className="sequence-list">{sequence.slice(0, 7).map((issue, index) => <React.Fragment key={issue.number}><a href={issue.url} target="_blank" rel="noreferrer">#{issue.number}</a>{index < Math.min(sequence.length, 7) - 1 && <ArrowRight size={13} />}</React.Fragment>)}{sequence.length > 7 && <span>+{sequence.length - 7} more</span>}</div> : <p>No worker issue becomes ready yet.</p>}
+          </section>
+          {selectedFront.stalledAt && <section className="convergence-card">
+            <h3>Next convergence</h3>
+            <div><span>#{selectedFront.stalledAt.number}</span><strong>{selectedFront.stalledAt.title}</strong></div>
+            <p>It will still wait for {selectedFront.stalledAt.remainingBlockers.map((blocker) => `#${blocker.number}`).join(", ")} from another front.</p>
+          </section>}
+        </div>
+      </section>}
       <section className="plain-section">
-        <header><div><h2>GitHub issues</h2><p>Dependency order determines what can start.</p></div></header>
+        <header><div><h2>Worker queue</h2><p>These issues stay ordered by their GitHub dependencies.</p></div></header>
         <div className="table-list">
           {issues.map((issue) => (
             <a key={issue.number} className="table-row" href={`https://github.com/${state.repo.ghrepo}/issues/${issue.number}`} target="_blank" rel="noreferrer">
@@ -695,17 +746,17 @@ function AutomationsPage({ state, runAction, mutate, busy, onSchedule }) {
   );
 }
 
-function DetailsColumn({ state, ticket, page, onClose, onLog }) {
+function DetailsColumn({ state, ticket, page, front, onClose, onLog }) {
   const [tab, setTab] = useState("details");
   const workContext = page === "work" && ticket;
   const relatedSession = workContext ? (state.currentSessions || []).find((session) => session.ticket === ticket.id) || (state.sessions || []).find((session) => session.ticket === ticket.id) : null;
   const shownActivity = workContext
     ? (state.activity || []).filter((item) => item.title?.includes(`#${ticket.id}`) || item.session?.startsWith(`${ticket.id}-`)).slice(0, 10)
     : [];
-  const sectionTitle = workContext ? `Issue #${ticket.id}` : PAGE_COPY[page][0];
+  const sectionTitle = workContext ? `Issue #${ticket.id}` : page === "queue" && front ? `Issue #${front.number}` : PAGE_COPY[page][0];
   return (
     <aside className="details-column">
-      <header className="details-header"><div><h2>{sectionTitle}</h2><p>{workContext ? "Selected work details" : "Section details"}</p></div><IconButton label="Close details" onClick={onClose}><X size={19} /></IconButton></header>
+      <header className="details-header"><div><h2>{sectionTitle}</h2><p>{workContext ? "Selected work details" : page === "queue" && front ? "Selected unblocking front" : "Section details"}</p></div><IconButton label="Close details" onClick={onClose}><X size={19} /></IconButton></header>
       {workContext && <div className="details-tabs"><button className={tab === "details" ? "active" : ""} onClick={() => setTab("details")}>Details</button><button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>Activity</button></div>}
       <div className="details-scroll">
         {workContext && tab === "details" && (
@@ -716,14 +767,19 @@ function DetailsColumn({ state, ticket, page, onClose, onLog }) {
           </>
         )}
         {workContext && tab === "activity" && <section className="side-section activity-section">{shownActivity.map((item, index) => <button key={`${item.at}-${index}`} className="activity-row" onClick={() => item.session && onLog(`${item.session}.jsonl`)}><span><Clock3 size={14} /></span><div><strong>{item.title}</strong><p>{item.type} · {formatAge(item.at)}</p></div>{item.outcome && <b>{item.outcome}</b>}</button>)}{!shownActivity.length && <p className="side-empty">No activity is linked to this issue.</p>}</section>}
-        {!workContext && <SectionContext state={state} page={page} />}
+        {!workContext && <SectionContext state={state} page={page} front={front} />}
       </div>
     </aside>
   );
 }
 
-function SectionContext({ state, page }) {
-  if (page === "queue") return <section className="side-section"><h3>Queue summary</h3><dl className="side-facts"><div><dt>Ready</dt><dd>{state.frontier?.eligible || 0}</dd></div><div><dt>Waiting</dt><dd>{state.frontier?.deferred || 0}</dd></div><div><dt>Tracked</dt><dd>{state.frontier?.labeled || 0}</dd></div></dl></section>;
+function SectionContext({ state, page, front }) {
+  if (page === "queue" && front) return <>
+    <section className="side-section"><span className={`front-type front-type--${front.key}`}>{front.label}</span><h3 className="front-side-title">Why this front matters</h3><p className="context-copy">{front.priority}. It affects {front.downstreamCount} queued worker issue{front.downstreamCount === 1 ? "" : "s"}.</p><dl className="side-facts"><div><dt>Can act now</dt><dd>Yes</dd></div><div><dt>First unlocks</dt><dd>{front.immediateUnlocks.length || "None yet"}</dd></div><div><dt>Total affected</dt><dd>{front.totalAffected}</dd></div></dl><a className="text-button" href={front.url} target="_blank" rel="noreferrer">Open GitHub issue <ExternalLink size={13} /></a></section>
+    {front.immediateUnlocks.length > 0 && <section className="side-section"><h3>Immediately unlocks</h3><div className="side-issue-list">{front.immediateUnlocks.map((issue) => <a key={issue.number} href={issue.url} target="_blank" rel="noreferrer"><b>#{issue.number}</b><span>{issue.title}</span></a>)}</div></section>}
+    {front.stalledAt && <section className="side-section"><h3>Converges with another front</h3><p className="context-copy"><b>#{front.stalledAt.number}</b> {front.stalledAt.title}</p><div className="remaining-blockers">Still needs {front.stalledAt.remainingBlockers.map((blocker) => <a key={blocker.number} href={blocker.url} target="_blank" rel="noreferrer">#{blocker.number}</a>)}</div></section>}
+  </>;
+  if (page === "queue") return <section className="side-section"><h3>Queue summary</h3><dl className="side-facts"><div><dt>Ready</dt><dd>{state.frontier?.eligible || 0}</dd></div><div><dt>Waiting</dt><dd>{state.frontier?.deferred || 0}</dd></div><div><dt>Root fronts</dt><dd>{state.frontier?.fronts?.length || 0}</dd></div></dl></section>;
   if (page === "decisions") return <section className="side-section"><h3>Decision desk</h3><p className="context-copy">Record only choices that require owner judgment. Operational failures belong in workspace status.</p><dl className="side-facts"><div><dt>Open</dt><dd>{state.summary.openDecisionCards || 0}</dd></div><div><dt>Recorded</dt><dd>{(state.cards || []).filter((card) => card.status !== "open").length}</dd></div></dl></section>;
   if (page === "runs") return <section className="side-section"><h3>Run summary</h3><dl className="side-facts"><div><dt>Running</dt><dd>{state.summary.running || 0}</dd></div><div><dt>Results ready</dt><dd>{state.summary.awaitingHarvest || 0}</dd></div><div><dt>Incomplete</dt><dd>{state.summary.incomplete || 0}</dd></div></dl></section>;
   return <section className="side-section"><h3>Automation summary</h3><dl className="side-facts"><div><dt>Active workflows</dt><dd>{state.summary.enabled || 0}</dd></div><div><dt>Schedules on</dt><dd>{state.summary.armed || 0}</dd></div><div><dt>Capacity</dt><dd>{state.routing?.rules?.max_concurrent_sessions || 1}</dd></div></dl></section>;

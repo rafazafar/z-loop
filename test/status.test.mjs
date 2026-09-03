@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { annotateReviewRuns, classifyFrontierIssue, sessionIdentity, ticketNextAction } from "../web/status.mjs";
+import { annotateReviewRuns, buildParallelFronts, classifyFrontierIssue, sessionIdentity, ticketNextAction } from "../web/status.mjs";
 
 const baseIssue = {
   number: 90,
@@ -26,6 +26,40 @@ test("frontier count excludes work that the loop already tracks", () => {
 
 test("an unblocked leaf issue is eligible", () => {
   assert.equal(classifyFrontierIssue(baseIssue, new Set(), new Set(), "integration").eligible, true);
+});
+
+test("parallel fronts keep independent root blockers visible", () => {
+  const issue = (number, title, blockers = [], labels = []) => ({
+    number,
+    title,
+    url: `https://example.test/issues/${number}`,
+    createdAt: `2026-08-${String(number).padStart(2, "0")}T00:00:00Z`,
+    body: "",
+    labels: labels.map((name) => ({ name })),
+    blockedBy: { nodes: blockers.map((blocker) => ({ number: blocker, state: "OPEN" })) },
+    subIssues: { totalCount: 0, nodes: [] }
+  });
+  const allIssues = [
+    issue(53, "Device lifecycle", [95], ["ready-for-worker"]),
+    issue(56, "Display decisions", [], ["need-decision"]),
+    issue(57, "One lane", [56], ["ready-for-worker"]),
+    issue(58, "Gap states", [57], ["ready-for-worker"]),
+    issue(59, "Four lanes", [53, 58], ["ready-for-worker"]),
+    issue(62, "Display controls", [59], ["ready-for-worker"]),
+    issue(78, "Qualification automation", [62, 96], ["ready-for-worker"]),
+    issue(95, "Cloud service", [], ["deps", "need-decision"]),
+    issue(96, "Document control", [], ["docs", "need-evidence", "need-decision"])
+  ];
+  const frontier = allIssues.filter((item) => item.labels.some((label) => label.name === "ready-for-worker"));
+  const fronts = buildParallelFronts(allIssues, frontier);
+
+  assert.deepEqual(fronts.map((front) => front.number).sort((a, b) => a - b), [56, 95, 96]);
+  assert.deepEqual(fronts.find((front) => front.number === 56).immediateUnlocks.map((item) => item.number), [57]);
+  assert.deepEqual(fronts.find((front) => front.number === 56).availableSequence.map((item) => item.number), [57, 58]);
+  assert.equal(fronts.find((front) => front.number === 56).stalledAt.number, 59);
+  assert.deepEqual(fronts.find((front) => front.number === 56).stalledAt.remainingBlockers.map((item) => item.number), [53]);
+  assert.equal(fronts.find((front) => front.number === 96).stalledAt.number, 78);
+  assert.deepEqual(fronts.find((front) => front.number === 96).stalledAt.remainingBlockers.map((item) => item.number), [62]);
 });
 
 test("a completed result takes priority in the next action", () => {

@@ -48,6 +48,20 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 95 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 95 | clean retry started as 95-impl-a1-retry1
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 95 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 95 | implementer spawned (frontier)
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-03 | ticket 68 | merged after unified assurance PASS at 910ce82525f4
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started

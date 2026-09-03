@@ -345,56 +345,182 @@ async function collectTickets(root, sessions, ghrepo, routing, force = false) {
 async function collectFrontier(root, routing, ghrepo, tickets, force = false) {
   const known = new Set(tickets.map((ticket) => ticket.id));
   const integration = routing.github.integration_label;
+  const frontierLabel = routing.github.frontier_label;
   const now = Date.now();
   if (!force && frontierCache && (now - frontierCacheAt < 90000)) {
-    const open = frontierCache.open;
-    const classified = frontierCache.issues.map((issue) => classifyFrontierIssue(issue, open, known, integration));
-    return {
-      available: true,
-      labeled: classified.length,
-      eligible: classified.filter((issue) => issue.eligible).length,
-      deferred: classified.filter((issue) => !issue.eligible).length,
-      next: classified.find((issue) => issue.eligible) || null,
-      issues: classified
-    };
+    return summarizeFrontier(frontierCache.allIssues, frontierLabel, known, integration, true);
   }
-  const args = ["issue", "list", "-R", ghrepo, "--state", "open", "--label", routing.github.frontier_label, "--limit", "200", "--json", "number,title,createdAt,body,labels,blockedBy,subIssues"];
-  let [frontierResult, openResult] = await Promise.all([
-    runCommand("gh", args, root, 8000),
-    runCommand("gh", ["issue", "list", "-R", ghrepo, "--state", "open", "--limit", "1000", "--json", "number", "--jq", ".[].number"], root, 8000)
-  ]);
-  if (!frontierResult.ok && ghrepo) {
-    frontierResult = await runCommand("gh", ["api", `repos/${ghrepo}/issues?labels=${encodeURIComponent(routing.github.frontier_label || "")}&state=open&per_page=100`], root, 8000);
+  const fields = "number,title,createdAt,body,labels,blockedBy,blocking,subIssues,parent,url,assignees";
+  let result = await runCommand("gh", ["issue", "list", "-R", ghrepo, "--state", "open", "--limit", "1000", "--json", fields], root, 10000);
+  if (!result.ok && ghrepo) {
+    result = await runCommand("gh", ["api", `repos/${ghrepo}/issues?state=open&per_page=100`], root, 8000);
   }
-  if (!openResult.ok && ghrepo) {
-    openResult = await runCommand("gh", ["api", `repos/${ghrepo}/issues?state=open&per_page=100`, "--jq", ".[].number"], root, 8000);
-  }
-  let issues = [];
-  try { if (frontierResult.ok) issues = JSON.parse(frontierResult.stdout || "[]"); } catch {}
-  let open = new Set(openResult.stdout.split("\n").filter(Boolean).map(Number));
-  if ((!frontierResult.ok || !openResult.ok) && frontierCache) {
-    issues = frontierCache.issues;
-    open = frontierCache.open;
-  } else if (frontierResult.ok && openResult.ok) {
-    frontierCache = { issues, open };
+  let allIssues = [];
+  try { if (result.ok) allIssues = JSON.parse(result.stdout || "[]").filter((issue) => !issue.pull_request); } catch {}
+  if (!result.ok && frontierCache) {
+    allIssues = frontierCache.allIssues;
+  } else if (result.ok) {
+    frontierCache = { allIssues };
     frontierCacheAt = now;
   }
+  return summarizeFrontier(allIssues, frontierLabel, known, integration, result.ok || Boolean(frontierCache));
+}
+
+function fieldNodes(value) {
+  if (Array.isArray(value)) return value;
+  return value?.nodes || [];
+}
+
+function labelNames(issue) {
+  return (issue.labels || []).map((label) => typeof label === "string" ? label : label.name).filter(Boolean);
+}
+
+function inlineBlockerNumbers(issue, open) {
+  const section = issue.body?.match(/##?\s*Blocked by\s*([\s\S]*?)(?=\n##?\s|$)/i)?.[1] || "";
+  return [...new Set([...section.matchAll(/#(\d+)/g)].map((match) => Number(match[1])).filter((number) => open.has(number)))];
+}
+
+function openDependencyNumbers(issue, open, issueMap) {
+  const native = fieldNodes(issue.blockedBy)
+    .filter((blocker) => blocker.state !== "CLOSED" && blocker.state !== "MERGED" && open.has(blocker.number))
+    .map((blocker) => blocker.number);
+  const blockers = issue.blockedBy == null ? inlineBlockerNumbers(issue, open) : native;
+  const openChildren = fieldNodes(issue.subIssues)
+    .filter((child) => child.state !== "CLOSED" && child.state !== "MERGED" && open.has(child.number))
+    .map((child) => child.number);
+  return [...new Set([...blockers, ...openChildren])].filter((number) => issueMap.has(number));
+}
+
+function frontKind(issue, frontierLabel) {
+  const labels = labelNames(issue);
+  if (labels.includes("deps")) return { key: "external", label: "External dependency", status: "External owner can act" };
+  if (labels.includes("docs") || labels.includes("need-evidence")) return { key: "quality", label: "Quality gate", status: "Evidence work can start" };
+  if (labels.includes("need-decision")) return { key: "decision", label: "Owner decision", status: "Decision can be made now" };
+  if (labels.includes(frontierLabel)) return { key: "worker", label: "Agent work", status: "Worker can start" };
+  return { key: "unblocker", label: "Unblocking work", status: "Work can start" };
+}
+
+function issueSummary(issue) {
+  return { number: issue.number, title: issue.title, url: issue.url || issue.html_url || "" };
+}
+
+export function buildParallelFronts(allIssues, frontierIssues, frontierLabel = "ready-for-worker") {
+  const issueMap = new Map(allIssues.map((issue) => [issue.number, issue]));
+  const open = new Set(issueMap.keys());
+  const dependencies = new Map(allIssues.map((issue) => [issue.number, openDependencyNumbers(issue, open, issueMap)]));
+  const dependents = new Map(allIssues.map((issue) => [issue.number, []]));
+  for (const [number, blockers] of dependencies) {
+    for (const blocker of blockers) {
+      if (!dependents.has(blocker)) dependents.set(blocker, []);
+      dependents.get(blocker).push(number);
+    }
+  }
+
+  const frontierNumbers = new Set(frontierIssues.map((issue) => issue.number));
+  const relevant = new Set();
+  const visitDependencies = (number) => {
+    if (relevant.has(number) || !issueMap.has(number)) return;
+    relevant.add(number);
+    for (const blocker of dependencies.get(number) || []) visitDependencies(blocker);
+  };
+  for (const number of frontierNumbers) visitDependencies(number);
+
+  const roots = [...relevant].filter((number) => (dependencies.get(number) || []).length === 0);
+  const fronts = roots.map((rootNumber) => {
+    const affected = new Set();
+    const distances = new Map([[rootNumber, 0]]);
+    const queue = [rootNumber];
+    while (queue.length) {
+      const number = queue.shift();
+      for (const dependent of dependents.get(number) || []) {
+        if (!relevant.has(dependent)) continue;
+        const distance = (distances.get(number) || 0) + 1;
+        if (!distances.has(dependent) || distance < distances.get(dependent)) distances.set(dependent, distance);
+        if (affected.has(dependent)) continue;
+        affected.add(dependent);
+        queue.push(dependent);
+      }
+    }
+
+    const resolved = new Set([rootNumber]);
+    const waves = [];
+    while (true) {
+      const wave = [...affected]
+        .filter((number) => !resolved.has(number) && (dependencies.get(number) || []).every((blocker) => resolved.has(blocker)))
+        .sort((a, b) => (issueMap.get(a)?.createdAt || "").localeCompare(issueMap.get(b)?.createdAt || "") || a - b);
+      if (!wave.length) break;
+      waves.push(wave);
+      for (const number of wave) resolved.add(number);
+    }
+
+    const stalled = [...affected].filter((number) => {
+      if (resolved.has(number)) return false;
+      const blockers = dependencies.get(number) || [];
+      return blockers.some((blocker) => resolved.has(blocker));
+    });
+    const firstStalled = stalled.find((number) => !stalled.some((other) => other !== number && reaches(other, number, dependents)))
+      || stalled.sort((a, b) => (distances.get(a) || 999) - (distances.get(b) || 999) || a - b)[0];
+    const stalledAt = firstStalled ? {
+      ...issueSummary(issueMap.get(firstStalled)),
+      remainingBlockers: (dependencies.get(firstStalled) || []).filter((number) => !resolved.has(number)).map((number) => issueSummary(issueMap.get(number)))
+    } : null;
+    const immediateUnlocks = (waves[0] || []).map((number) => issueSummary(issueMap.get(number)));
+    const availableSequence = waves.flat().map((number) => issueSummary(issueMap.get(number)));
+    const downstream = [...affected].filter((number) => frontierNumbers.has(number)).map((number) => issueSummary(issueMap.get(number)));
+    const issue = issueMap.get(rootNumber);
+    return {
+      ...issueSummary(issue),
+      ...frontKind(issue, frontierLabel),
+      labels: labelNames(issue),
+      immediateUnlocks,
+      availableSequence,
+      downstreamCount: downstream.length,
+      totalAffected: affected.size,
+      stalledAt
+    };
+  }).sort((a, b) => b.downstreamCount - a.downstreamCount || b.availableSequence.length - a.availableSequence.length || a.number - b.number);
+
+  return fronts.map((front, index) => ({
+    ...front,
+    priority: index === 0 ? "Largest downstream impact" : front.availableSequence.length ? "Can advance in parallel" : "Can clear a future gate"
+  }));
+}
+
+function reaches(start, target, dependents) {
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const number = queue.shift();
+    for (const dependent of dependents.get(number) || []) {
+      if (dependent === target) return true;
+      if (seen.has(dependent)) continue;
+      seen.add(dependent);
+      queue.push(dependent);
+    }
+  }
+  return false;
+}
+
+function summarizeFrontier(allIssues, frontierLabel, known, integration, available) {
+  const issues = allIssues.filter((issue) => labelNames(issue).includes(frontierLabel));
+  const open = new Set(allIssues.map((issue) => issue.number));
   const classified = issues.map((issue) => classifyFrontierIssue(issue, open, known, integration));
   return {
-    available: (frontierResult.ok && openResult.ok) || Boolean(frontierCache),
+    available,
     labeled: classified.length,
-    eligible: (frontierResult.ok && openResult.ok) || Boolean(frontierCache) ? classified.filter((issue) => issue.eligible).length : 0,
+    eligible: available ? classified.filter((issue) => issue.eligible).length : 0,
     deferred: classified.filter((issue) => !issue.eligible).length,
     next: classified.find((issue) => issue.eligible) || null,
-    issues: classified
+    issues: classified,
+    fronts: buildParallelFronts(allIssues, issues, frontierLabel)
   };
 }
 
 export function classifyFrontierIssue(issue, open, known, integration) {
-  const labels = issue.labels?.map((label) => label.name) || [];
+  const labels = labelNames(issue);
   const parent = (issue.subIssues?.totalCount || 0) > 0;
-  const nativeBlockers = issue.blockedBy?.nodes?.filter((blocker) => blocker.state !== "CLOSED" && blocker.state !== "MERGED").length || 0;
-  const openSubissues = issue.subIssues?.nodes?.filter((child) => child.state !== "CLOSED").length || 0;
+  const nativeBlockers = fieldNodes(issue.blockedBy).filter((blocker) => blocker.state !== "CLOSED" && blocker.state !== "MERGED").length;
+  const openSubissues = fieldNodes(issue.subIssues).filter((child) => child.state !== "CLOSED").length;
   const blockedSection = issue.body?.match(/[Bb]locked by[\s\S]*?(?=\n[A-Z*#]|$)/)?.[0] || "";
   const inlineBlocked = [...blockedSection.matchAll(/#(\d+)/g)].some((match) => open.has(Number(match[1])));
   let reason = "";
