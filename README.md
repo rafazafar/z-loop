@@ -159,11 +159,17 @@ Run `bin/loop doctor` after each configuration change.
 | `bin/loop ui` | Build and open the Operator Console |
 | `run/loop-status` | Show the detailed controller and ticket state |
 | `run/collect-results` | Collect finished work without starting a model |
+| `run/dispatch-work` | One full paid pass: collect, reconcile tracked work, and fill free slots |
 | `run/dispatch-work --current` | Advance tracked paid work within the session limit |
-| `run/dispatch-work --next` | Start one new eligible issue |
-| `run/controller-heartbeat` | Collect, reconcile, and fill available work slots |
-| `run/domain-loop <domain>` | Run one bounded non-implementation domain cycle |
+| `run/dispatch-work --next` | Fill free slots with new eligible issues; deferred while tracked work is pending |
+| `run/controller-heartbeat` | Run `collect-results` and one full `dispatch-work` pass; the timer entry point |
+| `run/domain-loop <spec-sync\|ticket-factory\|gardener\|decision-desk>` | Run one bounded non-implementation domain cycle |
+| `run/resolve-ticket <ticket> <retry\|resume\|manual> [note]` | Authorize a blocked retry or record a human disposition |
 | `run/install-launchd` | Install, but do not load, the macOS service files |
+
+`run/dispatch-work` and `run/collect-results` are thin wrappers over
+`run/loop-tick`, which also accepts `--collect-only`, `--advance-current`, and
+`--start-next` directly.
 
 A dispatch command is a gate. It can exit without starting work when no step is
 eligible. Sessions run under `tmux`. Use `run/spawn peek <session-name>` to watch
@@ -192,10 +198,13 @@ frontmatter.
 ```text
 agents/       role instructions for implementers, reviewers, and domain actors
 bin/          main command entry point
+clones/       disposable implementation clones (ignored by Git)
 decisions/    owner decision cards and queues
 domains/      domain contracts, timelines, and metrics
+evals/        canned tickets for prompt and model regression testing
 logs/         raw session and runtime logs (ignored by Git)
 run/          controller, worker, setup, and scheduling scripts
+signals/      recurring evidence written by the gardener domain
 src/          TypeScript configuration, database, state, and engine code
 state/        local tickets, sessions, locks, and staged artifacts (ignored by Git)
 templates/    schemas and artifact contracts
@@ -214,8 +223,10 @@ run/install-launchd
 ```
 
 This command does not load a service. It prints the exact `launchctl` commands
-for the installed files. The controller heartbeat collects completed work,
-reconciles GitHub, and fills only the available session slots.
+for the installed files. Four timers are installed: the controller heartbeat,
+the spec-sync trigger, the decision-desk batch, and the console dashboard. The
+controller heartbeat collects completed work, reconciles GitHub, and fills only
+the available session slots.
 
 ## Development
 

@@ -24,6 +24,27 @@ test("frontier count excludes work that the loop already tracks", () => {
   assert.equal(result.reason, "already tracked");
 });
 
+test("parent context takes precedence over stale tracked state", () => {
+  const issue = {
+    ...baseIssue,
+    subIssues: { totalCount: 1, nodes: [{ number: 91, state: "OPEN" }] }
+  };
+  const result = classifyFrontierIssue(issue, new Set(), new Set([90]), "loop-integration");
+  assert.equal(result.eligible, false);
+  assert.equal(result.reason, "parent container");
+});
+
+test("an integration parent waits for all subissues", () => {
+  const issue = {
+    ...baseIssue,
+    labels: [{ name: "loop-integration" }],
+    subIssues: { totalCount: 1, nodes: [{ number: 91, state: "OPEN" }] }
+  };
+  const result = classifyFrontierIssue(issue, new Set(), new Set(), "loop-integration");
+  assert.equal(result.eligible, false);
+  assert.equal(result.reason, "1 open subissue(s)");
+});
+
 test("an unblocked leaf issue is eligible", () => {
   assert.equal(classifyFrontierIssue(baseIssue, new Set(), new Set(), "integration").eligible, true);
 });
@@ -60,6 +81,49 @@ test("parallel fronts keep independent root blockers visible", () => {
   assert.deepEqual(fronts.find((front) => front.number === 56).stalledAt.remainingBlockers.map((item) => item.number), [53]);
   assert.equal(fronts.find((front) => front.number === 96).stalledAt.number, 78);
   assert.deepEqual(fronts.find((front) => front.number === 96).stalledAt.remainingBlockers.map((item) => item.number), [62]);
+});
+
+test("a ready dependency issue is presented as automatic worker work", () => {
+  const issue = (number, labels) => ({
+    number,
+    title: "Cloud API",
+    url: `https://example.test/issues/${number}`,
+    createdAt: "2026-09-03T00:00:00Z",
+    body: "",
+    labels: labels.map((name) => ({ name })),
+    blockedBy: { nodes: [] },
+    subIssues: { totalCount: 0, nodes: [] }
+  });
+  const readyDependency = issue(108, ["deps", "ready-for-worker"]);
+
+  const [front] = buildParallelFronts([readyDependency], [readyDependency]);
+
+  assert.equal(front.key, "worker");
+  assert.equal(front.label, "Agent work");
+});
+
+test("an open external dependency stays a visible front even when no worker issue depends on it", () => {
+  const issue = (number, labels, blockers = []) => ({
+    number,
+    title: `Issue ${number}`,
+    url: `https://example.test/issues/${number}`,
+    createdAt: "2026-09-03T00:00:00Z",
+    body: "",
+    labels: labels.map((name) => ({ name })),
+    blockedBy: { nodes: blockers.map((blocker) => ({ number: blocker, state: "OPEN" })) },
+    subIssues: { totalCount: 0, nodes: [] }
+  });
+  const environment = issue(109, ["deps"]);
+  const worker = issue(47, ["ready-for-worker"]);
+
+  const fronts = buildParallelFronts([environment, worker], [worker]);
+  const external = fronts.find((front) => front.number === 109);
+
+  assert.ok(external, "external dependency front exists");
+  assert.equal(external.key, "external");
+  assert.equal(external.label, "External dependency");
+  assert.equal(external.downstreamCount, 0);
+  assert.equal(fronts.find((front) => front.number === 47).key, "worker");
 });
 
 test("a completed result takes priority in the next action", () => {

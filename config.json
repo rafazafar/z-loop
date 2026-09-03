@@ -7,7 +7,8 @@
   },
   "commands": {
     "test": "flutter test",
-    "lint": "flutter analyze"
+    "lint": "flutter analyze",
+    "integration": "pnpm --filter cloud_platform test"
   },
   "assurance": {
     "enabled_dimensions": [

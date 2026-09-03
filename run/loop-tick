@@ -87,6 +87,86 @@ if ! git ls-remote --exit-code "$CLIENT_REMOTE" "refs/heads/$BASE_BRANCH" >/dev/
   exit 0
 fi
 
+# GitHub issue relationships can change after a ticket enters local state.
+# Treat eligibility as a persistent invariant, not a one-time queue check.
+ISSUE_ELIGIBILITY_REASON=""
+ISSUE_ELIGIBILITY_COUNT=0
+ISSUE_ELIGIBILITY_DETAIL=""
+implementation_issue_eligible() { # ticket; 0 eligible, 1 unavailable, 2 deferred
+  local n="$1" metadata assessment body blocker state
+  ISSUE_ELIGIBILITY_REASON=""
+  ISSUE_ELIGIBILITY_COUNT=0
+  ISSUE_ELIGIBILITY_DETAIL=""
+  if ! metadata="$(github_issue_view "$n" "$GH_REPO" "body,blockedBy,subIssues,labels")"; then
+    ISSUE_ELIGIBILITY_REASON="relationship-unavailable"
+    ISSUE_ELIGIBILITY_DETAIL="native GitHub relationships are unavailable"
+    return 1
+  fi
+  if ! assessment="$(issue_relationship_eligibility "$metadata" "$INTEG_LABEL" 2>/dev/null)"; then
+    ISSUE_ELIGIBILITY_REASON="relationship-unavailable"
+    ISSUE_ELIGIBILITY_DETAIL="native GitHub relationships are invalid or incomplete"
+    return 1
+  fi
+  ISSUE_ELIGIBILITY_REASON="$(printf '%s' "$assessment" | jq -r '.reason // ""')"
+  ISSUE_ELIGIBILITY_COUNT="$(printf '%s' "$assessment" | jq -r '.count // 0')"
+  if [ "$(printf '%s' "$assessment" | jq -r .eligible)" != true ]; then
+    case "$ISSUE_ELIGIBILITY_REASON" in
+      parent-not-integration) ISSUE_ELIGIBILITY_DETAIL="parent container without $INTEG_LABEL" ;;
+      native-blockers) ISSUE_ELIGIBILITY_DETAIL="$ISSUE_ELIGIBILITY_COUNT open native dependency(s)" ;;
+      open-subissues) ISSUE_ELIGIBILITY_DETAIL="$ISSUE_ELIGIBILITY_COUNT open native subissue(s)" ;;
+      *) ISSUE_ELIGIBILITY_DETAIL="issue is not eligible for implementation" ;;
+    esac
+    return 2
+  fi
+  body="$(printf '%s' "$metadata" | jq -r '.body // ""')"
+  for blocker in $(printf '%s' "$body" | sed -n '/[Bb]locked by/,/^[A-Z*#]/p' | grep -o '#[0-9]\+' | tr -d '#'); do
+    if ! state="$(github_issue_view "$blocker" "$GH_REPO" state | jq -r '.state // empty')" || [ -z "$state" ]; then
+      ISSUE_ELIGIBILITY_REASON="relationship-unavailable"
+      ISSUE_ELIGIBILITY_DETAIL="inline dependency #$blocker is unavailable"
+      return 1
+    fi
+    case "$state" in CLOSED|MERGED|closed|merged) ;;
+      *)
+        ISSUE_ELIGIBILITY_REASON="inline-blocker"
+        ISSUE_ELIGIBILITY_COUNT=1
+        ISSUE_ELIGIBILITY_DETAIL="open inline dependency #$blocker"
+        return 2
+        ;;
+    esac
+  done
+  return 0
+}
+
+mark_ticket_container() { # ticket
+  local n="$1" reason="parent context; implementation is delegated to native subissues"
+  rm -f "$(runtime_state_file "$n")"
+  st_set "$n" container "$reason"
+  github_remove_label "$GH_REPO" "$n" "$LABEL"
+  metric implement runs.jsonl "\"event\":\"eligibility-changed\",\"ticket\":$n,\"outcome\":\"container\",\"reason\":\"$ISSUE_ELIGIBILITY_REASON\""
+  timeline implement "ticket $n | moved to parent context; implementation delegated to native subissues"
+  say "#$n moved to parent context; no implementation retry will start"
+}
+
+defer_tracked_implementation() { # ticket
+  local n="$1" reason="implementation deferred: $ISSUE_ELIGIBILITY_DETAIL"
+  if [ -f "$STATE/$n.deferred" ] && [ "$(cat "$STATE/$n.deferred")" = "$reason" ]; then
+    return 0
+  fi
+  st_set "$n" deferred "$reason"
+  metric implement runs.jsonl "\"event\":\"eligibility-changed\",\"ticket\":$n,\"outcome\":\"deferred\",\"reason\":\"$ISSUE_ELIGIBILITY_REASON\""
+  timeline implement "ticket $n | $reason"
+  say "#$n $reason"
+}
+
+handle_ineligible_tracked_implementation() { # ticket eligibility-exit
+  local n="$1" eligibility_exit="$2"
+  if [ "$eligibility_exit" = 2 ] && [ "$ISSUE_ELIGIBILITY_REASON" = parent-not-integration ]; then
+    mark_ticket_container "$n"
+  else
+    defer_tracked_implementation "$n"
+  fi
+}
+
 # ---------- reap stray clones ------------------------------------------------
 if [ "$mode" = collect ]; then
   reap_days="$(rule clone_reap_days)"
@@ -309,13 +389,22 @@ write_implement_prompt() { # ticket session clone title [verdict]
 }
 
 dispatch_runtime_retries() {
-  local file status n old_sid role seq retry_sid clone title rs action started=1
+  local file status n old_sid role seq retry_sid clone title rs action eligibility_exit started=1
   for file in "$STATE"/*.runtime.json; do
     [ -e "$file" ] || break
     status="$(jq -r '.status // empty' "$file")"
     [ "$status" = retry-ready ] || continue
     n="$(jq -r .ticket "$file")"; old_sid="$(jq -r .failed_session "$file")"; role="$(jq -r .role "$file")"
     ticket_session_live "$n" && continue
+    if [ "$role" = implementer ]; then
+      eligibility_exit=0
+      implementation_issue_eligible "$n" || eligibility_exit=$?
+      if [ "$eligibility_exit" != 0 ]; then
+        handle_ineligible_tracked_implementation "$n" "$eligibility_exit"
+        continue
+      fi
+      [ ! -f "$STATE/$n.deferred" ] || st_set "$n" in-progress
+    fi
     paid_slot_available || return 75
     seq=$(( $(jq -r '.retry_sequence // 0' "$file") + 1 ))
     retry_sid="$(jq -r .root_session "$file")-retry$seq"
@@ -427,9 +516,31 @@ start_review_cycle() { # ticket PR source-session
 }
 
 harvest_impl() { # ticket session-id
-  local n="$1" sid="$2" res="$SESSIONS/$2.result" pr rs clone branch checkout_head pr_meta pr_head pr_base closes reviewed_head reason
+  local n="$1" sid="$2" res="$SESSIONS/$2.result" pr rs clone branch checkout_head pr_meta pr_head pr_base closes reviewed_head reason eligibility_exit=0
   rs="$(review_state_file "$n")"
   [ -f "$rs" ] && [ "$(jq -r '.source_session // ""' "$rs")" = "$sid" ] && return 0
+  implementation_issue_eligible "$n" || eligibility_exit=$?
+  if [ "$eligibility_exit" = 1 ]; then
+    say "ticket #$n harvest deferred: $ISSUE_ELIGIBILITY_DETAIL"
+    return 1
+  fi
+  if [ "$eligibility_exit" = 2 ]; then
+    pr="$(github_known_pr "$n")"
+    if [ "$ISSUE_ELIGIBILITY_REASON" = parent-not-integration ] && [ -z "$pr" ]; then
+      mark_ticket_container "$n"
+      return 0
+    fi
+    reason="issue eligibility changed after implementation started: $ISSUE_ELIGIBILITY_DETAIL"
+    st_set "$n" parked "$reason"
+    timeline implement "ticket $n | parked: $reason"
+    park_auto_card "eligibility-changed-$n" implement \
+      "Ticket $n changed eligibility while implementation was running — transfer or discard the completed work?" \
+      "The controller stopped before assurance because $ISSUE_ELIGIBILITY_DETAIL." \
+      "- ticket: https://github.com/$GH_REPO/issues/$n
+- implementation result: $res
+- open PR: ${pr:-none found}"
+    return 0
+  fi
   if grep -q 'DECOMPOSE' "$res" 2>/dev/null; then
     reason="needs decomposition"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
   fi
@@ -791,7 +902,7 @@ reconcile_assurance() {
         esac
         ;;
       fix) spawn_fix "$rs" ;;
-      parked|runtime-failed|merged|merged-unverified|merged-audited|manual-takeover) ;;
+      deferred|container|parked|runtime-failed|merged|merged-unverified|merged-audited|manual-takeover) ;;
       *) park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "invalid assurance action $action" ;;
     esac
   done
@@ -807,7 +918,13 @@ for donef in "$SESSIONS"/*.done; do
   harvest_ok=1
   if [ "$run_exit" != 0 ]; then
     case "$local_id" in
-      *-impl-*) n="${local_id%%-impl-*}"; record_runtime_failure "$n" "$local_id" implementer "$run_exit" ;;
+      *-impl-*)
+        n="${local_id%%-impl-*}"
+        record_runtime_failure "$n" "$local_id" implementer "$run_exit"
+        eligibility_exit=0
+        implementation_issue_eligible "$n" || eligibility_exit=$?
+        [ "$eligibility_exit" = 0 ] || handle_ineligible_tracked_implementation "$n" "$eligibility_exit"
+        ;;
       *-rev-*)  n="${local_id%%-rev-*}";  record_runtime_failure "$n" "$local_id" reviewer "$run_exit" ;;
       dist-*)   timeline spec-sync "session $local_id | failed: runtime exit $run_exit" ;;
       desk-*)   timeline decision-desk "session $local_id | failed: runtime exit $run_exit" ;;
@@ -829,6 +946,22 @@ for donef in "$SESSIONS"/*.done; do
 done
 fi
 
+# A result can already be harvested when its GitHub issue later becomes a
+# parent or gains a blocker. Reconcile retry-ready implementation state during
+# collection so a paused paid dispatcher cannot keep stale work active.
+if [ "$mode" = collect ]; then
+for runtime_file in "$STATE"/*.runtime.json; do
+  [ -e "$runtime_file" ] || break
+  [ "$(jq -r '.status // empty' "$runtime_file")" = retry-ready ] || continue
+  [ "$(jq -r '.role // empty' "$runtime_file")" = implementer ] || continue
+  n="$(jq -r '.ticket' "$runtime_file")"
+  ticket_session_live "$n" && continue
+  eligibility_exit=0
+  implementation_issue_eligible "$n" || eligibility_exit=$?
+  [ "$eligibility_exit" = 0 ] || handle_ineligible_tracked_implementation "$n" "$eligibility_exit"
+done
+fi
+
 # ---------- frontier (implement domain) --------------------------------------
 frontier() {
   domain_active implement || { say "implement paused"; return 0; }
@@ -841,53 +974,21 @@ frontier() {
   [ -n "$issues" ] || { say "frontier empty"; return 0; }
   while IFS=$'\t' read -r n title; do
     st_exists "$n" && continue
-    # Native GitHub relationships are the primary dependency graph. Inline
-    # "Blocked by" references remain a conservative compatibility check.
-    local metadata native_blockers is_parent is_integration open_subissues body
-    local slug branch remote_issue_branches existing_branch existing_pr reason
-    metadata="$(github_issue_view "$n" "$GH_REPO" "body,blockedBy,subIssues,labels")" || {
-      say "frontier unavailable: cannot read dependencies for #$n"
-      return 1
-    }
-    # A parent issue is a container, not work. It never enters the frontier
-    # unless it is a deliberate integration task marked with the integration
-    # label, and then only after all its subissues close.
-    is_parent="$(printf '%s' "$metadata" | jq '(.subIssues.totalCount // 0) > 0')"
-    case "$is_parent" in true|false) ;; *) say "frontier unavailable: invalid subissue data for #$n"; return 1 ;; esac
-    if [ "$is_parent" = true ]; then
-      is_integration="$(printf '%s' "$metadata" | jq --arg l "$INTEG_LABEL" '([.labels[]?.name] | index($l)) != null')"
-      case "$is_integration" in true|false) ;; *) say "frontier unavailable: invalid label data for #$n"; return 1 ;; esac
-      if [ "$is_integration" != true ]; then
-        metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"parent-not-integration\""
-        say "#$n is a parent container without the integration label; ignoring"
+    local slug branch remote_issue_branches existing_branch existing_pr reason eligibility_exit clone pf
+    eligibility_exit=0
+    implementation_issue_eligible "$n" || eligibility_exit=$?
+    case "$eligibility_exit" in
+      0) ;;
+      1)
+        say "frontier unavailable for #$n: $ISSUE_ELIGIBILITY_DETAIL"
+        return 1
+        ;;
+      2)
+        metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"$ISSUE_ELIGIBILITY_REASON\",\"count\":$ISSUE_ELIGIBILITY_COUNT"
+        say "#$n skipped: $ISSUE_ELIGIBILITY_DETAIL"
         continue
-      fi
-    fi
-    native_blockers="$(printf '%s' "$metadata" | jq '[.blockedBy.nodes[]? | select(.state != "CLOSED" and .state != "MERGED")] | length')"
-    case "$native_blockers" in ''|*[!0-9]*) say "frontier unavailable: invalid native dependencies for #$n"; return 1 ;; esac
-    if [ "$native_blockers" -gt 0 ]; then
-      metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"native-blockers\",\"count\":$native_blockers"
-      say "#$n blocked by $native_blockers open native dependency(s)"
-      continue
-    fi
-    open_subissues="$(printf '%s' "$metadata" | jq '[.subIssues.nodes[]? | select(.state != "CLOSED")] | length')"
-    case "$open_subissues" in ''|*[!0-9]*) say "frontier unavailable: invalid native subissues for #$n"; return 1 ;; esac
-    if [ "$open_subissues" -gt 0 ]; then
-      metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"open-subissues\",\"count\":$open_subissues"
-      say "#$n deferred until $open_subissues native subissue(s) close"
-      continue
-    fi
-    body="$(printf '%s' "$metadata" | jq -r '.body // ""')"
-    blocked=0
-    for b in $(printf '%s' "$body" | sed -n '/[Bb]locked by/,/^[A-Z*#]/p' | grep -o '#[0-9]\+' | tr -d '#'); do
-      s="$(github_issue_view "$b" "$GH_REPO" state | jq -r '.state // "open"' 2>/dev/null || echo open)"
-      case "$s" in CLOSED|MERGED) ;; *) blocked=1; break ;; esac
-    done
-    if [ "$blocked" = 1 ]; then
-      metric implement runs.jsonl "\"event\":\"frontier-skip\",\"ticket\":$n,\"reason\":\"inline-blocker\""
-      say "#$n blocked by an open inline dependency"
-      continue
-    fi
+        ;;
+    esac
     slug="$(branch_slug "$title")"
     branch="${BRANCH_PREFIX}-${n}/${slug}"
     if ! git check-ref-format --branch "$branch" >/dev/null 2>&1; then

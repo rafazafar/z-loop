@@ -48,6 +48,85 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 47 | clean retry started as 47-impl-a1-retry1
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 47 | implementation contract incomplete: no open PR for branch issue-47/enroll-a-new-cloud-only-mobile-monitor
+2026-09-04 | ticket 47 | no open PR for branch issue-47/enroll-a-new-cloud-only-mobile-monitor; clean retry status: retry-ready
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 47 | implementer spawned (frontier)
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 108 | merged after unified assurance PASS at bcc4ea333c6f
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 108 | unified assurance PASS on revision 2 — PR awaits owner merge
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | unified assurance review for revision 2 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 108 | revision 2 classified for unified assurance at bcc4ea333c6f
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | unified assurance review for revision 1 spawned
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 108 | revision 1 classified for unified assurance at e956b9d09170
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | clean retry started as 108-impl-a1-retry2
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 108 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | clean retry started as 108-impl-a1-retry1
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 108 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 108 | implementer spawned (frontier)
+2026-09-03 | ticket 95 | moved to parent context; implementation delegated to native subissues
 2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
 2026-09-03 | ticket 95 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
 2026-09-03 | dispatch | scheduled work: 1/3 model sessions started

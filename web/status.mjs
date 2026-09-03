@@ -22,7 +22,7 @@ export const definitions = {
 };
 
 const domainIds = Object.keys(definitions);
-const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "parked", "merged", "merged-unverified", "merged-audited", "manual-takeover", "blocked-decision"]);
+const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "deferred", "container", "parked", "merged", "merged-unverified", "merged-audited", "manual-takeover", "blocked-decision"]);
 const prCache = new Map();
 let frontierCache = null;
 let frontierCacheAt = 0;
@@ -198,6 +198,8 @@ export async function collectSessions(root, routing) {
 }
 
 export function ticketNextAction(ticket, session) {
+  if (ticket.status === "container") return "No controller action: implementation is delegated to sub-issues";
+  if (ticket.status === "deferred") return "Wait for the recorded GitHub eligibility condition";
   if (ticket.status === "merged-unverified") return "Owner: audit the merged PR and record assurance evidence";
   if (ticket.status === "merged") return "No action: PR merged after unified assurance passed";
   if (ticket.status === "merged-audited") return "No action: post-merge audit is recorded";
@@ -273,7 +275,7 @@ async function collectTickets(root, sessions, ghrepo, routing, force = false) {
     const file = path.join(stateDir, item.name);
     const info = await fileStat(file);
     let reason = "";
-    if (["parked", "merged-unverified"].includes(item.match[2])) {
+    if (["parked", "deferred", "container", "merged-unverified"].includes(item.match[2])) {
       reason = (await readFile(file, "utf8").catch(() => "")).trim();
     }
     return { id: Number(item.match[1]), status: item.match[2], mtime: info ? info.mtimeMs : 0, reason };
@@ -393,10 +395,10 @@ function openDependencyNumbers(issue, open, issueMap) {
 
 function frontKind(issue, frontierLabel) {
   const labels = labelNames(issue);
+  if (labels.includes(frontierLabel)) return { key: "worker", label: "Agent work", status: "Worker can start" };
   if (labels.includes("deps")) return { key: "external", label: "External dependency", status: "External owner can act" };
   if (labels.includes("docs") || labels.includes("need-evidence")) return { key: "quality", label: "Quality gate", status: "Evidence work can start" };
   if (labels.includes("need-decision")) return { key: "decision", label: "Owner decision", status: "Decision can be made now" };
-  if (labels.includes(frontierLabel)) return { key: "worker", label: "Agent work", status: "Worker can start" };
   return { key: "unblocker", label: "Unblocking work", status: "Work can start" };
 }
 
@@ -417,6 +419,11 @@ export function buildParallelFronts(allIssues, frontierIssues, frontierLabel = "
   }
 
   const frontierNumbers = new Set(frontierIssues.map((issue) => issue.number));
+  const externalNumbers = new Set(
+    allIssues
+      .filter((issue) => !frontierNumbers.has(issue.number) && labelNames(issue).includes("deps"))
+      .map((issue) => issue.number)
+  );
   const relevant = new Set();
   const visitDependencies = (number) => {
     if (relevant.has(number) || !issueMap.has(number)) return;
@@ -424,6 +431,7 @@ export function buildParallelFronts(allIssues, frontierIssues, frontierLabel = "
     for (const blocker of dependencies.get(number) || []) visitDependencies(blocker);
   };
   for (const number of frontierNumbers) visitDependencies(number);
+  for (const number of externalNumbers) visitDependencies(number);
 
   const roots = [...relevant].filter((number) => (dependencies.get(number) || []).length === 0);
   const fronts = roots.map((rootNumber) => {
@@ -524,8 +532,8 @@ export function classifyFrontierIssue(issue, open, known, integration) {
   const blockedSection = issue.body?.match(/[Bb]locked by[\s\S]*?(?=\n[A-Z*#]|$)/)?.[0] || "";
   const inlineBlocked = [...blockedSection.matchAll(/#(\d+)/g)].some((match) => open.has(Number(match[1])));
   let reason = "";
-  if (known.has(issue.number)) reason = "already tracked";
-  else if (parent && !labels.includes(integration)) reason = "parent container";
+  if (parent && !labels.includes(integration)) reason = "parent container";
+  else if (known.has(issue.number)) reason = "already tracked";
   else if (nativeBlockers) reason = `${nativeBlockers} open blocker(s)`;
   else if (openSubissues) reason = `${openSubissues} open subissue(s)`;
   else if (inlineBlocked) reason = "open inline blocker";

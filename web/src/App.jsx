@@ -37,10 +37,13 @@ import {
 } from "../view-model.mjs";
 import { api } from "./api.js";
 import {
+  frontActor,
+  actionableFronts,
   isActiveTicket,
   NAV_ITEMS,
   pageFromHash,
   parkedResolutionPresentation,
+  queueFrontGroups,
   ticketSubtitle,
   workflowState
 } from "./ui-model.js";
@@ -55,7 +58,7 @@ const NAV_ICONS = {
 
 const PAGE_COPY = {
   work: ["Work", "Choose one item and move it forward."],
-  queue: ["Issue queue", "Choose a parallel front and see what it unlocks."],
+  queue: ["Issue queue", "See what needs your action and what the Loop will handle."],
   decisions: ["Decisions", "Resolve the choices that need your judgment."],
   runs: ["Run history", "Inspect results, evidence, and execution logs."],
   automations: ["Automations", "Control schedules, capacity, and model routes."]
@@ -154,7 +157,7 @@ function App() {
     const fronts = state?.frontier?.fronts || [];
     if (!fronts.length) return;
     if (fronts.some((front) => front.number === selectedFrontNumber)) return;
-    setSelectedFrontNumber(fronts[0].number);
+    setSelectedFrontNumber(queueFrontGroups(fronts).primaryManual?.number || fronts[0].number);
   }, [state, selectedFrontNumber]);
 
   useEffect(() => {
@@ -213,7 +216,8 @@ function App() {
   }
 
   const selectedTicket = state.tickets?.find((ticket) => ticket.id === selectedTicketId) || null;
-  const selectedFront = state.frontier?.fronts?.find((front) => front.number === selectedFrontNumber) || state.frontier?.fronts?.[0] || null;
+  const queueGroups = queueFrontGroups(state.frontier?.fronts || []);
+  const selectedFront = state.frontier?.fronts?.find((front) => front.number === selectedFrontNumber) || queueGroups.primaryManual || state.frontier?.fronts?.[0] || null;
   const openTickets = state.tickets?.filter(isActiveTicket) || [];
 
   const selectTicket = (id) => {
@@ -269,7 +273,7 @@ function App() {
               onLog={setLogName}
             />
           )}
-          {page === "queue" && <QueuePage state={state} selectedFront={selectedFront} onSelectFront={setSelectedFrontNumber} onSelect={selectTicket} />}
+          {page === "queue" && <QueuePage state={state} selectedFront={selectedFront} onSelectFront={setSelectedFrontNumber} onSelect={selectTicket} busy={busy} runAction={runAction} />}
           {page === "decisions" && <DecisionsPage state={state} mutate={mutate} busy={busy} />}
           {page === "runs" && <RunsPage state={state} onLog={setLogName} />}
           {page === "automations" && (
@@ -325,7 +329,7 @@ function WorkspaceHeader({ state, page, setPage, connection, healthOpen, setHeal
         {NAV_ITEMS.map((item) => (
           <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => setPage(item.id)}>
             {item.label}
-            {item.id === "queue" && (state.frontier?.fronts?.length || 0) > 0 && <b>{state.frontier.fronts.length}</b>}
+            {item.id === "queue" && actionableFronts(state.frontier?.fronts).length > 0 && <b>{actionableFronts(state.frontier?.fronts).length}</b>}
             {item.id === "decisions" && state.summary.openDecisionCards > 0 && <b>{state.summary.openDecisionCards}</b>}
           </button>
         ))}
@@ -397,7 +401,7 @@ function LeftColumn({ state, page, selectedTicketId, selectTicket, filter, setFi
           {!tickets.length && <p className="list-empty">No work matches this filter.</p>}
         </div>
       </section>}
-      {page === "queue" && <SidebarList title="Parallel fronts" count={state.frontier?.fronts?.length || 0}>{(state.frontier?.fronts || []).map((front) => <button className={`context-row ${selectedFrontNumber === front.number ? "selected" : ""}`} key={front.number} onClick={() => onSelectFront(front.number)}><span><b>#{front.number}</b>{front.label}</span><strong>{front.title}</strong><small>{front.priority}</small></button>)}</SidebarList>}
+      {page === "queue" && <SidebarList title="Work by owner" count={state.frontier?.fronts?.length || 0}>{(state.frontier?.fronts || []).map((front) => { const actor = frontActor(front); return <button className={`context-row ${selectedFrontNumber === front.number ? "selected" : ""}`} key={front.number} onClick={() => onSelectFront(front.number)}><span><b>#{front.number}</b>{actor.label}</span><strong>{front.title}</strong><small>{actor.tone === "loop" ? "No manual action" : front.priority}</small></button>; })}</SidebarList>}
       {page === "decisions" && <SidebarList title="Decision desk" count={state.cards?.length || 0}>{(state.cards || []).map((card) => <div className="context-row" key={card.name}><span><b>{card.status === "open" ? "Open" : "Recorded"}</b></span><strong>{card.title}</strong></div>)}</SidebarList>}
       {page === "runs" && <SidebarList title="Recent runs" count={state.sessions?.length || 0}>{(state.sessions || []).slice(0, 40).map((session) => <button className="context-row" key={session.id} onClick={() => session.log && onLog(session.log)}><span><b>{session.verdict || session.status}</b>{formatAge(session.lastActivity)}</span><strong>{sessionLabel(session)}</strong></button>)}</SidebarList>}
       {page === "automations" && <SidebarList title="Workflows" count={state.loops?.length || 0}>{(state.loops || []).map((loop) => <div className="context-row" key={loop.id}><span><b>{loop.status}</b>{loop.timerLoaded ? loop.cadence : "Schedule off"}</span><strong>{loop.id.replaceAll("-", " ")}</strong></div>)}</SidebarList>}
@@ -563,54 +567,58 @@ function Evidence({ sessions, onLog }) {
   );
 }
 
-function QueuePage({ state, selectedFront, onSelectFront, onSelect }) {
+function QueuePage({ state, selectedFront, onSelectFront, onSelect, busy, runAction }) {
   const issues = state.frontier?.issues || [];
   const fronts = state.frontier?.fronts || [];
-  const sequence = selectedFront?.availableSequence || [];
+  const { primaryManual, automatic, later } = queueFrontGroups(fronts);
+  const implementLoop = (state.loops || []).find((loop) => loop.id === "implement");
+  const automaticState = implementLoop?.status === "active" && implementLoop.timerLoaded
+    ? `Scheduled · ${implementLoop.cadence}`
+    : implementLoop?.status === "active" ? "Ready · schedule is off" : "Workflow is paused";
+  const contextTickets = (state.tickets || []).filter((ticket) => ticket.status === "container").slice(0, 3);
+  const shownNumbers = new Set([...fronts.map((front) => front.number), ...contextTickets.map((ticket) => ticket.id)]);
+  const automaticFollowUps = automatic.flatMap((front) => front.immediateUnlocks.map((issue) => ({ ...issue, after: front.number }))).filter((issue) => !shownNumbers.has(issue.number));
+  const issueUrl = (number, url = "") => url || `https://github.com/${state.repo.ghrepo}/issues/${number}`;
   return (
     <div className="page-content">
-      <section className="queue-summary">
-        <div><strong>{state.frontier?.eligible || 0}</strong><span>Worker issues ready</span></div>
-        <div><strong>{fronts.length}</strong><span>Root fronts actionable</span></div>
-        <div><strong>{state.frontier?.deferred || 0}</strong><span>Worker issues waiting</span></div>
+      <section className={`queue-action-hero ${primaryManual ? "" : "queue-action-hero--clear"}`}>
+        {primaryManual ? <>
+          <div className="queue-action-copy">
+            <span className="queue-eyebrow">{frontActor(primaryManual).label} now · {primaryManual.downstreamCount} downstream</span>
+            <h2>#{primaryManual.number} {primaryManual.title}</h2>
+            <p>Resolve this item first. It unlocks {primaryManual.immediateUnlocks.map((issue) => `#${issue.number}`).join(", ") || "the next path"}.</p>
+          </div>
+          <div className="queue-action-buttons">
+            <a className="button button--primary" href={issueUrl(primaryManual.number, primaryManual.url)} target="_blank" rel="noreferrer">Open issue <ExternalLink size={15} /></a>
+            <button className="button" onClick={() => onSelectFront(primaryManual.number)}>Show impact</button>
+          </div>
+        </> : <>
+          <div className="queue-action-copy"><span className="queue-eyebrow">No manual action now</span><h2>The Loop can continue without your input</h2><p>Automatic work is ready or all current paths are waiting.</p></div>
+          <Check size={24} />
+        </>}
       </section>
-      <section className="plain-section fronts-section">
-        <header><div><h2>What can move now</h2><p>These fronts are independent. The first card has the largest downstream impact.</p></div></header>
-        <div className="front-grid">
-          {fronts.map((front) => (
-            <button key={front.number} className={`front-card front-card--${front.key} ${selectedFront?.number === front.number ? "selected" : ""}`} onClick={() => onSelectFront(front.number)} aria-pressed={selectedFront?.number === front.number}>
-              <span className="front-card-top"><b>#{front.number}</b><em>{front.label}</em></span>
-              <strong>{front.title}</strong>
-              <p>{front.priority}</p>
-              <span className="front-card-metrics"><b>{front.immediateUnlocks.length}</b> immediate <i /> <b>{front.downstreamCount}</b> downstream</span>
-            </button>
-          ))}
-          {!fronts.length && <Empty title="No root blocker was found" detail="Refresh GitHub state or inspect the queued issue dependencies." />}
-        </div>
-      </section>
-      {selectedFront && <section className="plain-section selected-front">
-        <header>
-          <div><span className={`front-type front-type--${selectedFront.key}`}>{selectedFront.status}</span><h2>#{selectedFront.number} · {selectedFront.title}</h2><p>{selectedFront.priority}. This front remains visible beside the other valid paths.</p></div>
-          <a className="button" href={selectedFront.url || `https://github.com/${state.repo.ghrepo}/issues/${selectedFront.number}`} target="_blank" rel="noreferrer">Open issue <ExternalLink size={14} /></a>
-        </header>
-        <div className="front-plan">
-          <section>
-            <h3>First unlock</h3>
-            {selectedFront.immediateUnlocks.length ? selectedFront.immediateUnlocks.map((issue) => <a key={issue.number} href={issue.url} target="_blank" rel="noreferrer"><b>#{issue.number}</b><span>{issue.title}</span><ArrowRight size={14} /></a>) : <p>Closing this front clears one part of a later convergence. It does not make a worker issue ready by itself.</p>}
-          </section>
-          <section>
-            <h3>Available before convergence</h3>
-            {sequence.length ? <div className="sequence-list">{sequence.slice(0, 7).map((issue, index) => <React.Fragment key={issue.number}><a href={issue.url} target="_blank" rel="noreferrer">#{issue.number}</a>{index < Math.min(sequence.length, 7) - 1 && <ArrowRight size={13} />}</React.Fragment>)}{sequence.length > 7 && <span>+{sequence.length - 7} more</span>}</div> : <p>No worker issue becomes ready yet.</p>}
-          </section>
-          {selectedFront.stalledAt && <section className="convergence-card">
-            <h3>Next convergence</h3>
-            <div><span>#{selectedFront.stalledAt.number}</span><strong>{selectedFront.stalledAt.title}</strong></div>
-            <p>It will still wait for {selectedFront.stalledAt.remainingBlockers.map((blocker) => `#${blocker.number}`).join(", ")} from another front.</p>
-          </section>}
-        </div>
-      </section>}
-      <section className="plain-section">
-        <header><div><h2>Worker queue</h2><p>These issues stay ordered by their GitHub dependencies.</p></div></header>
+      <div className="queue-action-grid">
+        <section className="queue-action-panel queue-action-panel--loop">
+          <header><div><h2>The Loop is handling</h2><p>No manual action is required.</p></div><Bot size={19} /></header>
+          <div className="queue-action-list">
+            {automatic.map((front) => <button key={front.number} className={selectedFront?.number === front.number ? "selected" : ""} onClick={() => onSelectFront(front.number)}><b>#{front.number}</b><span><strong>{front.title}</strong><small>Next automatic task · {front.downstreamCount} downstream · {automaticState}</small></span><em>{implementLoop?.timerLoaded ? "Scheduled" : "Ready"}</em></button>)}
+            {contextTickets.map((ticket) => <button key={ticket.id} onClick={() => onSelect(ticket.id)}><b>#{ticket.id}</b><span><strong>{ticket.title || "Parent issue context"}</strong><small>Parent context · closes after its sub-issues</small></span><em>Context</em></button>)}
+            {!automatic.length && !contextTickets.length && <p className="queue-panel-empty">No automatic or parent-context work is visible.</p>}
+          </div>
+          {automatic.length > 0 && <button className="button queue-run-button" disabled={busy} onClick={() => runAction("advance", "implement", `Run #${automatic[0].number} now`)}>Run next task now</button>}
+        </section>
+        <section className="queue-action-panel">
+          <header><div><h2>Plan for later</h2><p>Important, but not the first action.</p></div><Clock3 size={19} /></header>
+          <div className="queue-action-list">
+            {later.map((front) => <button key={front.number} className={selectedFront?.number === front.number ? "selected" : ""} onClick={() => onSelectFront(front.number)}><b>#{front.number}</b><span><strong>{front.title}</strong><small>{frontActor(front).label} · {front.immediateUnlocks.length ? `unlocks ${front.immediateUnlocks.map((issue) => `#${issue.number}`).join(", ")}` : "no immediate unlock"}</small></span><em>Later</em></button>)}
+            {automaticFollowUps.map((issue) => <a key={`${issue.after}-${issue.number}`} href={issueUrl(issue.number, issue.url)} target="_blank" rel="noreferrer"><b>#{issue.number}</b><span><strong>{issue.title}</strong><small>Starts after #{issue.after}</small></span><em>Waiting</em></a>)}
+            {!later.length && !automaticFollowUps.length && <p className="queue-panel-empty">No later owner action is visible.</p>}
+          </div>
+        </section>
+      </div>
+      {state.summary.incomplete > 0 && <p className="queue-maintenance-note"><AlertTriangle size={14} />Workspace warnings are separate from issue blockers. Review them from Workspace status.</p>}
+      <details className="queue-disclosure plain-section">
+        <summary><span><strong>Full worker queue</strong><small>{issues.length} issues ordered by GitHub dependencies</small></span><ChevronDown size={17} /></summary>
         <div className="table-list">
           {issues.map((issue) => (
             <a key={issue.number} className="table-row" href={`https://github.com/${state.repo.ghrepo}/issues/${issue.number}`} target="_blank" rel="noreferrer">
@@ -619,9 +627,9 @@ function QueuePage({ state, selectedFront, onSelectFront, onSelect }) {
           ))}
           {!issues.length && <Empty title="The issue queue is empty" />}
         </div>
-      </section>
-      <section className="plain-section">
-        <header><div><h2>Tracked work</h2><p>Open a work item in the focus view.</p></div></header>
+      </details>
+      <details className="queue-disclosure plain-section">
+        <summary><span><strong>Tracked work</strong><small>{(state.tickets || []).length} work items</small></span><ChevronDown size={17} /></summary>
         <div className="table-list">
           {(state.tickets || []).map((ticket) => (
             <button key={ticket.id} className="table-row" onClick={() => onSelect(ticket.id)}>
@@ -629,7 +637,7 @@ function QueuePage({ state, selectedFront, onSelectFront, onSelect }) {
             </button>
           ))}
         </div>
-      </section>
+      </details>
     </div>
   );
 }
@@ -756,7 +764,7 @@ function DetailsColumn({ state, ticket, page, front, onClose, onLog }) {
   const sectionTitle = workContext ? `Issue #${ticket.id}` : page === "queue" && front ? `Issue #${front.number}` : PAGE_COPY[page][0];
   return (
     <aside className="details-column">
-      <header className="details-header"><div><h2>{sectionTitle}</h2><p>{workContext ? "Selected work details" : page === "queue" && front ? "Selected unblocking front" : "Section details"}</p></div><IconButton label="Close details" onClick={onClose}><X size={19} /></IconButton></header>
+      <header className="details-header"><div><h2>{sectionTitle}</h2><p>{workContext ? "Selected work details" : page === "queue" && front ? "Selected queue item" : "Section details"}</p></div><IconButton label="Close details" onClick={onClose}><X size={19} /></IconButton></header>
       {workContext && <div className="details-tabs"><button className={tab === "details" ? "active" : ""} onClick={() => setTab("details")}>Details</button><button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>Activity</button></div>}
       <div className="details-scroll">
         {workContext && tab === "details" && (
@@ -774,11 +782,11 @@ function DetailsColumn({ state, ticket, page, front, onClose, onLog }) {
 }
 
 function SectionContext({ state, page, front }) {
-  if (page === "queue" && front) return <>
-    <section className="side-section"><span className={`front-type front-type--${front.key}`}>{front.label}</span><h3 className="front-side-title">Why this front matters</h3><p className="context-copy">{front.priority}. It affects {front.downstreamCount} queued worker issue{front.downstreamCount === 1 ? "" : "s"}.</p><dl className="side-facts"><div><dt>Can act now</dt><dd>Yes</dd></div><div><dt>First unlocks</dt><dd>{front.immediateUnlocks.length || "None yet"}</dd></div><div><dt>Total affected</dt><dd>{front.totalAffected}</dd></div></dl><a className="text-button" href={front.url} target="_blank" rel="noreferrer">Open GitHub issue <ExternalLink size={13} /></a></section>
+  if (page === "queue" && front) { const actor = frontActor(front); return <>
+    <section className="side-section"><span className={`front-type front-type--${front.key}`}>{actor.label}</span><h3 className="front-side-title">Why this item matters</h3><p className="context-copy">{front.priority}. It affects {front.downstreamCount} queued worker issue{front.downstreamCount === 1 ? "" : "s"}.</p><dl className="side-facts"><div><dt>Who acts</dt><dd>{actor.label}</dd></div><div><dt>First unlocks</dt><dd>{front.immediateUnlocks.length || "None yet"}</dd></div><div><dt>Total affected</dt><dd>{front.totalAffected}</dd></div></dl><a className="text-button" href={front.url} target="_blank" rel="noreferrer">Open GitHub issue <ExternalLink size={13} /></a></section>
     {front.immediateUnlocks.length > 0 && <section className="side-section"><h3>Immediately unlocks</h3><div className="side-issue-list">{front.immediateUnlocks.map((issue) => <a key={issue.number} href={issue.url} target="_blank" rel="noreferrer"><b>#{issue.number}</b><span>{issue.title}</span></a>)}</div></section>}
     {front.stalledAt && <section className="side-section"><h3>Converges with another front</h3><p className="context-copy"><b>#{front.stalledAt.number}</b> {front.stalledAt.title}</p><div className="remaining-blockers">Still needs {front.stalledAt.remainingBlockers.map((blocker) => <a key={blocker.number} href={blocker.url} target="_blank" rel="noreferrer">#{blocker.number}</a>)}</div></section>}
-  </>;
+  </>; }
   if (page === "queue") return <section className="side-section"><h3>Queue summary</h3><dl className="side-facts"><div><dt>Ready</dt><dd>{state.frontier?.eligible || 0}</dd></div><div><dt>Waiting</dt><dd>{state.frontier?.deferred || 0}</dd></div><div><dt>Root fronts</dt><dd>{state.frontier?.fronts?.length || 0}</dd></div></dl></section>;
   if (page === "decisions") return <section className="side-section"><h3>Decision desk</h3><p className="context-copy">Record only choices that require owner judgment. Operational failures belong in workspace status.</p><dl className="side-facts"><div><dt>Open</dt><dd>{state.summary.openDecisionCards || 0}</dd></div><div><dt>Recorded</dt><dd>{(state.cards || []).filter((card) => card.status !== "open").length}</dd></div></dl></section>;
   if (page === "runs") return <section className="side-section"><h3>Run summary</h3><dl className="side-facts"><div><dt>Running</dt><dd>{state.summary.running || 0}</dd></div><div><dt>Results ready</dt><dd>{state.summary.awaitingHarvest || 0}</dd></div><div><dt>Incomplete</dt><dd>{state.summary.incomplete || 0}</dd></div></dl></section>;

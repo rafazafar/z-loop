@@ -177,14 +177,49 @@ github_issue_view() { # issue_number repo [fields]
     printf '%s\n' "$json"
     return 0
   fi
+  # The REST issue response does not contain native dependency relationships.
+  # Do not replace unknown relationships with empty arrays because that makes a
+  # blocked issue look executable.
+  case ",$fields," in
+    *,blockedBy,*|*,blocking,*|*,subIssues,*|*,parent,*) return 1 ;;
+  esac
   gh api "repos/$repo/issues/$n" --jq '{
     url: .html_url,
     title: .title,
+    state: .state,
     body: (.body // ""),
-    labels: [.labels[] | {name: .name}],
-    subIssues: {totalCount: 0, nodes: []},
-    blockedBy: {nodes: []}
+    labels: [.labels[] | {name: .name}]
   }' 2>/dev/null
+}
+
+issue_relationship_eligibility() { # metadata-json integration-label
+  local metadata="$1" integration_label="$2"
+  printf '%s' "$metadata" | jq -ce --arg integration "$integration_label" '
+    if (.labels | type) != "array"
+      or (.blockedBy | type) != "object"
+      or (.blockedBy.nodes | type) != "array"
+      or (.blockedBy.totalCount | type) != "number"
+      or .blockedBy.totalCount != (.blockedBy.nodes | length)
+      or (.subIssues | type) != "object"
+      or (.subIssues.nodes | type) != "array"
+      or (.subIssues.totalCount | type) != "number"
+      or .subIssues.totalCount != (.subIssues.nodes | length)
+    then error("invalid or incomplete relationship data")
+    else
+      (([.labels[]? | if type == "string" then . else .name end] | index($integration)) != null) as $integration_parent |
+      (.subIssues.totalCount > 0) as $parent |
+      ([.blockedBy.nodes[]? | select(.state != "CLOSED" and .state != "MERGED")] | length) as $blockers |
+      ([.subIssues.nodes[]? | select(.state != "CLOSED" and .state != "MERGED")] | length) as $open_children |
+      if $parent and ($integration_parent | not) then
+        {eligible:false, reason:"parent-not-integration", count:.subIssues.totalCount}
+      elif $blockers > 0 then
+        {eligible:false, reason:"native-blockers", count:$blockers}
+      elif $open_children > 0 then
+        {eligible:false, reason:"open-subissues", count:$open_children}
+      else
+        {eligible:true, reason:"", count:0}
+      end
+    end'
 }
 
 github_open_pr_for_branch() { # repo branch
@@ -250,11 +285,12 @@ st_set() { # ticket state [reason]
   [ -e "$STATE/$1.parked" ] && was_parked=1
   rm -f "$STATE/$1.ready" "$STATE/$1.in-progress" "$STATE/$1.review" \
     "$STATE/$1.fix" "$STATE/$1.done" "$STATE/$1.parked" \
+    "$STATE/$1.container" "$STATE/$1.deferred" \
     "$STATE/$1.runtime-failed" \
     "$STATE/$1.blocked-decision" "$STATE/$1.merged-unverified" \
     "$STATE/$1.merged" "$STATE/$1.merged-audited" \
     "$STATE/$1.manual-takeover"
-  if [ "$2" = parked ] && [ -n "$reason" ]; then
+  if [[ "$2" =~ ^(parked|container|deferred)$ ]] && [ -n "$reason" ]; then
     printf '%s\n' "$reason" > "$STATE/$1.$2"
   else
     printf '%s\n' "$2" > "$STATE/$1.$2"

@@ -44,6 +44,41 @@ test("the controller has one guarded implementation spawn gateway", async () => 
   assert.match(source, /mark_merged_verified/);
   assert.match(source, /\[ "\$live_head" != "\$stored_head" \]/);
   assert.match(source, /st_set "\$n" merged/);
+  assert.match(source, /dispatch_runtime_retries\(\)[\s\S]*implementation_issue_eligible "\$n"/);
+  assert.match(source, /harvest_impl\(\)[\s\S]*implementation_issue_eligible "\$n"/);
+});
+
+test("relationship eligibility distinguishes leaves, containers, and integration parents", async () => {
+  const common = path.join(root, "run/common.sh");
+  const evaluate = async (metadata) => {
+    const result = await exec("bash", ["-c", 'source "$1"; issue_relationship_eligibility "$2" "$3"', "_", common, JSON.stringify(metadata), "loop-integration"]);
+    return JSON.parse(result.stdout);
+  };
+  const base = {
+    labels: [],
+    blockedBy: { totalCount: 0, nodes: [] },
+    subIssues: { totalCount: 0, nodes: [] }
+  };
+
+  assert.equal((await evaluate(base)).eligible, true);
+  assert.deepEqual(await evaluate({
+    ...base,
+    subIssues: { totalCount: 1, nodes: [{ number: 2, state: "OPEN" }] }
+  }), { eligible: false, reason: "parent-not-integration", count: 1 });
+  assert.deepEqual(await evaluate({
+    ...base,
+    labels: [{ name: "loop-integration" }],
+    subIssues: { totalCount: 1, nodes: [{ number: 2, state: "OPEN" }] }
+  }), { eligible: false, reason: "open-subissues", count: 1 });
+  assert.equal((await evaluate({
+    ...base,
+    labels: [{ name: "loop-integration" }],
+    subIssues: { totalCount: 1, nodes: [{ number: 2, state: "CLOSED" }] }
+  })).eligible, true);
+  await assert.rejects(evaluate({
+    ...base,
+    subIssues: { totalCount: 1, nodes: [] }
+  }));
 });
 
 test("the controller lock excludes concurrent owners", async () => {

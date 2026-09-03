@@ -37,6 +37,10 @@
         "build": {
           "type": "string",
           "description": "Optional build command to verify compilation."
+        },
+        "integration": {
+          "type": "string",
+          "description": "Optional command to run contract and integration tests (e.g. a pnpm filter for an integration service package)."
         }
       }
     },

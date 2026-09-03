@@ -103,6 +103,19 @@ export function ticketStages(ticket) {
   const add = (label, state, detail = "") => stages.push({ label, state, detail });
   const session = ticket.session;
 
+  if (ticket.status === "container") {
+    add("Parent context", "current", ticket.reason || "Implementation is delegated to sub-issues");
+    add("Sub-issues complete", "future");
+    add("Parent closure", "future");
+    return stages;
+  }
+
+  if (ticket.status === "deferred") {
+    add("Implementation", "blocked", ticket.reason || "GitHub eligibility conditions are not satisfied");
+    add("Automatic recheck", "current");
+    return stages;
+  }
+
   if (ticket.status === "merged") {
     add("Implementation", "done");
     add("Unified assurance", "done", "PASS");
@@ -179,6 +192,8 @@ export function ticketStages(ticket) {
 export function ticketDisplayStatus(ticket) {
   if (ticket.session?.status === "running") return { key: "running", label: "RUNNING" };
   if (ticket.session?.status === "awaiting harvest") return { key: "attention", label: "RESULT READY" };
+  if (ticket.status === "container") return { key: "active", label: "PARENT CONTEXT" };
+  if (ticket.status === "deferred") return { key: "blocked", label: "WAITING ON GITHUB" };
   if (ticket.status === "merged") return { key: "resolved", label: "MERGED" };
   if (ticket.status === "merged-unverified") return { key: "blocked", label: "OWNER AUDIT" };
   if (ticket.status === "merged-audited") return { key: "resolved", label: "EXCEPTION RECORDED" };

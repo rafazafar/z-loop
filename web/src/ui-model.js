@@ -11,6 +11,8 @@ export const NAV_ITEMS = [
 export function workflowState(ticket) {
   const display = ticketDisplayStatus(ticket);
   if (isResolvedTicket(ticket)) return { label: "Complete", tone: "complete" };
+  if (ticket.status === "container") return { label: "Parent context", tone: "waiting" };
+  if (ticket.status === "deferred") return { label: "Waiting", tone: "waiting" };
   if (ticket.status === "done") return { label: "Ready to merge", tone: "success" };
   if (
     ticket.session?.status === "awaiting harvest" ||
@@ -25,6 +27,8 @@ export function workflowState(ticket) {
 }
 
 export function ticketSubtitle(ticket) {
+  if (ticket.status === "container") return ticket.reason || "Implementation is delegated to sub-issues";
+  if (ticket.status === "deferred") return ticket.reason || "Waiting for GitHub eligibility conditions";
   if (ticket.session?.status === "awaiting harvest") return "Review finished · result not collected";
   if (ticket.retryableRuntimeFailure) return "Automation stopped · retry is available";
   if (ticket.status === "done") return "All checks passed";
@@ -52,4 +56,29 @@ export function pageFromHash(hash) {
 
 export function isActiveTicket(ticket) {
   return !isResolvedTicket(ticket);
+}
+
+export function isAutomaticFront(front) {
+  return front?.key === "worker" || front?.labels?.includes("ready-for-worker");
+}
+
+export function frontActor(front) {
+  if (isAutomaticFront(front)) return { label: "Loop automatic", tone: "loop" };
+  if (front?.key === "decision") return { label: "Your decision", tone: "owner" };
+  if (front?.key === "quality") return { label: "Quality owner", tone: "quality" };
+  if (front?.key === "external") return { label: "External owner", tone: "external" };
+  return { label: "Manual action", tone: "owner" };
+}
+
+export function actionableFronts(fronts = []) {
+  return fronts.filter((front) => frontActor(front).tone !== "loop");
+}
+
+export function queueFrontGroups(fronts = []) {
+  const automatic = fronts.filter(isAutomaticFront);
+  const manualNow = fronts.filter((front) => !isAutomaticFront(front) && front.immediateUnlocks?.length > 0);
+  const primaryManual = manualNow[0] || null;
+  const automaticNumbers = new Set(automatic.map((front) => front.number));
+  const later = fronts.filter((front) => front.number !== primaryManual?.number && !automaticNumbers.has(front.number));
+  return { primaryManual, otherManual: manualNow.slice(1), automatic, later };
 }
