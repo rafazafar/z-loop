@@ -20,12 +20,10 @@ dimensions in this one pass. They are checklist sections, not separate gates:
 - acceptance: every explicit acceptance criterion and relevant terminal CI;
 - code: correctness, architecture, module boundaries, and maintainability;
 - security: trust boundaries, credentials, authorization, storage, logging,
-  dependencies, and network/TLS/MQTT behavior;
-- safety: identity, signal and timestamp integrity, failure behavior, risk
-  controls, and regression evidence;
-- qms: only release-blocking controlled records, traceability, SOUP,
-  configuration management, problem resolution, and tool evidence affected by
-  this change.
+  dependencies, and network/TLS behavior;
+- safety (if listed): system integrity, failure behavior, risk controls, and regression evidence;
+- qms/compliance (if listed): release-blocking controlled records, traceability,
+  configuration management, and verification evidence affected by this change.
 
 ## Blocking threshold
 

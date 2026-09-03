@@ -9,8 +9,8 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ticket="$1"; pr="$2"; checkout="$3"; output="$4"
 GH_REPO="$(ghrepo)"
 
-issue="$(gh issue view "$ticket" -R "$GH_REPO" --json body,labels)"
-pr_meta="$(gh pr view "$pr" -R "$GH_REPO" --json url,baseRefOid,headRefOid)"
+issue="$(github_issue_view "$ticket" "$GH_REPO" "body,labels")"
+pr_meta="$(github_pr_view "$pr" "$GH_REPO" "url,baseRefOid,headRefOid")"
 pr_url="$(printf '%s' "$pr_meta" | jq -r .url)"
 base_oid="$(printf '%s' "$pr_meta" | jq -r .baseRefOid)"
 head_oid="$(printf '%s' "$pr_meta" | jq -r .headRefOid)"
@@ -25,9 +25,19 @@ files="$(git -C "$checkout" diff --name-only "$base_oid...$head_oid")"
 patch="$(git -C "$checkout" diff --no-ext-diff "$base_oid...$head_oid")"
 changed="$(printf '%s\n' "$patch" | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---)' || true)"
 
+enabled_dims="$(jq -r '.assurance.enabled_dimensions[]? // empty' "$CONFIG" 2>/dev/null)"
+[ -n "$enabled_dims" ] || enabled_dims="acceptance
+code
+security"
+
+dim_enabled() {
+  printf '%s\n' "$enabled_dims" | grep -Fqx "$1"
+}
+
 security=0; safety=0; qms=0
 reasons="baseline:all product changes"
 add_profile() { # profile reason
+  dim_enabled "$1" || return 0
   case "$1" in security) security=1 ;; safety) safety=1 ;; qms) qms=1 ;; esac
   reasons="$reasons
 $1:$2"
@@ -50,18 +60,22 @@ while IFS= read -r file; do
   [ -n "$file" ] || continue
   matched=0
   case "$file" in
-    .github/workflows/*|*AndroidManifest.xml|*.entitlements|*Info.plist|*auth*|*security*|*mqtt*|*network*|*storage*)
+    .github/workflows/*|*AndroidManifest.xml|*.entitlements|*Info.plist|*auth*|*security*|*mqtt*|*network*|*storage*|*secret*|*cert*)
       add_profile security "sensitive path:$file"; matched=1 ;;
   esac
-  case "$file" in
-    apps/*|packages/*|tools/*|docs/spec/*|docs/contracts/*)
-      add_profile safety "medical software path:$file"; matched=1 ;;
-  esac
-  case "$file" in
-    docs/compliance/*|docs/spec/*|docs/ard/*|docs/contracts/*|docs/releases/*|.github/workflows/*|*pubspec.yaml|*pubspec.lock|*package.json|*pnpm-lock.yaml)
-      add_profile qms "controlled path:$file"; matched=1 ;;
-  esac
-  if [ "$matched" = 0 ]; then
+  if dim_enabled safety; then
+    case "$file" in
+      apps/*|packages/*|tools/*|docs/spec/*|docs/contracts/*)
+        add_profile safety "critical domain path:$file"; matched=1 ;;
+    esac
+  fi
+  if dim_enabled qms; then
+    case "$file" in
+      docs/compliance/*|docs/spec/*|docs/ard/*|docs/contracts/*|docs/releases/*|.github/workflows/*|*pubspec.yaml|*pubspec.lock|*package.json|*pnpm-lock.yaml)
+        add_profile qms "controlled path:$file"; matched=1 ;;
+    esac
+  fi
+  if [ "$matched" = 0 ] && dim_enabled safety && dim_enabled qms; then
     add_profile security "unclassified path:$file"
     add_profile safety "unclassified path:$file"
     add_profile qms "unclassified path:$file"
@@ -70,10 +84,14 @@ done <<< "$files"
 
 printf '%s\n' "$changed" | grep -Eiq '(permissions:|secrets\.|authorization|credential|password|token|mqtt|wss?://|https?://|tls|certificate)' \
   && add_profile security "security-sensitive changed lines"
-printf '%s\n' "$changed" | grep -Eiq '(SR-|HAZ-|SAF-|patient|alarm|arrhythmia|ecg|heart.?rate|timestamp)' \
-  && add_profile safety "safety-sensitive changed lines"
-printf '%s\n' "$changed" | grep -Eiq '(QMS[0-9]+|JIS|IEC|ISO|SOUP|traceability|risk management)' \
-  && add_profile qms "lifecycle-sensitive changed lines"
+if dim_enabled safety; then
+  printf '%s\n' "$changed" | grep -Eiq '(SR-|HAZ-|SAF-|patient|alarm|arrhythmia|ecg|heart.?rate|timestamp)' \
+    && add_profile safety "safety-sensitive changed lines"
+fi
+if dim_enabled qms; then
+  printf '%s\n' "$changed" | grep -Eiq '(QMS[0-9]+|JIS|IEC|ISO|SOUP|traceability|risk management)' \
+    && add_profile qms "lifecycle-sensitive changed lines"
+fi
 
 dimensions="acceptance
 code"

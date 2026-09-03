@@ -6,4 +6,5 @@ port="${KOKOLOG_DASHBOARD_PORT:-4177}"
 if [ "${1:-}" != "--no-open" ]; then
   (sleep 0.6; open "http://127.0.0.1:$port") &
 fi
+npm --prefix "$LOOP_ROOT" run ui:build --silent
 exec node "$LOOP_ROOT/web/server.mjs" --port "$port"

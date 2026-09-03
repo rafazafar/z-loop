@@ -35,7 +35,7 @@
   "rules": {
     "max_fix_attempts": 5,
     "max_impl_attempts": 5,
-    "max_clean_retries": 1,
+    "max_clean_retries": 2,
     "max_concurrent_sessions": 3,
     "diff_budget": {
       "max_files": 12,

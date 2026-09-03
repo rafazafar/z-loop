@@ -31,13 +31,12 @@ carry workflow state.
 4. Implement the smallest change that satisfies every acceptance criterion.
    If your branch has diverged from `origin/<base-branch>` or has merge conflicts, run `git fetch origin` and `git merge origin/<base-branch>`, resolve any conflict markers cleanly, and verify all objective checks pass on the merged head.
 5. Run the objective checks yourself and fix red:
-   - changed package: `flutter analyze` / `dart analyze`, `flutter test` / `dart test`
-   - app scope: same, from the app directory
+   - Execute the project's verification commands (tests, linter, typecheck) across changed scopes.
    - If a check fails because the test is stale, do not touch the test.
      Write it in your result file and park.
 6. Live-proof: when the acceptance criteria or an optional Live proof section
    require a running system, exercise that path and capture evidence. If the
-   issue has the `needs-device` label, do not fake physical-device evidence;
+   issue has the `needs-device` label (or requires physical bench hardware), do not fake physical-device evidence;
    identify the criteria that remain for a human.
 7. CI proof: if the diff changes CI, inspect the actual runner OS, labels, and
    required toolchains before you choose `runs-on` or combine platform steps.
@@ -72,7 +71,7 @@ carry workflow state.
   mechanical output do not by themselves make a ticket too large.
 - Never weaken a test, assertion, lint, or CI gate. Never add a fallback that
   hides an error to make something pass.
-- Follow the client repo's AGENTS.md, ARDs, and import/barrel rules.
+- Follow the client repo's AGENTS.md, architectural decisions (ARDs/ADRs), and coding standards.
 - Commit as the configured git identity. Neutral, professional messages.
   No AI markers, no loop markers, no emoji.
 - Make no mistake.

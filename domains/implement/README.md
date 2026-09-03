@@ -49,6 +49,184 @@ the bench flow has run once for real.
 
 ## Timeline
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 68 | merged after unified assurance PASS at 910ce82525f4
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 68 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry6
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry5
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry4
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry3
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry2
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-rev-assurance-r1-retry1
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | reviewer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | unified assurance review for revision 1 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | revision 1 classified for unified assurance at 910ce82525f4
+2026-09-03 | ticket 68 | parked: assurance classification failed
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-impl-a1-retry5
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | implementation contract incomplete: PR must close issue #68
+2026-09-03 | ticket 68 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-impl-a1-retry4
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | implementer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-impl-a1-retry3
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | current work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-impl-a1-retry2
+2026-09-03 | ticket 68 | owner authorized a clean retry from GitHub state
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | implementer operational failure: worker wrote no result; clean retry status: needs-retry
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | clean retry started as 68-impl-a1-retry1
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 68 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 68 | implementer spawned (frontier)
+2026-09-03 | ticket 64 | merged after unified assurance PASS at 77cf6874ff77
+2026-09-03 | ticket 41 | merged after unified assurance PASS at 2f50dda05de6
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 41 | unified assurance PASS on revision 3 — PR awaits owner merge
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 41 | unified assurance review for revision 3 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 41 | revision 3 classified for unified assurance at 2f50dda05de6
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | ticket 64 | unified assurance PASS on revision 4 — PR awaits owner merge
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 64 | unified assurance review for revision 4 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 64 | revision 4 classified for unified assurance at 77cf6874ff77
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 41 | clean retry started as 41-impl-a15-retry1
+2026-09-03 | ticket 41 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 41 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-03 | ticket 41 | merge conflict -> rebase worker spawned as 41-impl-a15
+2026-09-03 | ticket 41 | merge conflicts detected on PR; starting rebase reconciliation
+2026-09-03 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-03 | ticket 41 | revision 2 classified for unified assurance at 928eb2e07c22
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-03 | dispatch | scheduled work: 0/3 model sessions started

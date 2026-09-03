@@ -1,0 +1,26 @@
+{
+  "name": "kokolog-loop",
+  "version": "2.0.0",
+  "description": "Autonomous Maker-Checker Agent Development Loop",
+  "type": "module",
+  "bin": {
+    "loop": "./bin/loop"
+  },
+  "scripts": {
+    "status": "node --experimental-strip-types src/cli/index.ts status",
+    "tick": "node --experimental-strip-types src/cli/index.ts tick",
+    "doctor": "node --experimental-strip-types src/cli/index.ts doctor",
+    "ui": "node --experimental-strip-types src/cli/index.ts ui",
+    "ui:dev": "vite --config web/vite.config.js",
+    "ui:build": "vite build --config web/vite.config.js",
+    "migrate": "node --experimental-strip-types src/migrate.ts",
+    "test": "node --experimental-strip-types --test test/*.test.mjs test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.1.1",
+    "lucide-react": "1.39.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vite": "8.2.2"
+  }
+}

@@ -168,3 +168,12 @@ Refs: /Users/zafar/dev/kokolog-loop/state/64.assurance-r3.json
 ## 2026-09-03 · ticket 67 verified · #implement
 What: Unified assurance passed for f76990b076ce294a9b9657171c66842cc8ec72fe; PR awaits owner merge.
 Refs: /Users/zafar/dev/kokolog-loop/state/67.assurance-r4.json
+## 2026-09-03 · ticket 64 verified · #implement
+What: Unified assurance passed for 77cf6874ff77bb3a231ea9dd606a80abcf5ece00; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/64.assurance-r4.json
+## 2026-09-03 · ticket 41 verified · #implement
+What: Unified assurance passed for 2f50dda05de602b3499e8fbfe032a7a4db116ca9; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/41.assurance-r3.json
+## 2026-09-03 · ticket 68 verified · #implement
+What: Unified assurance passed for 910ce82525f49000819bcf354005f44c4de6e223; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/68.assurance-r1.json

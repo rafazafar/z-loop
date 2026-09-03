@@ -12,17 +12,20 @@ export const defaultRoot = path.dirname(webDir);
 
 export const definitions = {
   implement: {
-    runner: "controller-heartbeat", scheduledCommand: "controller-heartbeat", cadence: "Every minute", timer: "dev.kokolog.loop.tick",
+    runner: "controller-heartbeat", scheduledCommand: "controller-heartbeat", cadence: "Every minute", timerSuffix: "tick", timer: "dev.kokolog.loop.tick",
     consumes: "Ready GitHub issues", produces: "PRs and verdicts", maintenance: []
   },
-  "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, scheduledCommand: "spec-sync-trigger", cadence: "Every 10m", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Doc PRs and decisions" },
+  "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, scheduledCommand: "spec-sync-trigger", cadence: "Every 10m", timerSuffix: "specsync", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Doc PRs and decisions" },
   "ticket-factory": { runner: "domain-loop", role: "ticketer", args: ["ticket-factory"], background: true, cadence: "On demand", consumes: "Approved specs and epics", produces: "Breakdown cards" },
   gardener: { runner: "domain-loop", role: "gardener", args: ["gardener"], background: true, cadence: "Weekly", consumes: "Signals and verdicts", produces: "Signals and proposal cards" },
-  "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, scheduledCommand: "decision-batch", cadence: "09:00 and 17:00", timer: "dev.kokolog.loop.decisions", consumes: "Explicit human decision cards", produces: "Owner decision queues" }
+  "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, scheduledCommand: "decision-batch", cadence: "09:00 and 17:00", timerSuffix: "decisions", timer: "dev.kokolog.loop.decisions", consumes: "Explicit human decision cards", produces: "Owner decision queues" }
 };
 
 const domainIds = Object.keys(definitions);
 const stateNames = new Set(["ready", "in-progress", "review", "fix", "done", "parked", "merged", "merged-unverified", "merged-audited", "manual-takeover", "blocked-decision"]);
+const prCache = new Map();
+let frontierCache = null;
+let frontierCacheAt = 0;
 
 export async function runCommand(file, args = [], cwd = defaultRoot, timeout = 10000, environment = null) {
   try {
@@ -129,7 +132,9 @@ export async function collectSessions(root, routing) {
     collectAssuranceReports(root)
   ]);
   const liveText = (await runCommand("tmux", ["list-sessions", "-F", "#S"], root, 2000)).output;
-  const live = new Set(liveText.split("\n").filter(Boolean).map((id) => id.replace(/^kokoloop-/, "")));
+  const tmuxPrefix = routing?.daemon?.service_identifier?.replace(/[^a-zA-Z0-9_-]/g, "-") || "kokoloop";
+  const prefixRegex = new RegExp(`^(?:${tmuxPrefix}|kokoloop)-`);
+  const live = new Set(liveText.split("\n").filter(Boolean).map((id) => id.replace(prefixRegex, "")));
   const ids = files.filter((name) => name.endsWith(".prompt")).map((name) => name.replace(/\.prompt$/, ""));
   const sessions = await Promise.all(ids.map(async (id) => {
     const identity = sessionIdentity(id);
@@ -212,7 +217,55 @@ export function ticketNextAction(ticket, session) {
   return "No action";
 }
 
-async function collectTickets(root, sessions, ghrepo, routing) {
+async function fetchPrMetadata(pr, ghrepo, root, force = false) {
+  const cacheKey = `${ghrepo}:${pr}`;
+  const cached = prCache.get(cacheKey);
+  const now = Date.now();
+  if (cached?.data?.prState === "MERGED" || cached?.data?.prState === "CLOSED") {
+    return cached.data;
+  }
+  if (!force && cached && now - cached.at < 60000) {
+    return cached.data;
+  }
+  let prState = cached?.data?.prState || "";
+  let liveHead = cached?.data?.liveHead || "";
+  let title = cached?.data?.title || "";
+  let mergeable = cached?.data?.mergeable || "";
+  let mergeStateStatus = cached?.data?.mergeStateStatus || "";
+
+  let result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title,mergeable,mergeStateStatus"], root, 5000);
+  if (!result.ok) {
+    const prNumber = pr.match(/\/pull\/(\d+)/)?.[1];
+    if (prNumber) {
+      result = await runCommand("gh", ["api", `repos/${ghrepo}/pulls/${prNumber}`], root, 5000);
+      if (result.ok) {
+        try {
+          const metadata = JSON.parse(result.stdout);
+          prState = (metadata.state || "").toUpperCase();
+          liveHead = metadata.head?.sha || "";
+          title = metadata.title || "";
+          mergeable = metadata.mergeable === null ? "UNKNOWN" : metadata.mergeable ? "MERGEABLE" : "CONFLICTING";
+          mergeStateStatus = (metadata.mergeable_state || "UNKNOWN").toUpperCase();
+        } catch {}
+      }
+    }
+  } else {
+    try {
+      const metadata = JSON.parse(result.stdout);
+      prState = metadata.state || "";
+      liveHead = metadata.headRefOid || "";
+      title = metadata.title || "";
+      mergeable = metadata.mergeable || "";
+      mergeStateStatus = metadata.mergeStateStatus || "";
+    } catch {}
+  }
+
+  const data = { prState, liveHead, title, mergeable, mergeStateStatus };
+  prCache.set(cacheKey, { at: now, data });
+  return data;
+}
+
+async function collectTickets(root, sessions, ghrepo, routing, force = false) {
   const stateDir = path.join(root, "state");
   const files = await readdir(stateDir).catch(() => []);
   const candidates = files.map((name) => ({ name, match: name.match(/^(\d+)\.(.+)$/) })).filter((item) => item.match && stateNames.has(item.match[2]));
@@ -256,32 +309,12 @@ async function collectTickets(root, sessions, ghrepo, routing) {
     let mergeable = "";
     let mergeStateStatus = "";
     if (pr && ghrepo) {
-      let result = await runCommand("gh", ["pr", "view", pr, "-R", ghrepo, "--json", "state,headRefOid,title,mergeable,mergeStateStatus"], root, 5000);
-      if (!result.ok) {
-        const prNumber = pr.match(/\/pull\/(\d+)/)?.[1];
-        if (prNumber) {
-          result = await runCommand("gh", ["api", `repos/${ghrepo}/pulls/${prNumber}`], root, 5000);
-          if (result.ok) {
-            try {
-              const metadata = JSON.parse(result.stdout);
-              prState = (metadata.state || "").toUpperCase();
-              liveHead = metadata.head?.sha || "";
-              title = metadata.title || "";
-              mergeable = metadata.mergeable === null ? "UNKNOWN" : metadata.mergeable ? "MERGEABLE" : "CONFLICTING";
-              mergeStateStatus = (metadata.mergeable_state || "UNKNOWN").toUpperCase();
-            } catch {}
-          }
-        }
-      } else {
-        try {
-          const metadata = JSON.parse(result.stdout);
-          prState = metadata.state || "";
-          liveHead = metadata.headRefOid || "";
-          title = metadata.title || "";
-          mergeable = metadata.mergeable || "";
-          mergeStateStatus = metadata.mergeStateStatus || "";
-        } catch {}
-      }
+      const meta = await fetchPrMetadata(pr, ghrepo, root, force);
+      prState = meta.prState;
+      liveHead = meta.liveHead;
+      title = meta.title;
+      mergeable = meta.mergeable;
+      mergeStateStatus = meta.mergeStateStatus;
     }
     const conflicted = Boolean(prState === "OPEN" && (mergeable === "CONFLICTING" || mergeStateStatus === "DIRTY"));
     const ticket = {
@@ -309,7 +342,22 @@ async function collectTickets(root, sessions, ghrepo, routing) {
   }));
 }
 
-async function collectFrontier(root, routing, ghrepo, tickets) {
+async function collectFrontier(root, routing, ghrepo, tickets, force = false) {
+  const known = new Set(tickets.map((ticket) => ticket.id));
+  const integration = routing.github.integration_label;
+  const now = Date.now();
+  if (!force && frontierCache && (now - frontierCacheAt < 90000)) {
+    const open = frontierCache.open;
+    const classified = frontierCache.issues.map((issue) => classifyFrontierIssue(issue, open, known, integration));
+    return {
+      available: true,
+      labeled: classified.length,
+      eligible: classified.filter((issue) => issue.eligible).length,
+      deferred: classified.filter((issue) => !issue.eligible).length,
+      next: classified.find((issue) => issue.eligible) || null,
+      issues: classified
+    };
+  }
   const args = ["issue", "list", "-R", ghrepo, "--state", "open", "--label", routing.github.frontier_label, "--limit", "200", "--json", "number,title,createdAt,body,labels,blockedBy,subIssues"];
   let [frontierResult, openResult] = await Promise.all([
     runCommand("gh", args, root, 8000),
@@ -323,14 +371,19 @@ async function collectFrontier(root, routing, ghrepo, tickets) {
   }
   let issues = [];
   try { if (frontierResult.ok) issues = JSON.parse(frontierResult.stdout || "[]"); } catch {}
-  const open = new Set(openResult.stdout.split("\n").filter(Boolean).map(Number));
-  const known = new Set(tickets.map((ticket) => ticket.id));
-  const integration = routing.github.integration_label;
+  let open = new Set(openResult.stdout.split("\n").filter(Boolean).map(Number));
+  if ((!frontierResult.ok || !openResult.ok) && frontierCache) {
+    issues = frontierCache.issues;
+    open = frontierCache.open;
+  } else if (frontierResult.ok && openResult.ok) {
+    frontierCache = { issues, open };
+    frontierCacheAt = now;
+  }
   const classified = issues.map((issue) => classifyFrontierIssue(issue, open, known, integration));
   return {
-    available: frontierResult.ok && openResult.ok,
+    available: (frontierResult.ok && openResult.ok) || Boolean(frontierCache),
     labeled: classified.length,
-    eligible: frontierResult.ok && openResult.ok ? classified.filter((issue) => issue.eligible).length : 0,
+    eligible: (frontierResult.ok && openResult.ok) || Boolean(frontierCache) ? classified.filter((issue) => issue.eligible).length : 0,
     deferred: classified.filter((issue) => !issue.eligible).length,
     next: classified.find((issue) => issue.eligible) || null,
     issues: classified
@@ -434,8 +487,11 @@ async function collectActivity(root, sessions) {
     .slice(0, 40);
 }
 
-export async function collectStatus(root = defaultRoot) {
-  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
+export async function collectStatus(root = defaultRoot, options = {}) {
+  const force = Boolean(options.force);
+  const configPath = (await fileStat(path.join(root, "config.json"))) ? path.join(root, "config.json") : path.join(root, "routing.json");
+  const routing = JSON.parse(await readFile(configPath, "utf8"));
+  const serviceId = routing.daemon?.service_identifier || "dev.kokolog.loop";
   const repoPath = routing.project.repo_path;
   const remote = (await runCommand("git", ["remote", "get-url", "origin"], repoPath)).output;
   const ghrepo = remote.replace(/^.*github\.com[:/]/, "").replace(/\.git$/, "");
@@ -444,7 +500,8 @@ export async function collectStatus(root = defaultRoot) {
     const text = await readFile(path.join(root, `domains/${id}/README.md`), "utf8");
     const def = definitions[id];
     const events = timeline(text);
-    const schedule = def.timer ? await readLaunchAgentSchedule(root, def.timer).catch(() => null) : null;
+    const timerLabel = def.timerSuffix ? `${serviceId}.${def.timerSuffix}` : (def.timer || "");
+    const schedule = timerLabel ? await readLaunchAgentSchedule(root, timerLabel).catch(() => null) : null;
     const maintenance = await Promise.all((def.maintenance || []).map(async (task) => {
       const taskSchedule = await readLaunchAgentSchedule(root, task.timer).catch(() => null);
       return {
@@ -452,16 +509,19 @@ export async function collectStatus(root = defaultRoot) {
         timerInstalled: await isTimerInstalled(task.timer), timerLoaded: await isTimerLoaded(task.timer, root)
       };
     }));
+    const isConfigured = routing.domains?.[id.replace("-", "_")]?.enabled ?? true;
+    const rawStatus = field(text, "status");
+    const domainStatus = isConfigured ? rawStatus : "disabled";
     return {
-      id, status: field(text, "status"), goal: field(text, "goal"), cadence: schedule?.cadence || def.cadence, schedule,
-      timerConfigured: Boolean(def.timer), timerInstalled: await isTimerInstalled(def.timer), timerLoaded: await isTimerLoaded(def.timer, root),
-      timerLabel: def.timer || "", scheduledCommand: def.scheduledCommand || "", triggerable: Boolean(def.runner),
+      id, status: domainStatus, goal: field(text, "goal"), cadence: schedule?.cadence || def.cadence, schedule,
+      timerConfigured: Boolean(timerLabel), timerInstalled: await isTimerInstalled(timerLabel), timerLoaded: await isTimerLoaded(timerLabel, root),
+      timerLabel, scheduledCommand: def.scheduledCommand || "", triggerable: Boolean(def.runner),
       unavailable: def.unavailable || "", consumes: def.consumes, produces: def.produces, timeline: events, maintenance,
       lastEvent: events[0] || "Never", health: /\| (FAIL|BLOCKED):|\| skipped:/.test(events[0] || "") ? "failed" : "ok",
       work: sessions.find((item) => item.loop === id && item.status === "running")?.id || "Idle"
     };
   }));
-  const tickets = await collectTickets(root, sessions, ghrepo, routing);
+  const tickets = await collectTickets(root, sessions, ghrepo, routing, force);
   const decisionFiles = await readdir(path.join(root, "decisions")).catch(() => []);
   const cards = (await Promise.all(decisionFiles.filter((name) => name.endsWith(".md") && name !== "README.md").map(async (name) => {
     const file = path.join(root, "decisions", name);
@@ -472,7 +532,7 @@ export async function collectStatus(root = defaultRoot) {
   }))).filter(Boolean);
   const logFiles = await readdir(path.join(root, "logs")).catch(() => []);
   const logs = (await Promise.all(logFiles.map(async (name) => ({ name, info: await fileStat(path.join(root, "logs", name)) })))).filter((item) => item.info?.isFile()).sort((a, b) => b.info.mtimeMs - a.info.mtimeMs).slice(0, 30).map((item) => ({ name: item.name, size: item.info.size, modified: item.info.mtime.toISOString() }));
-  const frontier = await collectFrontier(root, routing, ghrepo, tickets);
+  const frontier = await collectFrontier(root, routing, ghrepo, tickets, force);
   const currentSessions = sessions.filter((session) => ["running", "awaiting harvest", "incomplete"].includes(session.status));
   const paidReady = tickets.filter((ticket) => ["in-progress", "review", "fix"].includes(ticket.status) && (!ticket.operationalFailure || ticket.operationalFailure.status === "retry-ready") && (!ticket.session || ticket.session.status === "incomplete")).length;
   const cbFile = path.join(root, "state/circuit-breaker.json");
@@ -492,7 +552,12 @@ export async function collectStatus(root = defaultRoot) {
   const attention = buildAttention(loops, currentSessions, tickets, cards, circuitBreaker);
   const activity = await collectActivity(root, sessions);
   return {
-    generatedAt: new Date().toISOString(), repo: { path: repoPath, ghrepo }, loops, sessions, currentSessions,
+    generatedAt: new Date().toISOString(),
+    project: {
+      name: routing.project?.name || "kokolog-monitor",
+      description: routing.project?.description || ""
+    },
+    repo: { path: repoPath, ghrepo }, loops, sessions, currentSessions,
     tickets, cards, decisions: cards.filter((card) => card.status === "open").map((card) => card.name), logs, frontier, attention, activity, routing, circuitBreaker,
     summary: {
       enabled: loops.filter((loop) => loop.status === "active").length,

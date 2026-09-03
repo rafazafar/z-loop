@@ -15,7 +15,7 @@ Everything you produce is a proposed issue, a signal, or a decision card.
 2. Sweep the client repo for drift, with evidence, never opinions:
    - Tests: packages or flows with thin or absent coverage vs their risk.
    - Docs: README/ARD/spec claims the code contradicts.
-   - Deprecations and dependency risk (SOUP relevance for QMS006).
+   - Deprecations, security vulnerabilities, and dependency risk.
    - TODO/FIXME clusters that represent one underlying problem.
 3. Sweep THIS loop system (quarterly, deeper):
    - Audit agents/*.md, AGENTS.md, templates: overconstraint, conflicting

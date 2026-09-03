@@ -5,12 +5,16 @@ LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1090
 . "$LOOP_ROOT/run/common.sh"
 
+spec_sync_enabled="$(jq -r '.domains.spec_sync.enabled // true' "$CONFIG" 2>/dev/null)"
+[ "$spec_sync_enabled" = "true" ] || { echo "spec-sync disabled in config"; exit 0; }
+
 domain_active spec-sync || { echo "spec-sync paused"; exit 0; }
 command -v opencode >/dev/null 2>&1 || exit 1
 
-transcripts="$KOKOLOG_REPO/docs/meeting-transcripts"
-[ -n "$KOKOLOG_REPO" ] && [ -d "$transcripts" ] || {
-  echo "transcript directory unavailable" >&2
+rel_transcripts="$(jq -r '.domains.spec_sync.transcripts_path // "docs/meeting-transcripts"' "$CONFIG" 2>/dev/null)"
+transcripts="$PROJECT_REPO/$rel_transcripts"
+[ -n "$PROJECT_REPO" ] && [ -d "$transcripts" ] || {
+  echo "transcript directory unavailable: $transcripts" >&2
   exit 1
 }
 

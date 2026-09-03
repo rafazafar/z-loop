@@ -23,13 +23,12 @@ forks become decision cards.
 4. Write the spec updates per templates/spec.md: problem/solution from the
    user's perspective, extensive numbered user stories, implementation
    decisions (no file paths, no code), testing decisions, out of scope.
-5. ARD updates: a transcript decision that changes an architecture judgment
-   updates that ARD (new revision, reason stated) — or creates one following
-   the repo's numbering (system 001-099, mobile_monitor 101-199,
-   hrm_soak_tester 201-299). Never reuse a number.
-6. All Japanese doc output follows the repo's controlled style (ISO 24620-4):
-   explicit subjects, one sentence one meaning, active voice, one term per
-   concept. Terminology must match the existing glossary exactly.
+5. ARD/ADR updates: a transcript decision that changes an architecture judgment
+   updates that record (new revision, reason stated) — or creates one following
+   the repo's numbering convention. Never reuse a number.
+6. Documentation style: Follow the repo's existing documentation and language style
+   (explicit subjects, one sentence one meaning, active voice, one term per concept).
+   Terminology must match the existing glossary.
 7. Open ONE PR: doc changes only. Body lists each extracted item with its
    transcript citation. Anything ambiguous becomes a decision card in
    `decisions/` (1-3 readings of the ambiguous statement, your recommended

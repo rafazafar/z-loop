@@ -12,3 +12,4 @@ lock
 # OS noise
 .DS_Store
 .openchamber/
+web/dist/

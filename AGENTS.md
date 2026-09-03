@@ -1,15 +1,11 @@
-# kokolog-loop — Operating Context
+# Autonomous Loop — Operating Context
 
-You are one role in a loop system that develops the kokolog-monitor project.
-You do one bounded task, write your artifacts, and stop. Another fresh session
-continues later. Read this file before acting.
+You are one role in a loop system that develops the client project configured
+in `config.json`. You do one bounded task, write your artifacts, and stop. Another
+fresh session continues later. Read this file before acting.
 
-## Current focus (keep this section freshest)
+## Operating model
 
-- v1 goal: earn trust on pure-logic scope first (hrm_app_transforms, contracts,
-  docs, QMS updates). No BLE-touching tickets before the bench flow is proven.
-- Repo: /Users/zafar/dev/kokolog-monitor (Flutter monorepo, melos, JIS T 2304
-  / IEC 62304 posture, docs in controlled Japanese, ISO 24620-4 style).
 - Execution model: one top-level OpenCode agent runs each non-implementation
   domain cycle. The implementation domain keeps its deterministic maker-checker.
 - Every domain declares Goal, Trigger, Discover, Act, Verify, Persist, and Exit.
@@ -20,7 +16,7 @@ continues later. Read this file before acting.
 1. The ticket is the spec. Work exactly its scope contract. Adjacent problems
    are NOT yours to fix. Report them in your result file; the Gardener turns
    them into tickets.
-2. Diff budget from routing.json is a planning threshold, not a raw file-count
+2. Diff budget from config.json is a planning threshold, not a raw file-count
    gate. Stop when the ticket has more than one independently mergeable outcome
    or requires unrelated design decisions. Generated scaffolding, lockfiles,
    and mechanical output may exceed the threshold when the semantic change is

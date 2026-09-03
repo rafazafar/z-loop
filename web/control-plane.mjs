@@ -178,33 +178,53 @@ export function applyDispatchPolicy(routing, maxStarts) {
 }
 
 export async function writeRouting(root, routing) {
-  const file = path.join(root, "routing.json");
+  const configFile = path.join(root, "config.json");
+  const routingFile = path.join(root, "routing.json");
+  const file = await readFile(configFile).then(() => configFile).catch(() => routingFile);
   const temporary = `${file}.dashboard.tmp`;
   await writeFile(temporary, `${JSON.stringify(routing, null, 2)}\n`, { mode: 0o644 });
   await rename(temporary, file);
 }
+export const writeConfig = writeRouting;
 
 export function launchAgentPaths(root, label, home = os.homedir()) {
-  if (!/^dev\.kokolog\.loop\.[a-z]+$/.test(label)) throw new Error("Invalid launch agent label");
+  if (!/^dev\.[a-zA-Z0-9_.-]+\.loop\.[a-z]+$/.test(label) && !/^dev\.kokolog\.loop\.[a-z]+$/.test(label)) {
+    throw new Error("Invalid launch agent label");
+  }
+  const suffix = label.split(".").pop();
   return {
     source: path.join(root, "run", "plists", `${label}.plist`),
+    fallbackSource: path.join(root, "run", "plists", `dev.kokolog.loop.${suffix}.plist`),
     directory: path.join(home, "Library", "LaunchAgents"),
     installed: path.join(home, "Library", "LaunchAgents", `${label}.plist`)
   };
 }
 
 export async function readLaunchAgentSchedule(root, label) {
-  const source = launchAgentPaths(root, label).source;
-  return parseLaunchAgentSchedule(await readFile(source, "utf8"));
+  const files = launchAgentPaths(root, label);
+  const source = (await readFile(files.source, "utf8").catch(() => null)) ||
+                 (files.fallbackSource ? await readFile(files.fallbackSource, "utf8").catch(() => null) : null);
+  if (!source) throw new Error(`Launch agent template not found for ${label}`);
+  return parseLaunchAgentSchedule(source);
 }
 
 export async function installLaunchAgent(root, label, home = os.homedir()) {
   const files = launchAgentPaths(root, label, home);
-  const template = await readFile(files.source, "utf8");
+  let template;
+  try {
+    template = await readFile(files.source, "utf8");
+  } catch {
+    if (files.fallbackSource) {
+      template = await readFile(files.fallbackSource, "utf8");
+    } else {
+      throw new Error(`Launch agent template is missing: ${label}`);
+    }
+  }
   if (!template.includes("__LOOP_ROOT__")) throw new Error(`Launch agent template is invalid: ${label}`);
   const rendered = template
     .replaceAll("__LOOP_ROOT__", root)
-    .replaceAll("__LAUNCH_PATH__", launchAgentExecutablePath(home));
+    .replaceAll("__LAUNCH_PATH__", launchAgentExecutablePath(home))
+    .replaceAll("dev.kokolog.loop", label.replace(/\.[^.]+$/, ""));
   await mkdir(files.directory, { recursive: true });
   const temporary = `${files.installed}.dashboard.tmp`;
   await writeFile(temporary, rendered, { mode: 0o644 });

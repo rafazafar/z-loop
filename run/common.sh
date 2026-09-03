@@ -11,18 +11,27 @@ VERDICTS="$LOOP_ROOT/verdicts"
 CLONES="$LOOP_ROOT/clones"
 LOCK="$LOOP_ROOT/lock"
 LOGMD="$LOOP_ROOT/LOG.md"
-ROUTING="$LOOP_ROOT/routing.json"
+if [ -f "$LOOP_ROOT/config.json" ]; then
+  CONFIG="$LOOP_ROOT/config.json"
+elif [ -f "$LOOP_ROOT/routing.json" ]; then
+  CONFIG="$LOOP_ROOT/routing.json"
+else
+  CONFIG="$LOOP_ROOT/config.json"
+fi
+ROUTING="$CONFIG" # backward compatibility
 
 # --- config ---------------------------------------------------------------
-KOKOLOG_REPO="$(jq -r '.project.repo_path // empty' "$ROUTING")"
-export KOKOLOG_REPO
+PROJECT_REPO="$(jq -r '.project.repo_path // empty' "$CONFIG")"
+KOKOLOG_REPO="$PROJECT_REPO" # backward compatibility
+export PROJECT_REPO KOKOLOG_REPO
 
-jqget() { jq -r "$1" "$ROUTING"; }
+jqget() { jq -r "$1" "$CONFIG"; }
 
-route_model() { jq -r --arg r "$1" '.roles[$r].model // empty' "$ROUTING"; }
-route_variant() { jq -r --arg r "$1" '.roles[$r].variant // empty' "$ROUTING"; }
+route_model() { jq -r --arg r "$1" '.roles[$r].model // empty' "$CONFIG"; }
+route_variant() { jq -r --arg r "$1" '.roles[$r].variant // empty' "$CONFIG"; }
 
-rule() { jq -r --arg k "$1" '.rules[$k]' "$ROUTING"; }
+rule() { jq -r --arg k "$1" '.rules[$k]' "$CONFIG"; }
+cfg_cmd() { jq -r --arg c "$1" '.commands[$c] // empty' "$CONFIG"; }
 
 branch_slug() { # title -> short ASCII kebab slug; unique issue number lives outside
   local slug
@@ -132,7 +141,7 @@ github_pr_view() { # pr repo [fields]
     mergeStateStatus: (.mergeable_state | if . == null then "UNKNOWN" else ascii_upcase end),
     title: .title,
     url: .html_url,
-    closingIssuesReferences: []
+    closingIssuesReferences: [ [ (.body // "") | scan("(?i)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\\s+#([0-9]+)") ] | unique | .[] | { number: (.[0] | tonumber) } ]
   }' 2>/dev/null
 }
 
@@ -305,8 +314,8 @@ metric() { # domain file json-line
   mkdir -p "$d/metrics"
   printf '{"t":"%s",%s}\n' "$(date -u +%FT%TZ)" "$3" >> "$d/metrics/$2"
 }
-
-tmux_session_prefix="kokoloop"
+tmux_session_prefix="${LOOP_TMUX_PREFIX:-$(jq -r '.daemon.service_identifier // empty' "$CONFIG" 2>/dev/null | tr -d ' ' | tr '.' '-' | tr '[:upper:]' '[:lower:]')}"
+tmux_session_prefix="${tmux_session_prefix:-kokoloop}"
 
 worker_result_path() { # checkout session-id
   printf '%s/.git/kokolog-loop/%s.result\n' "$1" "$2"

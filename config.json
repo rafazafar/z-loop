@@ -1,0 +1,124 @@
+{
+  "$schema": "./templates/config.schema.json",
+  "project": {
+    "name": "kokolog-monitor",
+    "repo_path": "/Users/zafar/dev/kokolog-monitor",
+    "description": "Patient monitoring Flutter application and HRM SDK"
+  },
+  "commands": {
+    "test": "flutter test",
+    "lint": "flutter analyze"
+  },
+  "assurance": {
+    "enabled_dimensions": [
+      "acceptance",
+      "code",
+      "security",
+      "safety",
+      "qms"
+    ],
+    "sensitive_paths": {
+      "security": [
+        ".github/workflows/*",
+        "*AndroidManifest.xml",
+        "*.entitlements",
+        "*Info.plist",
+        "*auth*",
+        "*security*",
+        "*mqtt*",
+        "*network*",
+        "*storage*"
+      ],
+      "safety": [
+        "apps/*",
+        "packages/*",
+        "tools/*",
+        "docs/spec/*",
+        "docs/contracts/*"
+      ],
+      "qms": [
+        "docs/compliance/*",
+        "docs/spec/*",
+        "docs/ard/*",
+        "docs/contracts/*",
+        "docs/releases/*",
+        ".github/workflows/*",
+        "*pubspec.yaml",
+        "*pubspec.lock",
+        "*package.json",
+        "*pnpm-lock.yaml"
+      ]
+    }
+  },
+  "domains": {
+    "spec_sync": {
+      "enabled": true,
+      "transcripts_path": "docs/meeting-transcripts"
+    },
+    "ticket_factory": {
+      "enabled": true
+    },
+    "gardener": {
+      "enabled": true
+    },
+    "decision_desk": {
+      "enabled": true
+    }
+  },
+  "roles": {
+    "implementer": {
+      "model": "10router/combo-coding",
+      "variant": "high"
+    },
+    "repairer": {
+      "model": "10router/combo-coding",
+      "variant": "high"
+    },
+    "reviewer": {
+      "model": "10router/combo-review",
+      "variant": "high"
+    },
+    "ticketer": {
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
+    },
+    "distiller": {
+      "model": "10router/ag/gemini-3.7-flash-high",
+      "variant": "high"
+    },
+    "gardener": {
+      "model": "openai/gpt-5.6-sol",
+      "variant": "high"
+    },
+    "decision-desk": {
+      "model": "10router/ag/gemini-3.7-flash-high",
+      "variant": "high"
+    }
+  },
+  "rules": {
+    "max_fix_attempts": 5,
+    "max_impl_attempts": 5,
+    "max_clean_retries": 2,
+    "max_concurrent_sessions": 3,
+    "diff_budget": {
+      "max_files": 12,
+      "max_insertions": 800,
+      "max_deletions": 400
+    },
+    "session_inactivity_timeout_sec": 1800,
+    "session_termination_grace_sec": 5,
+    "session_timeout_sec": 7200,
+    "clone_reap_days": 7
+  },
+  "github": {
+    "frontier_label": "ready-for-worker",
+    "integration_label": "loop-integration",
+    "decision_label": "need-decision",
+    "branch_prefix": "issue",
+    "base_branch": "main"
+  },
+  "daemon": {
+    "dashboard_port": 4177,
+    "service_identifier": "dev.kokolog.loop"
+  }
+}

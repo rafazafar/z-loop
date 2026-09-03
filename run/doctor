@@ -25,14 +25,14 @@ for b in "${required_bins[@]}"; do
 done
 
 echo "== client repo =="
-[ -d "$KOKOLOG_REPO/.git" ] && ok "repo: $KOKOLOG_REPO" || bad "not a git repo: $KOKOLOG_REPO (set KOKOLOG_REPO in config.env)"
+[ -d "$PROJECT_REPO/.git" ] && ok "repo: $PROJECT_REPO" || bad "not a git repo: $PROJECT_REPO (set repo_path in config.json)"
 gh auth status >/dev/null 2>&1 && ok "gh authenticated" || bad "gh not authenticated: run gh auth login"
 GH_REPO="$(ghrepo 2>/dev/null)" && ok "github: $GH_REPO" || bad "cannot resolve GitHub repo (is origin set?)"
 
 echo "== github base =="
 base_branch="$(jqget '.github.base_branch // empty')"
 branch_prefix="$(jqget '.github.branch_prefix // empty')"
-client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
+client_remote="$(git -C "$PROJECT_REPO" remote get-url origin 2>/dev/null || true)"
 if [ -z "$base_branch" ]; then
   bad "github.base_branch is missing"
 elif [ -z "$client_remote" ]; then
@@ -86,13 +86,19 @@ if [ -n "${GH_REPO:-}" ]; then
   fi
 fi
 
-echo "== routing =="
-jq empty "$ROUTING" 2>/dev/null && ok "routing.json parses" || bad "routing.json invalid JSON"
+echo "== configuration =="
+cfg_basename="$(basename "$CONFIG")"
+jq empty "$CONFIG" 2>/dev/null && ok "$cfg_basename parses" || bad "$cfg_basename invalid JSON"
 for role in implementer repairer reviewer ticketer distiller gardener decision-desk; do
   m="$(route_model "$role")"
   v="$(route_variant "$role")"
   [ -n "$m" ] && [ -n "$v" ] && ok "$role -> $m ($v)" || bad "$role has no resolvable model and variant"
 done
+test_cmd="$(cfg_cmd test)"
+lint_cmd="$(cfg_cmd lint)"
+[ -n "$test_cmd" ] && ok "test command: $test_cmd" || soft "no commands.test configured"
+[ -n "$lint_cmd" ] && ok "lint command: $lint_cmd" || soft "no commands.lint configured"
+
 fix_attempts="$(rule max_fix_attempts)"
 case "$fix_attempts" in
   ''|null|*[!0-9]*|0) bad "rules.max_fix_attempts must be a positive integer" ;;
@@ -111,9 +117,15 @@ esac
 echo "       (models resolve via your GLOBAL opencode providers: 9router, openai, zai coding plan)"
 
 echo "== local setup =="
-ok "all local configuration: $ROUTING"
+ok "all local configuration: $CONFIG"
 tmux list-sessions >/dev/null 2>&1 && ok "tmux server up" || ok "tmux server will start on first spawn"
-[ -d "$KOKOLOG_REPO/docs/meeting-transcripts" ] && ok "transcripts dir found" || soft "no docs/meeting-transcripts in repo (spec-sync idle)"
+spec_sync_enabled="$(jq -r '.domains.spec_sync.enabled // true' "$CONFIG" 2>/dev/null)"
+if [ "$spec_sync_enabled" = "true" ]; then
+  rel_transcripts="$(jq -r '.domains.spec_sync.transcripts_path // "docs/meeting-transcripts"' "$CONFIG" 2>/dev/null)"
+  [ -d "$PROJECT_REPO/$rel_transcripts" ] && ok "transcripts dir found: $rel_transcripts" || soft "no $rel_transcripts in repo (spec-sync idle)"
+else
+  ok "spec-sync domain disabled (skipping transcript directory check)"
+fi
 
 echo
 [ "$fail" = 0 ] && echo "RESULT: ready (warns: $warn)" || echo "RESULT: $fail hard failure(s). Fix the FAIL lines above."

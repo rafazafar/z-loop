@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { parkedResolutionPresentation } from "../web/src/ui-model.js";
 
 const exec = promisify(execFile);
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -94,15 +95,17 @@ test("one unified review blocks only on P0 and P1 issues", async () => {
 test("same-head review retry is limited to runtime failures without a verdict", async () => {
   const resolution = await readFile(path.join(root, "run/resolve-ticket"), "utf8");
   const server = await readFile(path.join(root, "web/server.mjs"), "utf8");
-  const app = await readFile(path.join(root, "web/app.js"), "utf8");
   assert.match(resolution, /live_head/);
   assert.match(resolution, /old_head/);
   assert.match(resolution, /owner-clean-retry/);
   assert.match(resolution, /if \[ "\$mode" = retry \]/);
   assert.match(resolution, /if \[ "\$mode" != retry \]/);
   assert.match(server, /if \(disposition !== "retry"\)/);
-  assert.match(app, /submit\.textContent = retry \? "Retry automation"/);
-  assert.match(app, /evidence\.hidden = retry/);
+  assert.deepEqual(parkedResolutionPresentation("retry"), {
+    submitLabel: "Retry automation",
+    evidenceHidden: true
+  });
+  assert.equal(parkedResolutionPresentation("resume").evidenceHidden, false);
 });
 
 test("same-head retry accepts single-digit review rounds", async () => {
@@ -120,7 +123,8 @@ test("timeouts record a transient exit and completed implementation results reco
   const source = await readFile(path.join(root, "run/loop-tick"), "utf8");
   const common = await readFile(path.join(root, "run/common.sh"), "utf8");
   const runtime = await readFile(path.join(root, "run/spawn-exec"), "utf8");
-  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
+  const configFile = (await stat(path.join(root, "config.json")).catch(() => null)) ? path.join(root, "config.json") : path.join(root, "routing.json");
+  const routing = JSON.parse(await readFile(configFile, "utf8"));
   assert.match(source, /printf '143\\n'.*\$sess\.exit\.tmp/);
   assert.match(source, /harvest_impl/);
   assert.match(source, /retry_sid=/);
@@ -134,7 +138,7 @@ test("timeouts record a transient exit and completed implementation results reco
   assert.match(runtime, /workdir_lock_path/);
   assert.match(runtime, /OPERATIONAL COLLISION/);
   assert.match(runtime, /OPENCODE_CONFIG_CONTENT='\{"plugin":\[\],"mcp":\{"google-docs":\{"enabled":false\}\}\}'/);
-  assert.equal(routing.rules.session_inactivity_timeout_sec, 900);
+  assert.equal(routing.rules.session_inactivity_timeout_sec, 1800);
   assert.equal(routing.rules.session_max_steps, undefined);
   assert.equal(routing.rules.session_context_hard_limit, undefined);
 });

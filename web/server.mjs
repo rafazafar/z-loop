@@ -10,7 +10,21 @@ import { applyDispatchPolicy, applyRouteUpdates, installLaunchAgent, launchAgent
 
 const web = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(web);
-const port = Number(process.argv[process.argv.indexOf("--port") + 1]) || 4177;
+const frontend = path.join(web, "dist");
+
+async function getConfigFile() {
+  const configFile = path.join(root, "config.json");
+  return (await stat(configFile).catch(() => null)) ? configFile : path.join(root, "routing.json");
+}
+
+let configuredPort = null;
+try {
+  const cfgText = await readFile(path.join(root, "config.json"), "utf8").catch(() => null) ||
+                  await readFile(path.join(root, "routing.json"), "utf8").catch(() => null);
+  if (cfgText) configuredPort = JSON.parse(cfgText).daemon?.dashboard_port;
+} catch {}
+
+const port = Number(process.env.LOOP_DASHBOARD_PORT || process.env.KOKOLOG_DASHBOARD_PORT || process.argv[process.argv.indexOf("--port") + 1] || configuredPort) || 4177;
 const eventClients = new Set();
 let statusCache = null;
 let statusCacheAt = 0;
@@ -36,7 +50,7 @@ function broadcastState(status) {
 async function refreshStatus(force = false) {
   if (!force && statusCache && Date.now() - statusCacheAt < 2500) return statusCache;
   if (statusRefresh) return statusRefresh;
-  statusRefresh = collectStatus(root).then((next) => {
+  statusRefresh = collectStatus(root, { force }).then((next) => {
     const changed = !statusCache || statusFingerprint(statusCache) !== statusFingerprint(next);
     statusCache = next;
     statusCacheAt = Date.now();
@@ -48,7 +62,7 @@ async function refreshStatus(force = false) {
 
 function scheduleRefresh() {
   clearTimeout(refreshDebounce);
-  refreshDebounce = setTimeout(() => refreshStatus(true).catch((error) => console.error("status refresh failed", error)), 350);
+  refreshDebounce = setTimeout(() => refreshStatus(false).catch((error) => console.error("status refresh failed", error)), 500);
 }
 
 function streamEvents(request, response) {
@@ -257,7 +271,8 @@ async function variantsForModel(model, force = false) {
 }
 
 async function modelCatalog(force = false) {
-  const routing = JSON.parse(await readFile(path.join(root, "routing.json"), "utf8"));
+  const configFile = await getConfigFile();
+  const routing = JSON.parse(await readFile(configFile, "utf8"));
   const routes = routeEntries(routing);
   const routeModels = [...new Set(routes.map((route) => route.model))];
   return { models: await availableModels(force), variants: STANDARD_VARIANTS, variantsByModel: await variantsForModels(routeModels, force), routes };
@@ -265,7 +280,7 @@ async function modelCatalog(force = false) {
 
 async function routingAction(body) {
   if (body?.acknowledged !== true) return { ok: false, output: "Confirm the routing change first" };
-  const file = path.join(root, "routing.json");
+  const file = await getConfigFile();
   const previousText = await readFile(file, "utf8");
   const previous = JSON.parse(previousText);
   const updates = body?.updates;
@@ -284,7 +299,7 @@ async function routingAction(body) {
 
 async function dispatchPolicyAction(body) {
   if (body?.acknowledged !== true) return { ok: false, output: "Confirm the paid dispatch limit first" };
-  const file = path.join(root, "routing.json");
+  const file = await getConfigFile();
   const previousText = await readFile(file, "utf8");
   const next = applyDispatchPolicy(JSON.parse(previousText), body?.maxStarts);
   await writeRouting(root, next);
@@ -365,6 +380,28 @@ http.createServer(async (request, response) => {
       if (!name) return send(response, 400, { error: "Missing log name" });
       return send(response, 200, await readTail(path.join(root, "logs", name)), "text/plain");
     }
+    if (url.pathname === "/api/diff") {
+      const ticketId = parseInt(url.searchParams.get("ticket") || "", 10);
+      if (!ticketId) return send(response, 400, { error: "Missing ticket id" });
+      const status = await refreshStatus();
+      const ticket = status.tickets?.find((t) => t.id === ticketId);
+      if (!ticket) return send(response, 404, { error: "Ticket not found" });
+      const repoPath = status.repo?.path;
+      let patch = "";
+      try {
+        const patchFiles = (await readdir(path.join(root, "state"))).filter((f) => f.startsWith(`${ticketId}.`) && f.endsWith(".patch"));
+        if (patchFiles.length > 0) {
+          patchFiles.sort();
+          patch = await readFile(path.join(root, "state", patchFiles[patchFiles.length - 1]), "utf8");
+        } else if (ticket.base_oid && ticket.head_oid && repoPath) {
+          const diffRes = await runCommand("git", ["diff", "--no-ext-diff", `${ticket.base_oid}...${ticket.head_oid}`], repoPath, 15000);
+          patch = diffRes.output;
+        }
+      } catch (err) {
+        patch = `Error reading diff: ${err.message}`;
+      }
+      return send(response, 200, { ticketId, patch });
+    }
     if (url.pathname === "/api/action" && request.method === "POST") {
       const body = await readBody(request);
       if (body === null) return send(response, 413, { error: "Request too large" });
@@ -421,23 +458,41 @@ http.createServer(async (request, response) => {
       await refreshStatus(true);
       return send(response, result.ok ? 200 : 409, result);
     }
-    const file = url.pathname === "/" ? "index.html" : path.basename(url.pathname);
-    const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript" };
-    try { return send(response, 200, await readFile(path.join(web, file), "utf8"), types[path.extname(file)] || "text/plain"); }
-    catch (error) { if (error.code === "ENOENT") return send(response, 404, { error: "Not found" }); throw error; }
+    if (!["GET", "HEAD"].includes(request.method)) return send(response, 405, { error: "Method not allowed" });
+    const relative = decodeURIComponent(url.pathname === "/" ? "index.html" : url.pathname.slice(1));
+    const file = path.resolve(frontend, relative);
+    if (file !== frontend && !file.startsWith(`${frontend}${path.sep}`)) return send(response, 403, { error: "Invalid path" });
+    const types = {
+      ".html": "text/html",
+      ".css": "text/css",
+      ".js": "text/javascript",
+      ".mjs": "text/javascript",
+      ".json": "application/json",
+      ".svg": "image/svg+xml",
+      ".png": "image/png",
+      ".woff": "font/woff",
+      ".woff2": "font/woff2"
+    };
+    try {
+      const contents = await readFile(file);
+      return send(response, 200, request.method === "HEAD" ? "" : contents, types[path.extname(file)] || "application/octet-stream");
+    } catch (error) {
+      if (error.code === "ENOENT") return send(response, 404, { error: "Frontend build not found. Run npm run ui:build." });
+      throw error;
+    }
   } catch (error) {
     send(response, error.statusCode || 500, { error: error.message });
   }
 }).listen(port, "127.0.0.1", () => console.log(`Bench: http://127.0.0.1:${port}`));
 
-for (const target of [path.join(root, "state"), path.join(root, "domains"), path.join(root, "decisions"), path.join(root, "routing.json")]) {
+for (const target of [path.join(root, "state"), path.join(root, "domains"), path.join(root, "decisions"), path.join(root, "config.json"), path.join(root, "routing.json")]) {
   try {
     const watcher = watch(target, { recursive: true }, scheduleRefresh);
     watcher.unref();
   } catch (error) {
-    console.error(`cannot watch ${target}`, error.message);
+    if (error.code !== "ENOENT") console.error(`cannot watch ${target}`, error.message);
   }
 }
 
-const statusTimer = setInterval(() => refreshStatus(true).catch((error) => console.error("status poll failed", error)), 8000);
+const statusTimer = setInterval(() => refreshStatus(false).catch((error) => console.error("status poll failed", error)), 10000);
 statusTimer.unref();

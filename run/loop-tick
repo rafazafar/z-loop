@@ -440,7 +440,7 @@ harvest_impl() { # ticket session-id
     pr="$(github_open_pr_for_branch "$GH_REPO" "$branch")"
   fi
   if [ -z "$pr" ]; then
-    record_runtime_failure "$n" "$sid" implementer 70
+    record_runtime_failure "$n" "$sid" implementer 70 "no open PR for branch ${branch:-unknown}"
     timeline implement "ticket $n | implementation contract incomplete: no open PR for branch ${branch:-unknown}"
     return 0
   fi
@@ -450,20 +450,20 @@ harvest_impl() { # ticket session-id
   pr_base="$(printf '%s' "$pr_meta" | jq -r '.baseRefName // empty')"
   closes="$(printf '%s' "$pr_meta" | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length')"
   [ -n "$checkout_head" ] && [ "$checkout_head" = "$pr_head" ] || {
-    record_runtime_failure "$n" "$sid" implementer 70
+    record_runtime_failure "$n" "$sid" implementer 70 "checkout does not match PR head"
     timeline implement "ticket $n | implementation contract incomplete: checkout does not match PR head"; return 0
   }
   [ "$pr_base" = "$BASE_BRANCH" ] || {
-    record_runtime_failure "$n" "$sid" implementer 70
+    record_runtime_failure "$n" "$sid" implementer 70 "PR base $pr_base is not $BASE_BRANCH"
     timeline implement "ticket $n | implementation contract incomplete: PR base $pr_base is not $BASE_BRANCH"; return 0
   }
   [ "$closes" = 1 ] || {
-    record_runtime_failure "$n" "$sid" implementer 70
+    record_runtime_failure "$n" "$sid" implementer 70 "PR must close issue #$n"
     timeline implement "ticket $n | implementation contract incomplete: PR must close issue #$n"; return 0
   }
   reviewed_head="$(jq -r '.head_oid // empty' "$rs" 2>/dev/null || true)"
   if [ -n "$reviewed_head" ] && [ "$pr_head" = "$reviewed_head" ]; then
-    record_runtime_failure "$n" "$sid" implementer 70
+    record_runtime_failure "$n" "$sid" implementer 70 "PR head did not change"
     timeline implement "ticket $n | repair contract incomplete: PR head did not change"
     return 0
   fi
@@ -701,15 +701,23 @@ reconcile_conflict() { # desired-state-file pr ticket
   git -C "$clone" reset --hard "origin/$branch" 2>/dev/null || true
   model="$(route_model repairer)"; variant="$(route_variant repairer)"
   rm -f "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"
-  pf="$SESSIONS/$sid.prompt"
+  local test_cmd lint_cmd check_inst
+  test_cmd="$(cfg_cmd test)"
+  lint_cmd="$(cfg_cmd lint)"
+  check_inst="Run project tests and linter"
+  if [ -n "$lint_cmd" ] && [ -n "$test_cmd" ]; then
+    check_inst="Run \`$lint_cmd\` and \`$test_cmd\`"
+  elif [ -n "$test_cmd" ]; then
+    check_inst="Run \`$test_cmd\`"
+  fi
   {
     cat "$LOOP_ROOT/agents/implementer.md"
     printf '\n# Controller task\n\n'
     printf 'PR #%s for ticket #%s has merge conflicts against base branch %s.\n' "${pr##*/}" "$n" "$BASE_BRANCH"
     printf '1. Run `git merge origin/%s` in this checkout.\n' "$BASE_BRANCH"
-    printf '2. Inspect and resolve all conflict markers across packages/flutter, tests, and documentation.\n'
+    printf '2. Inspect and resolve all conflict markers across source code, tests, and documentation.\n'
     printf '3. Harmonize both features safely without dropping required logic.\n'
-    printf '4. Run `flutter analyze` and `flutter test` across changed packages to verify everything passes.\n'
+    printf '4. %s across changed files to verify everything passes.\n' "$check_inst"
     printf '5. Push the resolved branch to GitHub and complete your result file.\n'
   } > "$pf"
 

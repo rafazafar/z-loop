@@ -1,9 +1,139 @@
 const renderedHtml = new WeakMap();
 
+function getNodeKey(node) {
+  if (!node || node.nodeType !== 1) return null;
+  return node.dataset?.uiKey ||
+         (node.dataset?.ticketId ? `ticket:${node.dataset.ticketId}` : null) ||
+         (node.dataset?.ticketSelect ? `tab:${node.dataset.ticketSelect}` : null) ||
+         (node.dataset?.stageIndex ? `stage:${node.dataset.stageIndex}` : null) ||
+         (node.dataset?.routeId ? `route:${node.dataset.routeId}` : null) ||
+         (node.dataset?.cycleRoutes ? `cycle:${node.dataset.cycleRoutes}` : null) ||
+         (node.dataset?.card ? `card:${node.dataset.card}` : null) ||
+         (node.dataset?.loop ? `loop:${node.dataset.loop}` : null) ||
+         (node.id ? `id:${node.id}` : null);
+}
+
+function canMorph(targetNode, sourceNode) {
+  if (targetNode.nodeType !== sourceNode.nodeType) return false;
+  if (targetNode.nodeType === 3 || targetNode.nodeType === 8) return true;
+  if (targetNode.nodeType === 1) {
+    if (targetNode.tagName !== sourceNode.tagName) return false;
+    const targetKey = getNodeKey(targetNode);
+    const sourceKey = getNodeKey(sourceNode);
+    if (targetKey || sourceKey) return targetKey === sourceKey;
+    return true;
+  }
+  return false;
+}
+
+function morphNode(targetNode, sourceNode) {
+  if (targetNode.nodeType === 3 || targetNode.nodeType === 8) {
+    if (targetNode.nodeValue !== sourceNode.nodeValue) {
+      targetNode.nodeValue = sourceNode.nodeValue;
+    }
+    return;
+  }
+  if (targetNode.nodeType === 1) {
+    const sourceAttrs = sourceNode.attributes;
+    for (let i = 0; i < sourceAttrs.length; i++) {
+      const attr = sourceAttrs[i];
+      if (targetNode.getAttribute(attr.name) !== attr.value) {
+        targetNode.setAttribute(attr.name, attr.value);
+      }
+    }
+    const targetAttrs = targetNode.attributes;
+    for (let i = targetAttrs.length - 1; i >= 0; i--) {
+      const attr = targetAttrs[i];
+      if (!sourceNode.hasAttribute(attr.name)) {
+        targetNode.removeAttribute(attr.name);
+      }
+    }
+
+    const doc = targetNode.ownerDocument;
+    const isActive = doc && doc.activeElement === targetNode;
+    if (targetNode.tagName === "INPUT" || targetNode.tagName === "TEXTAREA") {
+      if (targetNode.type === "checkbox" || targetNode.type === "radio") {
+        if (!isActive && targetNode.checked !== sourceNode.checked) {
+          targetNode.checked = sourceNode.checked;
+        }
+      } else if (!isActive && targetNode.value !== sourceNode.value) {
+        targetNode.value = sourceNode.value;
+      }
+    } else if (targetNode.tagName === "SELECT") {
+      if (!isActive && targetNode.value !== sourceNode.value) {
+        targetNode.value = sourceNode.value;
+      }
+    }
+
+    morphChildren(targetNode, sourceNode);
+  }
+}
+
+function morphChildren(targetParent, sourceParent) {
+  const targetNodes = [...targetParent.childNodes];
+  const sourceNodes = [...sourceParent.childNodes];
+
+  const targetKeyed = new Map();
+  for (const node of targetNodes) {
+    const key = getNodeKey(node);
+    if (key) targetKeyed.set(key, node);
+  }
+
+  let targetIndex = 0;
+  for (let sourceIndex = 0; sourceIndex < sourceNodes.length; sourceIndex++) {
+    const sourceChild = sourceNodes[sourceIndex];
+    const sourceKey = getNodeKey(sourceChild);
+
+    let matchedTargetNode = null;
+    if (sourceKey && targetKeyed.has(sourceKey)) {
+      matchedTargetNode = targetKeyed.get(sourceKey);
+    } else {
+      const candidate = targetParent.childNodes[targetIndex];
+      if (candidate && canMorph(candidate, sourceChild)) {
+        matchedTargetNode = candidate;
+      }
+    }
+
+    if (matchedTargetNode) {
+      const currentAtPos = targetParent.childNodes[targetIndex];
+      if (currentAtPos !== matchedTargetNode) {
+        targetParent.insertBefore(matchedTargetNode, currentAtPos);
+      }
+      morphNode(matchedTargetNode, sourceChild);
+      targetIndex++;
+    } else {
+      const newNode = sourceChild.cloneNode(true);
+      const currentAtPos = targetParent.childNodes[targetIndex];
+      targetParent.insertBefore(newNode, currentAtPos);
+      targetIndex++;
+    }
+  }
+
+  while (targetParent.childNodes.length > targetIndex) {
+    targetParent.removeChild(targetParent.lastChild);
+  }
+}
+
 export function updateHtml(element, html) {
   if (!element) return false;
   if (renderedHtml.get(element) === html) return false;
-  element.innerHTML = html;
+
+  const doc = element.ownerDocument;
+  if (!doc || typeof doc.createElement !== "function" || !element.nodeType || element.nodeType !== 1) {
+    element.innerHTML = html;
+    renderedHtml.set(element, html);
+    return true;
+  }
+
+  if (!element.firstChild) {
+    element.innerHTML = html;
+    renderedHtml.set(element, html);
+    return true;
+  }
+
+  const template = doc.createElement("template");
+  template.innerHTML = html;
+  morphChildren(element, template.content);
   renderedHtml.set(element, html);
   return true;
 }

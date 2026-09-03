@@ -1,0 +1,199 @@
+#!/bin/bash
+# init — interactive setup wizard to configure the loop for any repository.
+set -euo pipefail
+
+LOOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "=== Autonomous Agent Loop Initializer ==="
+echo "Configuring autonomous maker-checker development harness."
+echo
+
+repo_path="${1:-}"
+if [ -z "$repo_path" ]; then
+  read -r -p "Enter path to target repository checkout: " repo_path
+fi
+
+# Expand tilde and get absolute path
+repo_path="${repo_path/#\~/$HOME}"
+if [ ! -d "$repo_path/.git" ]; then
+  echo "Error: '$repo_path' is not a valid git repository (no .git found)." >&2
+  exit 1
+fi
+repo_path="$(cd "$repo_path" && pwd)"
+echo "Target repository: $repo_path"
+
+# Resolve git remote & name
+remote_url="$(git -C "$repo_path" remote get-url origin 2>/dev/null || true)"
+detected_name="$(basename "$repo_path")"
+if [ -n "$remote_url" ]; then
+  detected_name="$(printf '%s' "$remote_url" | sed -E 's#.*github\.com[:/]##; s#\.git$##' | cut -d'/' -f2)"
+fi
+
+read -r -p "Project name [$detected_name]: " project_name
+project_name="${project_name:-$detected_name}"
+
+# Detect default branch
+detected_base="main"
+if git -C "$repo_path" show-ref --verify --quiet refs/heads/master && ! git -C "$repo_path" show-ref --verify --quiet refs/heads/main; then
+  detected_base="master"
+fi
+read -r -p "Base branch [$detected_base]: " base_branch
+base_branch="${base_branch:-$detected_base}"
+
+# Auto-detect tech stack and commands
+test_cmd=""
+lint_cmd=""
+
+if [ -f "$repo_path/pubspec.yaml" ]; then
+  echo "Detected: Flutter / Dart project"
+  test_cmd="flutter test"
+  lint_cmd="flutter analyze"
+elif [ -f "$repo_path/package.json" ]; then
+  echo "Detected: Node.js / JavaScript / TypeScript project"
+  test_cmd="npm test"
+  lint_cmd="npm run lint"
+elif [ -f "$repo_path/go.mod" ]; then
+  echo "Detected: Go project"
+  test_cmd="go test ./..."
+  lint_cmd="golangci-lint run"
+elif [ -f "$repo_path/Cargo.toml" ]; then
+  echo "Detected: Rust project"
+  test_cmd="cargo test"
+  lint_cmd="cargo clippy"
+elif [ -f "$repo_path/pyproject.toml" ] || [ -f "$repo_path/pytest.ini" ] || [ -f "$repo_path/requirements.txt" ]; then
+  echo "Detected: Python project"
+  test_cmd="pytest"
+  lint_cmd="ruff check"
+fi
+
+read -r -p "Test command [${test_cmd:-none}]: " input_test
+test_cmd="${input_test:-$test_cmd}"
+
+read -r -p "Lint command [${lint_cmd:-none}]: " input_lint
+lint_cmd="${input_lint:-$lint_cmd}"
+
+# Meeting transcript sync
+spec_sync="false"
+if [ -d "$repo_path/docs/meeting-transcripts" ] || [ -d "$repo_path/transcripts" ]; then
+  read -r -p "Enable meeting transcript distillation (spec-sync)? [y/N]: " enable_ss
+  case "$enable_ss" in [yY]*) spec_sync="true" ;; esac
+fi
+
+service_id="dev.$(printf '%s' "$project_name" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '.').loop"
+
+# Generate config.json
+config_file="$LOOP_ROOT/config.json"
+echo
+echo "Writing $config_file..."
+
+jq -n \
+  --arg name "$project_name" \
+  --arg path "$repo_path" \
+  --arg test "$test_cmd" \
+  --arg lint "$lint_cmd" \
+  --arg base "$base_branch" \
+  --arg service "$service_id" \
+  --argjson spec_sync "$spec_sync" \
+  '{
+    "$schema": "./templates/config.schema.json",
+    "project": {
+      "name": $name,
+      "repo_path": $path,
+      "description": ($name + " autonomous loop development")
+    },
+    "commands": {
+      "test": $test,
+      "lint": $lint
+    },
+    "assurance": {
+      "enabled_dimensions": ["acceptance", "code", "security"],
+      "sensitive_paths": {
+        "security": [
+          ".github/workflows/*",
+          "*auth*",
+          "*secret*",
+          "*token*",
+          "*cert*",
+          "*key*",
+          "*credential*"
+        ]
+      }
+    },
+    "domains": {
+      "spec_sync": {
+        "enabled": $spec_sync,
+        "transcripts_path": "docs/meeting-transcripts"
+      },
+      "ticket_factory": { "enabled": true },
+      "gardener": { "enabled": true },
+      "decision_desk": { "enabled": true }
+    },
+    "roles": {
+      "implementer": { "model": "10router/combo-coding", "variant": "high" },
+      "repairer": { "model": "10router/combo-coding", "variant": "high" },
+      "reviewer": { "model": "10router/combo-review", "variant": "high" },
+      "ticketer": { "model": "openai/gpt-5.6-sol", "variant": "high" },
+      "distiller": { "model": "10router/ag/gemini-3.7-flash-high", "variant": "high" },
+      "gardener": { "model": "openai/gpt-5.6-sol", "variant": "high" },
+      "decision-desk": { "model": "10router/ag/gemini-3.7-flash-high", "variant": "high" }
+    },
+    "rules": {
+      "max_fix_attempts": 5,
+      "max_impl_attempts": 5,
+      "max_clean_retries": 2,
+      "max_concurrent_sessions": 3,
+      "diff_budget": {
+        "max_files": 12,
+        "max_insertions": 800,
+        "max_deletions": 400
+      },
+      "session_inactivity_timeout_sec": 1800,
+      "session_termination_grace_sec": 5,
+      "session_timeout_sec": 7200,
+      "clone_reap_days": 7
+    },
+    "github": {
+      "frontier_label": "ready-for-worker",
+      "integration_label": "loop-integration",
+      "decision_label": "need-decision",
+      "branch_prefix": "issue",
+      "base_branch": $base
+    },
+    "daemon": {
+      "dashboard_port": 4177,
+      "service_identifier": $service
+    }
+  }' > "$config_file.tmp" && mv "$config_file.tmp" "$config_file"
+
+echo "Created $config_file"
+
+# Check GitHub labels
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  gh_repo="$(cd "$repo_path" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+  if [ -n "$gh_repo" ]; then
+    echo
+    echo "Checking GitHub labels in $gh_repo..."
+    for lbl in "ready-for-worker" "loop-integration" "need-decision"; do
+      if ! gh label list -R "$gh_repo" --search "$lbl" --json name -q '.[].name' 2>/dev/null | grep -Fqx "$lbl"; then
+        read -r -p "Create missing label '$lbl' in $gh_repo? [Y/n]: " create_lbl
+        case "$create_lbl" in
+          [nN]*) ;;
+          *) gh label create "$lbl" -R "$gh_repo" --description "Autonomous loop workflow label" --color "0E8A16" 2>/dev/null || true ;;
+        esac
+      else
+        echo "  Label '$lbl' exists."
+      fi
+    done
+  fi
+fi
+
+echo
+echo "Running preflight doctor..."
+"$LOOP_ROOT/run/doctor" --no-model-runtime || true
+
+echo
+echo "=== Initialization Complete ==="
+echo "Next steps:"
+echo "1. Run 'run/dashboard' to launch the live Operator Console (http://127.0.0.1:4177)."
+echo "2. Add 'ready-for-worker' label to an issue to let the loop implement it."
+echo "3. Run 'run/dispatch-work --next' to begin working on the next issue."
