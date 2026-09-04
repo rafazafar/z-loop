@@ -613,16 +613,17 @@ maybe_automerge() { # desired-state file ticket pr stored-base stored-head
     return 0
   fi
 
-  if gh pr merge "${pr##*/}" -R "$GH_REPO" --merge >/dev/null 2>&1; then
+  merge_method="$(github_pr_merge_method "$GH_REPO")"
+  if gh pr merge "${pr##*/}" -R "$GH_REPO" "--$merge_method" >/dev/null 2>&1; then
     AUTO_MERGES_THIS_TICK=$((AUTO_MERGES_THIS_TICK + 1))
     rm -f "$STATE/$n.merge-hold"
-    metric implement runs.jsonl "\"event\":\"auto-merge\",\"ticket\":$n,\"head\":\"${live_head:0:12}\""
-    timeline implement "ticket $n | auto-merged PR #${pr##*/} at ${live_head:0:12} (assurance PASS, gates green)"
+    metric implement runs.jsonl "\"event\":\"auto-merge\",\"ticket\":$n,\"head\":\"${live_head:0:12}\",\"method\":\"$merge_method\""
+    timeline implement "ticket $n | auto-merged PR #${pr##*/} at ${live_head:0:12} (assurance PASS, gates green, $merge_method)"
     log_append "ticket $n auto-merged" implement \
       "Loop merged PR #${pr##*/} for $live_head after unified assurance PASS; all owner merge gates green." \
       "$STATE/$n.assurance.json"
   else
-    merge_hold_write "$n" "gh pr merge refused by GitHub" 6
+    merge_hold_write "$n" "gh pr merge ($merge_method) refused by GitHub" 6
     say "#$n auto-merge refused by GitHub; holding"
   fi
 }

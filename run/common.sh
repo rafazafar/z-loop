@@ -176,6 +176,17 @@ github_pr_update_branch() { # pr repo -> 0 when an update was requested
   gh api -X PUT "repos/$2/pulls/${1##*/}/update-branch" >/dev/null 2>&1
 }
 
+github_pr_merge_method() { # repo -> squash|merge|rebase per repo settings (default merge)
+  local repo="$1" flags
+  flags="$(gh api "repos/$repo" --jq '[.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge]' 2>/dev/null || true)"
+  case "$flags" in
+    \[*true*,*|*\,*true*,*|*\,*true*\])
+      jq -r 'if .[0] then "squash" elif .[1] then "merge" else "rebase" end' <<<"$flags" 2>/dev/null || printf 'merge\n'
+      ;;
+    *) printf 'merge\n' ;;
+  esac
+}
+
 github_authenticated_login() {
   gh api user --jq .login 2>/dev/null
 }
