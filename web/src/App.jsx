@@ -43,7 +43,9 @@ import {
   NAV_ITEMS,
   pageFromHash,
   parkedResolutionPresentation,
+  pickCompatibleVariant,
   queueFrontGroups,
+  sanitizeRouteVariants,
   ticketSubtitle,
   workflowState
 } from "./ui-model.js";
@@ -333,6 +335,9 @@ function WorkspaceHeader({ state, page, setPage, connection, healthOpen, setHeal
             {item.id === "decisions" && state.summary.openDecisionCards > 0 && <b>{state.summary.openDecisionCards}</b>}
           </button>
         ))}
+        <a href="/bench" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#58a6ff', padding: '0 12px', fontSize: 13, fontWeight: 600 }}>
+          ⚡ Bench
+        </a>
       </nav>
       <div className="workspace-tools">
         <span className={`connection connection--${connection}`}><i />{connection}</span>
@@ -707,7 +712,7 @@ function AutomationsPage({ state, runAction, mutate, busy, onSchedule }) {
     try {
       const next = await api.models(refresh);
       setCatalog(next);
-      setRoutes(next.routes || []);
+      setRoutes(sanitizeRouteVariants(next.routes || [], next));
     } catch {
       setCatalog(null);
     } finally {
@@ -718,7 +723,51 @@ function AutomationsPage({ state, runAction, mutate, busy, onSchedule }) {
   useEffect(() => { loadModels(); }, [loadModels]);
 
   const updateRoute = (id, field, value) => setRoutes((current) => current.map((route) => route.id === id ? { ...route, [field]: value } : route));
-  const saveRoutes = () => mutate("/api/routing", { updates: routes, acknowledged: true }, "Model routes saved");
+
+  const handleModelChange = async (id, newModel) => {
+    const knownVariants = catalog?.variantsByModel?.[newModel];
+    if (Array.isArray(knownVariants) && knownVariants.length > 0) {
+      setRoutes((current) => current.map((route) => {
+        if (route.id !== id) return route;
+        return {
+          ...route,
+          model: newModel,
+          variant: pickCompatibleVariant(knownVariants, route.variant)
+        };
+      }));
+      return;
+    }
+
+    setRoutes((current) => current.map((route) => route.id === id ? { ...route, model: newModel } : route));
+
+    try {
+      const data = await api.variants(newModel);
+      if (Array.isArray(data?.variants) && data.variants.length > 0) {
+        setCatalog((prev) => prev ? {
+          ...prev,
+          variantsByModel: {
+            ...prev.variantsByModel,
+            [newModel]: data.variants
+          }
+        } : prev);
+        setRoutes((current) => current.map((route) => {
+          if (route.id !== id || route.model !== newModel) return route;
+          return {
+            ...route,
+            variant: pickCompatibleVariant(data.variants, route.variant)
+          };
+        }));
+      }
+    } catch {
+      // Keep existing variant if lookup fails
+    }
+  };
+
+  const saveRoutes = () => {
+    const sanitized = sanitizeRouteVariants(routes, catalog);
+    setRoutes(sanitized);
+    mutate("/api/routing", { updates: sanitized, acknowledged: true }, "Model routes saved");
+  };
   const saveCapacity = () => mutate("/api/dispatch-policy", { maxStarts: Number(capacity), acknowledged: true }, "Capacity saved");
 
   return (
@@ -746,8 +795,12 @@ function AutomationsPage({ state, runAction, mutate, busy, onSchedule }) {
         {loadingModels && <Spinner label="Reading installed models" />}
         {!loadingModels && !catalog && <Empty title="Model routes are unavailable" detail="Refresh to try again." />}
         {catalog && <div className="route-list">{routes.map((route) => {
-          const variants = catalog.variantsByModel?.[route.model] || catalog.variants || [route.variant];
-          return <div className="route-row" key={route.id}><div><strong>{route.name.replaceAll("-", " ")}</strong><small>{route.id}</small></div><label><span>Model</span><select value={route.model} onChange={(event) => updateRoute(route.id, "model", event.target.value)}>{catalog.models.map((model) => <option key={model} value={model}>{model}</option>)}</select></label><label><span>Effort</span><select value={route.variant} onChange={(event) => updateRoute(route.id, "variant", event.target.value)}>{variants.map((variant) => <option key={variant} value={variant}>{variant}</option>)}</select></label></div>;
+          const modelVariants = catalog.variantsByModel?.[route.model];
+          const variants = (Array.isArray(modelVariants) && modelVariants.length > 0)
+            ? modelVariants
+            : ((Array.isArray(catalog.variants) && catalog.variants.length > 0) ? catalog.variants : [route.variant]);
+          const selectedVariant = variants.includes(route.variant) ? route.variant : variants[0];
+          return <div className="route-row" key={route.id}><div><strong>{route.name.replaceAll("-", " ")}</strong><small>{route.id}</small></div><label><span>Model</span><select value={route.model} onChange={(event) => handleModelChange(route.id, event.target.value)}>{catalog.models.map((model) => <option key={model} value={model}>{model}</option>)}</select></label><label><span>Effort</span><select value={selectedVariant} onChange={(event) => updateRoute(route.id, "variant", event.target.value)}>{variants.map((variant) => <option key={variant} value={variant}>{variant}</option>)}</select></label></div>;
         })}<button className="button button--primary save-routes" disabled={busy} onClick={saveRoutes}>Save model routes</button></div>}
       </section>
     </div>

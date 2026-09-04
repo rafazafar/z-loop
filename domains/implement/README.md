@@ -48,6 +48,465 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | unified assurance review for revision 2 spawned
+2026-09-05 | session 53-impl-a5-retry2 | stopped: superseded: repair work landed as d985afa and assurance round 2 is armed
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 53 | revision 2 classified for unified assurance at d985afa6447f
+2026-09-05 | ticket 53 | review preparation deferred: clean PR clone failed
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | clean retry started as 53-impl-a5-retry2
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | implementer operational runtime exit 143; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | clean retry started as 53-impl-a5-retry1
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | implementation contract incomplete: checkout does not match PR head
+2026-09-05 | ticket 53 | checkout does not match PR head; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | parked: needs decomposition
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | clean retry started as 53-impl-a4-retry2
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | implementer operational failure: owner terminated stale-scope worker: ticket 53 was re-scoped to SDK runtime supervision by owner decision at 2026-09-05T04:50Z; this retry started before the re-scope and was building the previous app-layer scope; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | clean retry started as 53-impl-a4-retry1
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | parked: needs decomposition
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | revision 1 classified for unified assurance at 273156e96d1e
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | clean retry started as 53-impl-a1-retry1
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 53 | implementation contract incomplete: no open PR for branch issue-53/auto-connect-and-recover-four-registered-devices
+2026-09-05 | ticket 53 | no open PR for branch issue-53/auto-connect-and-recover-four-registered-devices; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 53 | implementer spawned (frontier)
+2026-09-05 | ticket 52 | merged after unified assurance PASS at 366e551d6730
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 52 | unified assurance PASS on revision 2 — PR awaits owner merge
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | unified assurance review for revision 2 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 52 | revision 2 classified for unified assurance at 366e551d6730
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | clean retry started as 52-rev-assurance-r1-retry2
+2026-09-04 | ticket 52 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 52 | reviewer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | clean retry started as 52-rev-assurance-r1-retry1
+2026-09-04 | ticket 52 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 52 | reviewer contract failure: invalid assurance verdict and task combination
+2026-09-04 | ticket 52 | invalid assurance verdict and task combination; clean retry status: retry-ready
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 52 | revision 1 classified for unified assurance at c9a3a1d0d381
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 52 | implementer spawned (frontier)
+2026-09-04 | ticket 50 | merged after unified assurance PASS at aea7b3bea387
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 50 | unified assurance PASS on revision 3 — PR awaits owner merge and bench validation
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 50 | unified assurance review for revision 3 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 50 | revision 3 classified for unified assurance at aea7b3bea387
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 50 | unified assurance review for revision 2 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 50 | revision 2 classified for unified assurance at de4e42a30eaf
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 51 | merged after unified assurance PASS at 32ffb3713822
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 50 | P0/P1 BLOCK -> repair 0 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 58 | merged after unified assurance PASS at 8280d8b56014
+2026-09-04 | ticket 50 | rebase worker spawn deferred
+2026-09-04 | ticket 50 | merge conflicts detected on PR; starting rebase reconciliation
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 50 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 58 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 2/3 model sessions started
+2026-09-04 | ticket 51 | unified assurance PASS on revision 1 — PR awaits owner merge and bench validation
+2026-09-04 | ticket 50 | unified assurance review for revision 1 spawned
+2026-09-04 | ticket 58 | clean retry started as 58-rev-assurance-r1-retry2
+2026-09-04 | ticket 58 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 58 | reviewer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 51 | unified assurance review for revision 1 spawned
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 58 | clean retry started as 58-rev-assurance-r1-retry1
+2026-09-04 | ticket 58 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 58 | reviewer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-04 | ticket 50 | revision 1 classified for unified assurance at daa5d41c05fd
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 58 | unified assurance review for revision 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 58 | revision 1 classified for unified assurance at 8280d8b56014
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 51 | revision 1 classified for unified assurance at 32ffb3713822
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | current work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 3/3 model sessions started
+2026-09-04 | ticket 58 | implementer spawned (frontier)
+2026-09-04 | ticket 51 | implementer spawned (frontier)
+2026-09-04 | ticket 50 | implementer spawned (frontier)
+2026-09-04 | dispatch | current work: 0/3 model sessions started
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 57 | merged-unverified: PR merged before assurance completed (1/1 reviews passed)
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | repair deferred: clean PR clone failed
+2026-09-04 | ticket 57 | review preparation deferred: clean PR clone failed
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 57 | P0/P1 BLOCK -> repair 0 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | rebase worker spawn deferred
+2026-09-04 | ticket 57 | merge conflicts detected on PR; starting rebase reconciliation
+2026-09-04 | ticket 48 | merged after unified assurance PASS at 2e7f4e3cb23a
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 57 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 57 | unified assurance review for revision 1 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 57 | revision 1 classified for unified assurance at fa0be5675230
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 48 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 48 | unified assurance review for revision 1 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 48 | revision 1 classified for unified assurance at 2e7f4e3cb23a
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 57 | clean retry started as 57-impl-a1-retry1
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 57 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-04 | dispatch | scheduled work: 2/3 model sessions started
+2026-09-04 | ticket 57 | implementer spawned (frontier)
+2026-09-04 | ticket 48 | implementer spawned (frontier)
+2026-09-04 | ticket 47 | merged after unified assurance PASS at f08aac755c8b
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 47 | unified assurance review for revision 3 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 47 | revision 3 classified for unified assurance at f08aac755c8b
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 47 | P0/P1 BLOCK -> repair 1 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 47 | unified assurance review for revision 2 spawned
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 47 | revision 2 classified for unified assurance at 913726108dab
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-04 | ticket 47 | P0/P1 BLOCK -> repair 0 spawned
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | ticket 47 | rebase worker spawn deferred
+2026-09-04 | ticket 47 | merge conflicts detected on PR; starting rebase reconciliation
+2026-09-04 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-04 | ticket 47 | revision 1 classified for unified assurance at 51df343cd3c4
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-04 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-04 | dispatch | scheduled work: 1/3 model sessions started

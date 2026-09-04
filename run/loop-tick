@@ -259,11 +259,48 @@ for pf in "$SESSIONS"/*.prompt; do
 done
 fi
 
+# Orphans the impl recovery above cannot own: reviewer sessions, and impl
+# sessions whose ticket is not in-progress (parked, fix, merged...). Without
+# this sweep they linger as "incomplete" forever and pollute every status
+# view. Their desired-state owners (reconcile, posture) re-spawn if needed.
+if [ "$mode" = collect ]; then
+orphan_stamp="$(date +%s)"
+for pf in "$SESSIONS"/*.prompt; do
+  [ -e "$pf" ] || continue
+  case "$pf" in *.lost.*) continue ;; esac
+  id="${pf%.prompt}"; id="${id##*/}"
+  [ -f "$SESSIONS/$id.done" ] && continue
+  session_live "$id" && continue
+  age=$(( $(date +%s) - $(stat -f %m "$pf") ))
+  [ "$age" -gt 3600 ] || continue
+  case "$id" in
+    *-impl-*)
+      n="${id%%-impl-*}"
+      [ -f "$STATE/$n.in-progress" ] && continue
+      ;;
+    *-rev-*) n="${id%%-rev-*}" ;;
+    *) continue ;;
+  esac
+  mv "$pf" "$pf.lost.$orphan_stamp"
+  [ -e "$SESSIONS/$id.result" ] && mv "$SESSIONS/$id.result" "$SESSIONS/$id.result.lost.$orphan_stamp"
+  metric implement runs.jsonl "\"event\":\"session-orphaned\",\"ticket\":$n,\"session\":\"$id\""
+  timeline implement "session $id | orphaned: no done sentinel and no live tmux session (ticket #$n)"
+done
+fi
+
 # ---------- harvest finished sessions ----------------------------------------
 # session ids: <ticket>-impl-aN | <ticket>-rev-<profile>-rN | loop-<domain>-*
 review_state_file() { printf '%s/%s.review.json\n' "$STATE" "$1"; }
 
 PR_CHECK_ROLLUP=""
+ci_gate_waived() { # owner temporarily waived CI check evidence
+  [ "$(jqget '.assurance.ci_gate.mode // "required"' 2>/dev/null)" = "waived" ]
+}
+ci_gate_waiver_note() {
+  printf 'CI gate is temporarily waived by the owner (%s; recorded %s). Do not cite CI check failures as blockers. Local objective checks in the implementation evidence remain mandatory.' \
+    "$(jqget '.assurance.ci_gate.reason // "no reason recorded"' 2>/dev/null)" \
+    "$(jqget '.assurance.ci_gate.recorded // "unknown date"' 2>/dev/null)"
+}
 pr_checks_ready() { # PR URL [head-sha]; 0 terminal, 1 pending/not registered, 2 unavailable
   local pr="$1" head="${2:-}" rollup count pending
   if ! rollup="$(github_pr_checks "$pr" "$GH_REPO" "$head")"; then
@@ -271,7 +308,13 @@ pr_checks_ready() { # PR URL [head-sha]; 0 terminal, 1 pending/not registered, 2
   fi
   PR_CHECK_ROLLUP="$rollup"
   count="$(printf '%s' "$rollup" | jq '.statusCheckRollup | length')"
-  [ "$count" -gt 0 ] || return 1
+  if [ "$count" -le 0 ]; then
+    if ci_gate_waived; then
+      PR_CHECK_ROLLUP="$(printf '%s' "$rollup" | jq '{statusCheckRollup: []}')"
+      return 0
+    fi
+    return 1
+  fi
   pending="$(printf '%s' "$rollup" | jq '
     [.statusCheckRollup[] |
       if .__typename == "CheckRun" then
@@ -351,6 +394,11 @@ prepare_clean_clone() { # ticket session-id prior-session-id
     git -C "$target" fetch -q origin "+refs/pull/$prn/head:refs/remotes/origin/kokolog-pr-$prn" || return 1
     git -C "$target" checkout -q -b "$head_ref" "refs/remotes/origin/kokolog-pr-$prn" || return 1
     [ "$(git -C "$target" rev-parse HEAD)" = "$head_oid" ] || return 1
+    # checkout auto-tracks the pseudo-ref, which would send a plain `git push`
+    # to a bogus remote branch instead of the PR head branch. Re-point the
+    # upstream at the real PR head ref.
+    git -C "$target" config "branch.$head_ref.remote" origin
+    git -C "$target" config "branch.$head_ref.merge" "refs/heads/$head_ref"
   else
     old_workdir="$(jq -r '.workdir // empty' "$SESSIONS/$prior_sid.spawn.json" 2>/dev/null || true)"
     branch="$(git -C "$old_workdir" branch --show-current 2>/dev/null || true)"
@@ -473,8 +521,244 @@ mark_merged_verified() { # desired-state file
   merged_at="$(date -u +%FT%TZ)"
   jq --arg at "$merged_at" '.action="merged" | .merged_at=$at' "$rs" | write_json "$rs" || return 1
   st_set "$n" merged
+  pr="$(jq -r .pr "$rs")"
+  if [ "$(gh issue view "$n" -R "$GH_REPO" --json state -q .state 2>/dev/null)" = "OPEN" ]; then
+    gh issue close "$n" -R "$GH_REPO" \
+      -c "Merged via ${pr:-the ticket PR}; closing so native dependency edges release." >/dev/null 2>&1 || true
+  fi
   metric implement runs.jsonl "\"event\":\"merged\",\"ticket\":$n,\"round\":$round,\"head\":\"${head:0:12}\""
   timeline implement "ticket $n | merged after unified assurance PASS at ${head:0:12}"
+}
+
+# ---------- merge steward -----------------------------------------------------
+# Assurance-passed loop PRs merge autonomously when every protection gate the
+# owner configured is satisfied. Any gate that cannot be satisfied by the loop
+# (bench evidence, unresolved human threads) becomes a hold with a decision
+# card instead of a silent deadlock.
+AUTO_MERGES_THIS_TICK=0
+
+maybe_automerge() { # desired-state file ticket pr stored-base stored-head
+  # live_state/live_base/live_head/live_mergeable/live_state_status are read
+  # from the reconcile_assurance caller scope on purpose.
+  local rs="$1" n="$2" pr="$3" stored_base="$4" stored_head="$5"
+  local threads closes body reason bench
+
+  merge_automerge_enabled || return 0
+  [ "$AUTO_MERGES_THIS_TICK" -eq 0 ] || return 0
+  [ -f "$STATE/$n.verified" ] || return 0
+
+  if [ "$live_state" != OPEN ] || [ "$live_base" != "$stored_base" ] || [ "$live_head" != "$stored_head" ]; then
+    rm -f "$STATE/$n.merge-hold"
+    return 0
+  fi
+  if ticket_session_live "$n"; then return 0; fi
+  if merge_hold_active "$n"; then return 0; fi
+
+  bench="$(jq -r '.bench // ""' "$rs")"
+  if [ "$bench" = "pending" ]; then
+    merge_hold_write "$n" "bench validation pending" 0
+    return 0
+  fi
+
+  if [ "$live_mergeable" != "MERGEABLE" ]; then
+    merge_hold_write "$n" "PR not mergeable (mergeable=$live_mergeable, state=$live_state_status)" 2
+    return 0
+  fi
+
+  if [ "$live_state_status" = "BEHIND" ] || [ "$live_state_status" = "UNKNOWN" ]; then
+    if [ "$live_state_status" = "BEHIND" ] && github_pr_update_branch "$pr" "$GH_REPO"; then
+      merge_hold_write "$n" "branch update requested; waiting for recompute" 1
+    else
+      merge_hold_write "$n" "merge state $live_state_status" 1
+    fi
+    return 0
+  fi
+
+  threads="$(github_pr_open_threads "$pr" "$GH_REPO")"
+  if [ -z "$threads" ]; then
+    merge_hold_write "$n" "review threads unavailable" 2
+    return 0
+  fi
+  if [ "$threads" -gt 0 ]; then
+    merge_hold_write "$n" "$threads unresolved review thread(s); human resolution required" 24
+    park_auto_card "merge-threads-$n" implement \
+      "PR for ticket $n cannot auto-merge: $threads unresolved review thread(s) — resolve or direct the loop?" \
+      "Branch protection requires conversation resolution. The loop never resolves human threads." \
+      "- pr: https://github.com/$GH_REPO/pull/${pr##*/}"
+    return 0
+  fi
+
+  closes="$(github_pr_view "$pr" "$GH_REPO" closingIssuesReferences | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length' 2>/dev/null)"
+  if [ "${closes:-0}" -eq 0 ]; then
+    body="$(github_pr_view "$pr" "$GH_REPO" body | jq -r '.body // ""' 2>/dev/null)"
+    if printf '%s' "$body" >> "$STATE/$n.merge-hold.body.tmp" 2>/dev/null; then
+      printf '\n\nCloses #%s\n' "$n" >> "$STATE/$n.merge-hold.body.tmp"
+      if gh api -X PATCH "repos/$GH_REPO/pulls/${pr##*/}" -F body=@"$STATE/$n.merge-hold.body.tmp" >/dev/null 2>&1; then
+        merge_hold_write "$n" "PR body updated to close #$n; re-checking next tick" 1
+      else
+        merge_hold_write "$n" "PR does not close #$n and body update failed" 24
+      fi
+      rm -f "$STATE/$n.merge-hold.body.tmp"
+    else
+      merge_hold_write "$n" "PR does not close #$n" 24
+    fi
+    return 0
+  fi
+
+  if gh pr merge "${pr##*/}" -R "$GH_REPO" --merge >/dev/null 2>&1; then
+    AUTO_MERGES_THIS_TICK=$((AUTO_MERGES_THIS_TICK + 1))
+    rm -f "$STATE/$n.merge-hold"
+    metric implement runs.jsonl "\"event\":\"auto-merge\",\"ticket\":$n,\"head\":\"${live_head:0:12}\""
+    timeline implement "ticket $n | auto-merged PR #${pr##*/} at ${live_head:0:12} (assurance PASS, gates green)"
+    log_append "ticket $n auto-merged" implement \
+      "Loop merged PR #${pr##*/} for $live_head after unified assurance PASS; all owner merge gates green." \
+      "$STATE/$n.assurance.json"
+  else
+    merge_hold_write "$n" "gh pr merge refused by GitHub" 6
+    say "#$n auto-merge refused by GitHub; holding"
+  fi
+}
+
+# ---------- parked-ticket worker termination ---------------------------------
+# A park means "stop spending". Any live model session for the ticket is
+# terminated and pre-harvested so it can neither write more paid work nor
+# re-enter the retry queue after the park.
+term_ticket_sessions() { # ticket reason
+  local n="$1" reason="$2" sess
+  for sess in $(tmux list-sessions -F '#S' 2>/dev/null | grep -E "^${tmux_session_prefix}-${n}-(impl|rev)-" | sed "s/^${tmux_session_prefix}-//"); do
+    [ -f "$SESSIONS/$sess.done" ] && continue
+    terminate_session "$sess" "$termination_grace_sec" || true
+    [ -s "$SESSIONS/$sess.result" ] || printf 'RUNTIME STOP: %s\n' "$reason" > "$SESSIONS/$sess.result"
+    [ -f "$SESSIONS/$sess.exit" ] || printf '143\n' > "$SESSIONS/$sess.exit"
+    touch "$SESSIONS/$sess.done" "$SESSIONS/$sess.harvested"
+    timeline implement "session $sess | stopped: $reason"
+  done
+}
+
+# ---------- PR babysitter -----------------------------------------------------
+# Owner comments on loop-managed PRs reach the loop here. A plain comment from
+# an allowlisted author (branch-protection bypass users) re-arms the fix posture
+# with the comment as the work order. `fyi:` prefixes opt out. Ack happens on
+# the PR itself so the owner sees the loop received the directive.
+owner_feedback_enabled() {
+  [ "$(jqget '.merge.owner_watch // false' 2>/dev/null)" = "true" ] && merge_automerge_enabled
+}
+
+watch_owner_feedback() {
+  local rs n pr action cursor_file cursor comment login body first_line sid attempt
+  local allow self qualifying fcount maxf
+  owner_feedback_enabled || return 0
+  self="$(github_authenticated_login)"
+  for rs in "$STATE"/*.review.json; do
+    [ -e "$rs" ] || continue
+    action="$(jq -r '.action // ""' "$rs")"; n="$(jq -r .ticket "$rs")"; pr="$(jq -r .pr "$rs")"
+    [ "$action" = complete ] || continue
+    [ -n "$pr" ] || continue
+    if [ -e "$STATE/$n.merged" ] || [ -e "$STATE/$n.merged-unverified" ] || [ -e "$STATE/$n.merged-audited" ]; then
+      continue
+    fi
+    [ "$(github_pr_view "$pr" "$GH_REPO" state | jq -r '.state // ""' 2>/dev/null)" = OPEN ] || continue
+    [ -f "$STATE/$n.verified" ] || continue
+
+    cursor_file="$STATE/$n.watch"
+    cursor="$(jq -r '.last_comment_id // 0' "$cursor_file" 2>/dev/null || echo 0)"
+    comment="$(github_pr_comments_after "$pr" "$GH_REPO" "$cursor" | jq -sc 'sort_by(.id)[]' 2>/dev/null)"
+    if [ ! -f "$cursor_file" ]; then
+      latest="$(github_pr_comments_after "$pr" "$GH_REPO" 0 | jq -sc 'sort_by(.id) | last | .id // 0' 2>/dev/null)"
+      jq -n --argjson id "${latest:-0}" --arg at "$(date -u +%FT%TZ)" '{last_comment_id:$id, updated_at:$at}' > "$cursor_file"
+      continue
+    fi
+    [ -n "$comment" ] || continue
+
+    allow="$(github_merge_allowed_authors "$GH_REPO")"
+    [ -n "$allow" ] || { say "#$n owner watch: cannot resolve allowlist; skipped"; continue; }
+    fcount="$(jq -r '.owner_fix_rounds // 0' "$rs")"
+    maxf="$(rule max_fix_attempts)"; case "$maxf" in ''|null|*[!0-9]*) maxf=3 ;; esac
+
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      login="$(printf '%s' "$line" | jq -r .login)"
+      body="$(printf '%s' "$line" | jq -r .body)"
+      first_line="$(printf '%s' "$body" | sed 's/^[[:space:]>]*//' | head -1)"
+      # The loop often shares the owner's gh identity, so self-detection is by
+      # ack marker first; the login check only guards a separate loop account.
+      if printf '%s' "$body" | grep -q 'kokolog-loop-ack'; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"; continue
+      fi
+      if [ "$login" = "$self" ] && ! printf '%s\n' "$allow" | grep -qxF "$self"; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"; continue
+      fi
+      if ! printf '%s\n' "$allow" | grep -qxF "$login"; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"; continue
+      fi
+      if printf '%s' "$first_line" | grep -qiE '^fyi:'; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"; continue
+      fi
+      if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"; continue
+      fi
+      qualifying="$line"
+      if [ "$fcount" -ge "$((maxf * 2))" ]; then
+        advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"
+        park_auto_card "owner-feedback-cap-$n" implement \
+          "Owner feedback for ticket $n exceeds the repair round cap — raise the cap or act manually?" \
+          "$fcount owner repair rounds already ran; the newest request was not actioned." \
+          "- comment: $(printf '%s' "$line" | jq -r .url)"
+        break
+      fi
+      if ticket_session_live "$n"; then
+        say "#$n owner feedback noted; session live — retried next tick"
+        break
+      fi
+      arm_owner_fix "$rs" "$n" "$pr" "$qualifying" || break
+      fcount=$((fcount + 1))
+      advance_watch "$cursor_file" "$(printf '%s' "$line" | jq -r .id)"
+      break
+    done <<<"$comment"
+  done
+}
+
+arm_owner_fix() { # desired-state file ticket pr comment-line(json)
+  local rs="$1" n="$2" pr="$3" line="$4"
+  local sid attempt url body fb verdict_url
+  attempt="$(jq -r '.attempt // 1' "$rs")"
+  while [ -f "$SESSIONS/$n-impl-a$attempt.prompt" ] || [ -f "$SESSIONS/$n-impl-a$attempt.done" ]; do
+    attempt=$((attempt + 1))
+  done
+  sid="$n-impl-a$attempt"
+  url="$(printf '%s' "$line" | jq -r .url)"
+  body="$(printf '%s' "$line" | jq -r .body | cut -c1-4000)"
+  fb="$STATE/$n.feedback-a$attempt.md"
+  {
+    printf 'VERDICT: BLOCK\n'
+    printf 'TASK: owner-feedback\n'
+    printf 'BENCH: none\n'
+    printf 'PROFILE: assurance\n'
+    printf 'ROUND: %s\n' "$(jq -r '.round // 1' "$rs")"
+    printf 'PR: %s\n' "$pr"
+    printf 'BASE_OID: %s\n' "$(jq -r .base_oid "$rs")"
+    printf 'HEAD_OID: %s\n' "$(jq -r .head_oid "$rs")"
+    printf 'expected: Assured PR also satisfies the owner review feedback.\n'
+    printf 'observed: The owner requested changes after assurance PASS; the request is the work order below.\n'
+    printf 'evidence: %s\n' "$url"
+    printf 'blockers:\n'
+    printf -- '- P1 · owner-feedback · %s\n' "$(printf '%s' "$body" | head -1)"
+    printf '%s\n' "$(printf '%s' "$body" | tail -n +2 | sed 's/^/  /')"
+    printf 'advisories:\n'
+  } > "$fb.tmp" && mv "$fb.tmp" "$fb"
+
+  jq --arg sid "$sid" --argjson attempt "$attempt" --arg fb "$fb" --arg url "$url" \
+    --argjson rounds "$(jq -r '.owner_fix_rounds // 0' "$rs")" \
+    '.action="fix" | .session_id=$sid | .attempt=$attempt | .verdict_file=$fb |
+     .owner_fix_rounds=($rounds + 1) | .owner_feedback_url=$url | .last_applied_session="owner-watch"' "$rs" |
+    write_json "$rs" || return 1
+  st_set "$n" fix
+  metric implement runs.jsonl "\"event\":\"owner-feedback\",\"ticket\":$n,\"rounds\":$(( $(jq -r '.owner_fix_rounds // 0' "$rs") )),\"session\":\"$sid\""
+  timeline implement "ticket $n | owner feedback received; repair armed as $sid"
+  github_pr_comment "$pr" "$GH_REPO" \
+    "<!-- kokolog-loop-ack -->
+Loop: owner feedback acknowledged — repair session \`$sid\` will address it. Prefix a comment with \`fyi:\` to keep the loop from acting." || \
+    timeline implement "ticket $n | owner-feedback ack comment failed (non-fatal)"
 }
 
 start_review_cycle() { # ticket PR source-session
@@ -516,9 +800,16 @@ start_review_cycle() { # ticket PR source-session
 }
 
 harvest_impl() { # ticket session-id
-  local n="$1" sid="$2" res="$SESSIONS/$2.result" pr rs clone branch checkout_head pr_meta pr_head pr_base closes reviewed_head reason eligibility_exit=0
+  local n="$1" sid="$2" res="$SESSIONS/$2.result" pr rs clone branch checkout_head pr_meta pr_head pr_base pr_state closes reviewed_head reason eligibility_exit=0
   rs="$(review_state_file "$n")"
   [ -f "$rs" ] && [ "$(jq -r '.source_session // ""' "$rs")" = "$sid" ] && return 0
+  if [ -f "$rs" ]; then
+    case "$(jq -r '.action // ""' "$rs")" in
+      merged|merged-unverified|merged-audited|manual-takeover)
+        return 0 # ticket already settled past PR work; consume the finished session
+        ;;
+    esac
+  fi
   implementation_issue_eligible "$n" || eligibility_exit=$?
   if [ "$eligibility_exit" = 1 ]; then
     say "ticket #$n harvest deferred: $ISSUE_ELIGIBILITY_DETAIL"
@@ -542,7 +833,9 @@ harvest_impl() { # ticket session-id
     return 0
   fi
   if grep -q 'DECOMPOSE' "$res" 2>/dev/null; then
-    reason="needs decomposition"; st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
+    reason="needs decomposition"
+    term_ticket_sessions "$n" "ticket $n parked: $reason"
+    st_set "$n" parked "$reason"; timeline implement "ticket $n | parked: $reason"; return
   fi
   clone="$(jq -r '.workdir // empty' "$SESSIONS/$sid.spawn.json" 2>/dev/null || true)"
   branch="$(git -C "$clone" branch --show-current 2>/dev/null || true)"
@@ -556,10 +849,19 @@ harvest_impl() { # ticket session-id
     return 0
   fi
   checkout_head="$(git -C "$clone" rev-parse HEAD 2>/dev/null || true)"
-  pr_meta="$(github_pr_view "$pr" "$GH_REPO" "headRefOid,baseRefName,closingIssuesReferences" 2>/dev/null || true)"
+  pr_meta="$(github_pr_view "$pr" "$GH_REPO" "state,headRefOid,baseRefName,closingIssuesReferences" 2>/dev/null || true)"
   pr_head="$(printf '%s' "$pr_meta" | jq -r '.headRefOid // empty')"
   pr_base="$(printf '%s' "$pr_meta" | jq -r '.baseRefName // empty')"
+  pr_state="$(printf '%s' "$pr_meta" | jq -r '.state // empty')"
   closes="$(printf '%s' "$pr_meta" | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length')"
+  if [ -f "$rs" ] && [ -n "$pr_state" ] && [ "$pr_state" != OPEN ]; then
+    if [ "$pr_state" = MERGED ]; then
+      mark_merged_unverified "$rs" "$sid"
+    else
+      park_review "$rs" "$sid" "cannot continue on PR state $pr_state"
+    fi
+    return 0
+  fi
   [ -n "$checkout_head" ] && [ "$checkout_head" = "$pr_head" ] || {
     record_runtime_failure "$n" "$sid" implementer 70 "checkout does not match PR head"
     timeline implement "ticket $n | implementation contract incomplete: checkout does not match PR head"; return 0
@@ -619,11 +921,19 @@ spawn_profile_review() { # desired-state file
   evidence_file="$evidence_dir/$sid.json"
   mkdir -p "$evidence_dir"
   patch_sha="$(shasum -a 256 "$patch_file" | awk '{print $1}')"
+  local ci_waiver="null"
+  if ci_gate_waived; then
+    PR_CHECK_ROLLUP="$(printf '%s' "$PR_CHECK_ROLLUP" | jq '{statusCheckRollup: [.statusCheckRollup[] | select(((.conclusion // .state // "") | ascii_upcase) == "SUCCESS")]}')"
+    ci_waiver="$(jq -cn \
+      --arg reason "$(jqget '.assurance.ci_gate.reason // ""' 2>/dev/null)" \
+      --arg recorded "$(jqget '.assurance.ci_gate.recorded // ""' 2>/dev/null)" \
+      '{waived:true,reason:$reason,recorded:$recorded}')"
+  fi
   jq -n --argjson schema 1 --argjson ticket "$n" --arg profile "$profile" --argjson cycle "$round" \
     --arg base_oid "$base" --arg head_oid "$head" --arg patch "$patch_file" --arg patch_sha256 "$patch_sha" \
-    --argjson issue "$issue_snapshot" --argjson checks "$PR_CHECK_ROLLUP" \
+    --argjson issue "$issue_snapshot" --argjson checks "$PR_CHECK_ROLLUP" --argjson ci_gate "$ci_waiver" \
     '{schema:$schema,ticket:$ticket,profile:$profile,revision_cycle:$cycle,base_oid:$base_oid,head_oid:$head_oid,
-      patch:$patch,patch_sha256:$patch_sha256,issue:$issue,checks:$checks.statusCheckRollup}' | write_json "$evidence_file" || {
+      patch:$patch,patch_sha256:$patch_sha256,issue:$issue,checks:$checks.statusCheckRollup,ci_gate:$ci_gate}' | write_json "$evidence_file" || {
         park_review "$rs" "$sid" "review evidence snapshot could not be created"; return 1
       }
   local private_evidence private_patch private_assurance private_impl private_verdict private_result
@@ -647,6 +957,9 @@ spawn_profile_review() { # desired-state file
     printf 'PR: %s\nBASE_OID: %s\nHEAD_OID: %s\n' "$pr" "$base" "$head"
     printf 'Read immutable patch %s and assurance artifact %s.\n' "$private_patch" "$private_assurance"
     printf 'Read issue and terminal CI evidence from %s.\n' "$private_evidence/review-evidence.json"
+    if ci_gate_waived; then
+      printf 'Owner waiver: %s\n' "$(ci_gate_waiver_note)"
+    fi
     printf 'Implementation evidence: %s\n' "$private_impl"
     printf 'Do not use shell commands to inspect or change the checkout. Use read and search tools on the immutable artifacts and checkout.\n'
     printf 'For the two required outputs only, use the runtime-permitted printf-to-.tmp and mv operations described in the reviewer protocol.\n'
@@ -882,7 +1195,12 @@ reconcile_assurance() {
           continue
         fi
         case "$action" in
-          review) spawn_profile_review "$rs" ;;
+          review)
+            if st_has "$n" parked; then
+              say "#$n parked; assurance spawn suppressed"
+              continue
+            fi
+            spawn_profile_review "$rs" ;;
           done)
             round="$(jq -r .round "$rs")"
             st_set "$n" done
@@ -898,10 +1216,29 @@ reconcile_assurance() {
             fi
             jq '.action="complete"' "$rs" | write_json "$rs"
             ;;
-          complete) ;;
+          complete) maybe_automerge "$rs" "$n" "$pr" "$stored_base" "$stored_head" ;;
         esac
         ;;
-      fix) spawn_fix "$rs" ;;
+      fix)
+        pr="$(jq -r .pr "$rs")"
+        if ! live_revision="$(github_pr_view "$pr" "$GH_REPO" state)"; then
+          say "assurance deferred: cannot read PR revision for #$n"
+          continue
+        fi
+        live_state="$(printf '%s' "$live_revision" | jq -r .state)"
+        if [ "$live_state" = MERGED ]; then
+          mark_merged_unverified "$rs" "$(jq -r '.session_id // ""' "$rs")"
+          continue
+        fi
+        if [ "$live_state" != OPEN ]; then
+          park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "cannot fix assurance finding on PR state $live_state"
+          continue
+        fi
+        if st_has "$n" parked; then
+          say "#$n parked; repair spawn suppressed"
+          continue
+        fi
+        spawn_fix "$rs" ;;
       deferred|container|parked|runtime-failed|merged|merged-unverified|merged-audited|manual-takeover) ;;
       *) park_review "$rs" "$(jq -r '.session_id // ""' "$rs")" "invalid assurance action $action" ;;
     esac
@@ -1067,6 +1404,7 @@ case "$mode" in
       metric implement runs.jsonl "\"event\":\"collect\",\"results\":$collected_count,\"model_sessions_started\":0"
       timeline implement "collect | $collected_count completed result(s) updated; no model sessions started"
     fi
+    watch_owner_feedback || true
     say "collection complete: $collected_count result(s); no model sessions started"
     ;;
   advance)

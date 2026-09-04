@@ -82,3 +82,34 @@ export function queueFrontGroups(fronts = []) {
   const later = fronts.filter((front) => front.number !== primaryManual?.number && !automaticNumbers.has(front.number));
   return { primaryManual, otherManual: manualNow.slice(1), automatic, later };
 }
+
+export function pickCompatibleVariant(availableVariants, currentVariant) {
+  if (!Array.isArray(availableVariants) || availableVariants.length === 0) {
+    return currentVariant;
+  }
+  if (currentVariant && availableVariants.includes(currentVariant)) {
+    return currentVariant;
+  }
+  if (availableVariants.includes("high")) {
+    return "high";
+  }
+  if (availableVariants.includes("medium")) {
+    return "medium";
+  }
+  return availableVariants[0];
+}
+
+export function sanitizeRouteVariants(routes = [], catalog = null) {
+  if (!Array.isArray(routes)) return [];
+  return routes.map((route) => {
+    const modelVariants = catalog?.variantsByModel?.[route.model];
+    if (Array.isArray(modelVariants) && modelVariants.length > 0) {
+      const nextVariant = pickCompatibleVariant(modelVariants, route.variant);
+      if (nextVariant !== route.variant) {
+        return { ...route, variant: nextVariant };
+      }
+    }
+    return route;
+  });
+}
+

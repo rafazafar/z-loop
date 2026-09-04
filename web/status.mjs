@@ -197,7 +197,8 @@ export async function collectSessions(root, routing) {
   return annotateReviewRuns(sessions).sort((a, b) => (b.lastActivity || "").localeCompare(a.lastActivity || ""));
 }
 
-export function ticketNextAction(ticket, session) {
+export function ticketNextAction(ticket, session, options = {}) {
+  const autoMerge = options.autoMerge === true;
   if (ticket.status === "container") return "No controller action: implementation is delegated to sub-issues";
   if (ticket.status === "deferred") return "Wait for the recorded GitHub eligibility condition";
   if (ticket.status === "merged-unverified") return "Owner: audit the merged PR and record assurance evidence";
@@ -215,7 +216,11 @@ export function ticketNextAction(ticket, session) {
   if (ticket.status === "review") return "Advance current work · starts at most one review session";
   if (ticket.status === "fix") return "Advance current work · starts at most one repair session";
   if (ticket.status === "in-progress") return "Advance current work · starts at most one implementation session";
-  if (ticket.status === "done") return "Owner: merge the conditionally assured PR";
+  if (ticket.status === "done") {
+    return autoMerge
+      ? "Auto-merge: the loop merges once merge gates (threads, up-to-date, closing link) are green"
+      : "Owner: merge the conditionally assured PR";
+  }
   return "No action";
 }
 
@@ -339,7 +344,7 @@ async function collectTickets(root, sessions, ghrepo, routing, force = false) {
     };
     ticket.retryableReviewFailure = false;
     ticket.retryableRuntimeFailure = runtime?.status === "needs-retry";
-    ticket.nextAction = ticketNextAction(ticket, currentSession);
+    ticket.nextAction = ticketNextAction(ticket, currentSession, { autoMerge: routing?.merge?.mode === "auto" });
     return ticket;
   }));
 }

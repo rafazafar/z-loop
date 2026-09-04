@@ -84,6 +84,10 @@ carry workflow state.
    - Evidence block: commands + exit codes and applicable evidence links.
    - Repro steps (stack-up + exercise).
    - `Closes #<issue-number>` so a merge releases dependent tickets.
+   - Push to the PR's existing head branch. After pushing, run
+     `git ls-remote origin "refs/heads/<branch>"` and confirm the OID equals
+     your checkout HEAD. A push that lands on any other ref means the PR was
+     not updated and the run does not count.
 2. Write the exact result path supplied by the controller: PR URL, summary,
    adjacent findings, and genuine human questions, if any.
 3. Do not touch `state/sessions/<id>.done`. `run/spawn-exec` owns completion.

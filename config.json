@@ -10,6 +10,12 @@
     "lint": "flutter analyze",
     "integration": "pnpm --filter cloud_platform test"
   },
+  "merge": {
+    "mode": "auto",
+    "owner_watch": true,
+    "reason": "Owner directed minimal human involvement; PRs merge autonomously only after unified assurance PASS and every branch-protection gate is green",
+    "recorded": "2026-09-05"
+  },
   "assurance": {
     "enabled_dimensions": [
       "acceptance",
@@ -18,6 +24,11 @@
       "safety",
       "qms"
     ],
+    "ci_gate": {
+      "mode": "waived",
+      "reason": "GitHub Actions billing outage on the kokoromil org; owner cannot fix payment now",
+      "recorded": "2026-09-05"
+    },
     "sensitive_paths": {
       "security": [
         ".github/workflows/*",

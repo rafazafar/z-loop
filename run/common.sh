@@ -4,12 +4,13 @@
 # sentinels over tmux wait-for: never silently lost).
 
 LOOP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE="$LOOP_ROOT/state"
-SESSIONS="$STATE/sessions"
-LOGS="$LOOP_ROOT/logs"
-VERDICTS="$LOOP_ROOT/verdicts"
-CLONES="$LOOP_ROOT/clones"
-LOCK="$LOOP_ROOT/lock"
+# Overridable so test harnesses can source this file against scratch dirs.
+STATE="${KOKOLOG_STATE:-$LOOP_ROOT/state}"
+SESSIONS="${KOKOLOG_SESSIONS:-$STATE/sessions}"
+LOGS="${KOKOLOG_LOGS:-$LOOP_ROOT/logs}"
+VERDICTS="${KOKOLOG_VERDICTS:-$LOOP_ROOT/verdicts}"
+CLONES="${KOKOLOG_CLONES:-$LOOP_ROOT/clones}"
+LOCK="${KOKOLOG_LOCK:-$LOOP_ROOT/lock}"
 LOGMD="$LOOP_ROOT/LOG.md"
 if [ -f "$LOOP_ROOT/config.json" ]; then
   CONFIG="$LOOP_ROOT/config.json"
@@ -143,6 +144,77 @@ github_pr_view() { # pr repo [fields]
     url: .html_url,
     closingIssuesReferences: [ [ (.body // "") | scan("(?i)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\\s+#([0-9]+)") ] | unique | .[] | { number: (.[0] | tonumber) } ]
   }' 2>/dev/null
+}
+
+github_pr_open_threads() { # pr repo -> unresolved review-thread count; empty when unavailable
+  local pr="$1" repo="$2" prn owner name json
+  prn="${pr##*/}"
+  owner="${repo%%/*}"; name="${repo##*/}"
+  json="$(gh api graphql -f query='query($owner:String!,$name:String!,$num:Int!){
+    repository(owner:$owner,name:$name){
+      pullRequest(number:$num){
+        reviewThreads(first:100){ nodes{ isResolved } }
+      }
+    }
+  }' -F owner="$owner" -F name="$name" -F num="$prn" 2>/dev/null)" || { printf '\n'; return 1; }
+  printf '%s' "$json" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length' 2>/dev/null
+}
+
+github_pr_comments_after() { # pr repo after-id -> NDJSON {id,login,body,url} for comments with id > after-id
+  local pr="$1" repo="$2" after="${3:-0}" prn
+  prn="${pr##*/}"
+  gh api "repos/$repo/issues/$prn/comments?per_page=100&sort=created&direction=desc" --argjson after "$after" \
+    --jq '.[] | select(.id > $after) | {id, login: .user.login, body, url: .html_url}' 2>/dev/null |
+    jq -c 'if type == "array" then .[] else . end' 2>/dev/null
+}
+
+github_pr_comment() { # pr repo body
+  gh api "repos/$2/issues/${1##*/}/comments" -f body="$3" >/dev/null 2>&1
+}
+
+github_pr_update_branch() { # pr repo -> 0 when an update was requested
+  gh api -X PUT "repos/$2/pulls/${1##*/}/update-branch" >/dev/null 2>&1
+}
+
+github_authenticated_login() {
+  gh api user --jq .login 2>/dev/null
+}
+
+github_merge_allowed_authors() { # repo -> newline-separated logins allowed to steer loop PRs
+  local repo="$1" logins
+  logins="$(gh api "repos/$repo/branches/main/protection" \
+    --jq '.required_pull_request_reviews.bypass_pull_request_allowances.users[].login' 2>/dev/null || true)"
+  [ -n "$logins" ] && { printf '%s\n' "$logins"; return 0; }
+  gh api "repos/$repo" --jq 'if .owner.type == "User" then .owner.login else empty end' 2>/dev/null
+}
+
+# --- merge steward / owner-watch state helpers -------------------------------
+merge_hold_write() { # ticket reason ttl-hours(0 = no expiry)
+  local n="$1" reason="$2" ttl="${3:-0}"
+  jq -n --arg reason "$reason" --arg at "$(date -u +%FT%TZ)" --argjson ttl "$ttl" \
+    '{reason:$reason, at:$at, ttl_hours:(if $ttl == 0 then null else $ttl end)}' \
+    > "$STATE/$n.merge-hold.tmp" && mv "$STATE/$n.merge-hold.tmp" "$STATE/$n.merge-hold"
+}
+
+merge_hold_active() { # ticket -> 0 while a hold is fresh or unexpired
+  local n="$1" hold now at at_sec ttl
+  hold="$STATE/$n.merge-hold"
+  [ -f "$hold" ] || return 1
+  ttl="$(jq -r '.ttl_hours // empty' "$hold" 2>/dev/null)"
+  [ -n "$ttl" ] || return 0
+  now="$(date -u +%s)"
+  at="$(jq -r '.at // empty' "$hold")"
+  at_sec="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$at" +%s 2>/dev/null || date -u -d "$at" +%s 2>/dev/null || echo 0)"
+  [ "$((now - at_sec))" -lt "$((ttl * 3600))" ]
+}
+
+merge_automerge_enabled() {
+  [ "$(jqget '.merge.mode // "hold"' 2>/dev/null)" = "auto" ]
+}
+
+advance_watch() { # cursor-file comment-id
+  jq -n --argjson id "$2" --arg at "$(date -u +%FT%TZ)" '{last_comment_id:$id, updated_at:$at}' > "$1.tmp" &&
+    mv "$1.tmp" "$1"
 }
 
 github_pr_is_conflicted() { # pr repo

@@ -180,3 +180,30 @@ Refs: /Users/zafar/dev/kokolog-loop/state/68.assurance-r1.json
 ## 2026-09-03 · ticket 108 verified · #implement
 What: Unified assurance passed for bcc4ea333c6fc49b83692307ac62c0cfe0637814; PR awaits owner merge.
 Refs: /Users/zafar/dev/kokolog-loop/state/108.assurance-r2.json
+## 2026-09-04 · ticket 48 verified · #implement
+What: Unified assurance passed for 2e7f4e3cb23a44b8de0c4f79bf6b30ee48153420; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/48.assurance-r1.json
+## 2026-09-04 · ticket 57 verified · #implement
+What: Unified assurance passed for fa0be567523038f6c51eb72828153d7f7bc80e40; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/57.assurance-r1.json
+## 2026-09-04 · ticket 51 verified · #implement
+What: Unified assurance passed for 32ffb3713822266ab57bb5324c07c57a09c63e9d; PR awaits owner merge and bench validation.
+Refs: /Users/zafar/dev/kokolog-loop/state/51.assurance-r1.json
+## 2026-09-04 · ticket 58 verified · #implement
+What: Unified assurance passed for 8280d8b5601485786071869fda0be07793898fa5; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/58.assurance-r1.json
+## 2026-09-04 · ticket 50 verified · #implement
+What: Unified assurance passed for daa5d41c05fd0556b7d332e6f51f2c54a302c7af; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/50.assurance-r1.json
+## 2026-09-04 · ticket 50 verified · #implement
+What: Unified assurance passed for aea7b3bea38717c079911013ae12d55b7a69a6dd; PR awaits owner merge and bench validation.
+Refs: /Users/zafar/dev/kokolog-loop/state/50.assurance-r3.json
+## 2026-09-04 · ticket 52 verified · #implement
+What: Unified assurance passed for 366e551d67309b1bfd4c3d8d144f5b1004479b5b; PR awaits owner merge.
+Refs: /Users/zafar/dev/kokolog-loop/state/52.assurance-r2.json
+## 2026-09-05 · ci-gate waiver + ticket 53 re-scope · #loop #implement
+What: Owner cannot pay GitHub Actions; assurance no longer blocks on CI while `assurance.ci_gate.mode=waived` (filters failed checks from evidence, tells reviewer). Ticket 53 re-scoped to SDK runtime supervision per ARD018; app side split into issue 120; stale-scope workers a4/retry1 terminated.
+Refs: config.json (updated), run/loop-tick (updated), templates/config.schema.json (updated), kokoromil/kokolog-monitor#120 (new), #53 (updated)
+## 2026-09-05 · autonomous merge steward, PR babysitter, push-contract fix · #loop #implement
+What: Loop now merges assurance-passed PRs itself (config merge.mode=auto) after green gates: zero unresolved review threads, up-to-date branch, Closes-linkage, no bench pending, one merge per tick, auditable holds. Owner comments on loop PRs route into the fix posture (merge.owner_watch, fyi: opt-out, ack marker avoids self-trigger). Parked tickets no longer spawn new fix/review workers and DECOMPOSE terminates live workers. Orphan sessions (rev + non-in-progress impl) are swept durably. Fixed clone trap where prepare_clean_clone's pseudo-upstream sent plain git push to a bogus remote branch (cost: a5's finished #53 SDK work sat unpushed on stray branch kokolog-pr-119); implementer prompt now requires ls-remote head verification. a5's verified work (184 SDK + 115 app tests, analyze clean) pushed to PR #119, superseded duplicate worker a5-retry2 terminated, assurance round 2 armed at d985afa.
+Refs: run/loop-tick, run/common.sh, config.json, agents/implementer.md, web/status.mjs, kokoromil/kokolog-monitor#119

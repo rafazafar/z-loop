@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { collectStatus, definitions, field, runCommand } from "./status.mjs";
 import { recordMergedAudit } from "./audit.mjs";
 import { applyDispatchPolicy, applyRouteUpdates, installLaunchAgent, launchAgentEnvironment, launchAgentPaths, parseModelList, parseModelMetadata, routeEntries, STANDARD_VARIANTS, updateLaunchAgentSchedule, writeRouting } from "./control-plane.mjs";
+import { handleBench, resolveBenchConfig } from "./bench.mjs";
 
 const web = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(web);
@@ -368,6 +369,17 @@ http.createServer(async (request, response) => {
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return send(response, 403, { error: "Invalid host" });
     if (request.method === "POST" && request.headers.origin && ![`http://127.0.0.1:${port}`, `http://localhost:${port}`].includes(request.headers.origin)) return send(response, 403, { error: "Invalid origin" });
     const url = new URL(request.url, `http://${request.headers.host}`);
+    if (url.pathname === "/bench" || url.pathname === "/bench.html") {
+      const benchPath = (await stat(path.join(web, "bench.html")).catch(() => null)) ? path.join(web, "bench.html") : path.join(frontend, "bench.html");
+      const contents = await readFile(benchPath);
+      return send(response, 200, contents, "text/html");
+    }
+    if (url.pathname === "/api/bench/config" && request.method === "GET") {
+      return send(response, 200, await resolveBenchConfig());
+    }
+    if (url.pathname === "/api/bench" && request.method === "POST") {
+      return handleBench(request, response);
+    }
     if (url.pathname === "/api/state") return send(response, 200, await refreshStatus());
     if (url.pathname === "/api/events") return streamEvents(request, response);
     if (url.pathname === "/api/models") return send(response, 200, await modelCatalog(url.searchParams.get("refresh") === "1"));

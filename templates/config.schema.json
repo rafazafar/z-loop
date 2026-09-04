@@ -3,11 +3,19 @@
   "title": "LoopConfig",
   "description": "Central configuration schema for the autonomous development loop system.",
   "type": "object",
-  "required": ["project", "roles", "rules", "github"],
+  "required": [
+    "project",
+    "roles",
+    "rules",
+    "github"
+  ],
   "properties": {
     "project": {
       "type": "object",
-      "required": ["name", "repo_path"],
+      "required": [
+        "name",
+        "repo_path"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -49,17 +57,74 @@
       "properties": {
         "enabled_dimensions": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["acceptance", "code", "security"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "acceptance",
+            "code",
+            "security"
+          ],
           "description": "Assurance review dimensions to inspect (e.g. acceptance, code, security, safety, qms, performance)."
         },
         "sensitive_paths": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "description": "Mapping from dimension name to glob patterns that trigger that dimension."
+        },
+        "ci_gate": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "required",
+                "waived"
+              ],
+              "default": "required"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "recorded": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Temporary owner waiver of CI check evidence during a billing or runner outage. The waiver filters non-success checks from assurance evidence and tells the reviewer not to cite CI failures. Set mode back to required when CI runs again."
+        }
+      }
+    },
+    "merge": {
+      "type": "object",
+      "description": "Autonomous merge policy for loop-managed PRs.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "hold",
+            "auto"
+          ],
+          "default": "hold",
+          "description": "hold = owner merges manually (legacy); auto = loop merges assurance-passed PRs when all branch-protection gates are green."
+        },
+        "owner_watch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Watch owner comments on loop PRs and route plain feedback into the fix posture (fyi: prefix opts out)."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the current mode was recorded."
+        },
+        "recorded": {
+          "type": "string",
+          "description": "Date the mode was recorded."
         }
       }
     },
@@ -69,26 +134,41 @@
         "spec_sync": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean", "default": true },
-            "transcripts_path": { "type": "string", "default": "docs/meeting-transcripts" }
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "transcripts_path": {
+              "type": "string",
+              "default": "docs/meeting-transcripts"
+            }
           }
         },
         "ticket_factory": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean", "default": true }
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "gardener": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean", "default": true }
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "decision_desk": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean", "default": true }
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
           }
         }
       }
@@ -96,54 +176,122 @@
     "roles": {
       "type": "object",
       "description": "Model and variant configuration for each loop role.",
-      "required": ["implementer", "repairer", "reviewer", "ticketer", "distiller", "gardener", "decision-desk"],
+      "required": [
+        "implementer",
+        "repairer",
+        "reviewer",
+        "ticketer",
+        "distiller",
+        "gardener",
+        "decision-desk"
+      ],
       "additionalProperties": {
         "type": "object",
-        "required": ["model", "variant"],
+        "required": [
+          "model",
+          "variant"
+        ],
         "properties": {
-          "model": { "type": "string" },
-          "variant": { "type": "string" }
+          "model": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          }
         }
       }
     },
     "rules": {
       "type": "object",
-      "required": ["max_fix_attempts", "max_impl_attempts", "max_clean_retries", "max_concurrent_sessions", "diff_budget"],
+      "required": [
+        "max_fix_attempts",
+        "max_impl_attempts",
+        "max_clean_retries",
+        "max_concurrent_sessions",
+        "diff_budget"
+      ],
       "properties": {
-        "max_fix_attempts": { "type": "integer", "minimum": 1 },
-        "max_impl_attempts": { "type": "integer", "minimum": 1 },
-        "max_clean_retries": { "type": "integer", "minimum": 0 },
-        "max_concurrent_sessions": { "type": "integer", "minimum": 1 },
+        "max_fix_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_impl_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_clean_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_concurrent_sessions": {
+          "type": "integer",
+          "minimum": 1
+        },
         "diff_budget": {
           "type": "object",
           "properties": {
-            "max_files": { "type": "integer" },
-            "max_insertions": { "type": "integer" },
-            "max_deletions": { "type": "integer" }
+            "max_files": {
+              "type": "integer"
+            },
+            "max_insertions": {
+              "type": "integer"
+            },
+            "max_deletions": {
+              "type": "integer"
+            }
           }
         },
-        "session_inactivity_timeout_sec": { "type": "integer" },
-        "session_termination_grace_sec": { "type": "integer" },
-        "session_timeout_sec": { "type": "integer" },
-        "clone_reap_days": { "type": "integer" }
+        "session_inactivity_timeout_sec": {
+          "type": "integer"
+        },
+        "session_termination_grace_sec": {
+          "type": "integer"
+        },
+        "session_timeout_sec": {
+          "type": "integer"
+        },
+        "clone_reap_days": {
+          "type": "integer"
+        }
       }
     },
     "github": {
       "type": "object",
-      "required": ["frontier_label", "decision_label", "branch_prefix", "base_branch"],
+      "required": [
+        "frontier_label",
+        "decision_label",
+        "branch_prefix",
+        "base_branch"
+      ],
       "properties": {
-        "frontier_label": { "type": "string" },
-        "integration_label": { "type": "string" },
-        "decision_label": { "type": "string" },
-        "branch_prefix": { "type": "string" },
-        "base_branch": { "type": "string" }
+        "frontier_label": {
+          "type": "string"
+        },
+        "integration_label": {
+          "type": "string"
+        },
+        "decision_label": {
+          "type": "string"
+        },
+        "branch_prefix": {
+          "type": "string"
+        },
+        "base_branch": {
+          "type": "string"
+        }
       }
     },
     "daemon": {
       "type": "object",
       "properties": {
-        "dashboard_port": { "type": "integer", "default": 4177 },
-        "service_identifier": { "type": "string", "default": "dev.kokolog.loop" }
+        "dashboard_port": {
+          "type": "integer",
+          "default": 4177
+        },
+        "service_identifier": {
+          "type": "string",
+          "default": "dev.kokolog.loop"
+        }
       }
     }
   }
