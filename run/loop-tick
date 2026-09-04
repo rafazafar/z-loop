@@ -557,6 +557,10 @@ maybe_automerge() { # desired-state file ticket pr stored-base stored-head
   bench="$(jq -r '.bench // ""' "$rs")"
   if [ "$bench" = "pending" ]; then
     merge_hold_write "$n" "bench validation pending" 0
+    park_auto_card "merge-bench-$n" implement \
+      "PR for ticket $n needs bench validation before auto-merge — run the bench or waive it?" \
+      "A verdict marked BENCH: pending; the loop cannot produce physical-device evidence itself." \
+      "- pr: https://github.com/$GH_REPO/pull/${pr##*/}"
     return 0
   fi
 
@@ -591,7 +595,11 @@ maybe_automerge() { # desired-state file ticket pr stored-base stored-head
   closes="$(github_pr_view "$pr" "$GH_REPO" closingIssuesReferences | jq --argjson n "$n" '[.closingIssuesReferences[]?.number | select(. == $n)] | length' 2>/dev/null)"
   if [ "${closes:-0}" -eq 0 ]; then
     body="$(github_pr_view "$pr" "$GH_REPO" body | jq -r '.body // ""' 2>/dev/null)"
-    if printf '%s' "$body" >> "$STATE/$n.merge-hold.body.tmp" 2>/dev/null; then
+    if printf '%s' "$body" | grep -qiE "(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#$n\b"; then
+      # The body already links the issue; GitHub just has not recomputed the
+      # closing references yet. Hold briefly instead of appending twice.
+      merge_hold_write "$n" "closing link present; waiting for GitHub to recompute" 1
+    elif printf '%s' "$body" >> "$STATE/$n.merge-hold.body.tmp" 2>/dev/null; then
       printf '\n\nCloses #%s\n' "$n" >> "$STATE/$n.merge-hold.body.tmp"
       if gh api -X PATCH "repos/$GH_REPO/pulls/${pr##*/}" -F body=@"$STATE/$n.merge-hold.body.tmp" >/dev/null 2>&1; then
         merge_hold_write "$n" "PR body updated to close #$n; re-checking next tick" 1
@@ -1091,11 +1099,13 @@ harvest_review() { # ticket session-id
   metric implement runs.jsonl "\"event\":\"verdict\",\"ticket\":$n,\"profile\":\"$profile\",\"verdict\":\"${verdict:-?}\",\"task\":\"${task:-?}\",\"round\":$round,\"bench\":\"$bench_pending\",\"blockers\":$blocker_count,\"advisories\":$advisory_count"
   if [ "$verdict" = PASS ] && [ "$task" = works ]; then
     jq --arg sid "$sid" --arg profile "$profile" --argjson bp "$bench_pending" '
-      .bench=(if $bp == 1 then "pending" elif .bench == null then "" else .bench end) |
+      .bench=(if $bp == 1 then "pending" else "" end) |
       .remaining=.remaining[1:] | .completed += [$profile] | .last_applied_session=$sid |
       if (.remaining|length)>0 then .action="review" | .profile=.remaining[0] |
         .session_id=("\(.ticket)-rev-\(.profile)-r\(.round)")
       else .action="done" | .session_id="" end' "$rs" | write_json "$rs"
+    # A verdict that no longer requires bench evidence releases the merge hold.
+    [ "$bench_pending" = 1 ] || rm -f "$STATE/$n.merge-hold"
   else
     set_fix_desired "$rs" "$sid" "$archived"
   fi

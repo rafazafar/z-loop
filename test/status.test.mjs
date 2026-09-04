@@ -176,3 +176,15 @@ test("a conflicted PR asks for rebase and conflict resolution", () => {
   assert.equal(ticketNextAction({ status: "done", conflicted: true }), "PR has merge conflicts with main · rebase & conflict resolution required");
   assert.equal(ticketNextAction({ status: "review", conflicted: true }), "PR has merge conflicts with main · rebase & conflict resolution required");
 });
+
+test("done tickets report the merge path truthfully", () => {
+  assert.equal(ticketNextAction({ status: "done" }), "Owner: merge the conditionally assured PR");
+  assert.equal(
+    ticketNextAction({ status: "done" }, null, { autoMerge: true }),
+    "Auto-merge: the loop merges once merge gates (threads, up-to-date, closing link) are green"
+  );
+  assert.equal(
+    ticketNextAction({ status: "done" }, null, { autoMerge: false }),
+    "Owner: merge the conditionally assured PR"
+  );
+});

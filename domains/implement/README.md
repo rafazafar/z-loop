@@ -48,6 +48,9 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
 2026-09-05 | ticket 53 | unified assurance review for revision 2 spawned
 2026-09-05 | session 53-impl-a5-retry2 | stopped: superseded: repair work landed as d985afa and assurance round 2 is armed
