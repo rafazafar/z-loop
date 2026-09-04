@@ -50,6 +50,14 @@ the bench flow has run once for real.
 ## Timeline
 2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 53 | merged after unified assurance PASS at afaf46e41e0d
+2026-09-05 | dispatch | scheduled work: 3/3 model sessions started
+2026-09-05 | ticket 71 | implementer spawned (frontier)
+2026-09-05 | ticket 59 | implementer spawned (frontier)
+2026-09-05 | ticket 54 | implementer spawned (frontier)
+2026-09-05 | ticket 53 | auto-merged PR #119 at afaf46e41e0d (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | ticket 53 | unified assurance PASS on revision 3 — PR awaits owner merge
 2026-09-05 | collect | 1 completed result(s) updated; no model sessions started

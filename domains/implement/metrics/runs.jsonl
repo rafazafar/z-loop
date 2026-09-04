@@ -7296,3 +7296,15 @@
 {"t":"2026-09-04T23:12:22Z","event":"frontier-skip","ticket":78,"reason":"native-blockers","count":4}
 {"t":"2026-09-04T23:12:23Z","event":"frontier-skip","ticket":120,"reason":"native-blockers","count":1}
 {"t":"2026-09-04T23:12:23Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T23:17:32Z","event":"auto-merge","ticket":53,"head":"afaf46e41e0d","method":"squash"}
+{"t":"2026-09-04T23:17:39Z","event":"paid-session-start","session":"54-impl-a1","model":"10router/combo-coding","variant":"high","dispatch_limit":3}
+{"t":"2026-09-04T23:17:45Z","event":"paid-session-start","session":"59-impl-a1","model":"10router/combo-coding","variant":"high","dispatch_limit":3}
+{"t":"2026-09-04T23:17:45Z","event":"frontier-skip","ticket":60,"reason":"native-blockers","count":1}
+{"t":"2026-09-04T23:17:46Z","event":"frontier-skip","ticket":62,"reason":"native-blockers","count":1}
+{"t":"2026-09-04T23:17:46Z","event":"frontier-skip","ticket":61,"reason":"native-blockers","count":1}
+{"t":"2026-09-04T23:17:47Z","event":"frontier-skip","ticket":65,"reason":"native-blockers","count":1}
+{"t":"2026-09-04T23:17:53Z","event":"paid-session-start","session":"71-impl-a1","model":"10router/combo-coding","variant":"high","dispatch_limit":3}
+{"t":"2026-09-04T23:17:53Z","event":"dispatch","scope":"scheduled","started":3,"limit":3}
+{"t":"2026-09-04T23:22:57Z","event":"merged","ticket":53,"round":3,"head":"afaf46e41e0d"}
+{"t":"2026-09-04T23:22:57Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T23:28:00Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
