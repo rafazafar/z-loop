@@ -953,7 +953,23 @@ spawn_profile_review() { # desired-state file
   cp "$patch_file" "$private_patch"
   cp "$STATE/$n.assurance-r$round.json" "$private_assurance"
   cp "$evidence_file" "$private_evidence/review-evidence.json"
-  cp "$(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null | head -1)" "$private_impl" 2>/dev/null || printf 'No implementation result was retained.\n' > "$private_impl"
+  # Evidence must come from the session that produced the reviewed head
+  # (review.json .source_session), not the newest impl result file: a
+  # terminated or superseded worker's RUNTIME* result would otherwise be
+  # shown to the reviewer as the implementation evidence.
+  source_result="$SESSIONS/$(jq -r '.source_session // ""' "$rs").result"
+  if [ -s "$source_result" ] && ! grep -q '^RUNTIME' "$source_result"; then
+    cp "$source_result" "$private_impl"
+  else
+    fallback_result="$(for f in $(ls -t "$SESSIONS/$n-impl"-a*.result 2>/dev/null); do
+      grep -q '^RUNTIME' "$f" || { printf '%s' "$f"; break; }
+    done)"
+    if [ -n "$fallback_result" ]; then
+      cp "$fallback_result" "$private_impl"
+    else
+      printf 'No implementation result was retained.\n' > "$private_impl"
+    fi
+  fi
   private_verdict="$(worker_verdict_path "$clone" "$sid")"
   private_result="$(worker_result_path "$clone" "$sid")"
   rm -f "$VERDICTS/$n-verdict.md" "$SESSIONS/$sid.result" "$SESSIONS/$sid.exit"

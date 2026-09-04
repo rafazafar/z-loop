@@ -7236,3 +7236,15 @@
 {"t":"2026-09-04T22:10:48Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
 {"t":"2026-09-04T22:15:52Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
 {"t":"2026-09-04T22:20:55Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T22:25:59Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T22:31:02Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T22:36:06Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T22:41:07Z","event":"verdict","ticket":53,"profile":"assurance","verdict":"BLOCK","task":"broken","round":2,"bench":"0","blockers":2,"advisories":2}
+{"t":"2026-09-04T22:41:07Z","event":"collect","results":1,"model_sessions_started":0}
+{"t":"2026-09-04T22:41:15Z","event":"paid-session-start","session":"53-impl-a10","model":"10router/combo-coding","variant":"high","dispatch_limit":3}
+{"t":"2026-09-04T22:41:15Z","event":"dispatch","scope":"scheduled","started":1,"limit":3}
+{"t":"2026-09-04T22:46:18Z","event":"dispatch","scope":"scheduled","started":0,"limit":3}
+{"t":"2026-09-04T22:51:28Z","event":"assurance-classified","ticket":53,"round":3,"head":"afaf46e41e0d"}
+{"t":"2026-09-04T22:51:28Z","event":"collect","results":1,"model_sessions_started":0}
+{"t":"2026-09-04T22:51:36Z","event":"paid-session-start","session":"53-rev-assurance-r3","model":"10router/combo-review","variant":"high","dispatch_limit":3}
+{"t":"2026-09-04T22:51:36Z","event":"dispatch","scope":"scheduled","started":1,"limit":3}
