@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-09-05T20:58:54.098Z",
+  "health": {
+    "healthy": true,
+    "running": 0
+  },
+  "paused": true,
+  "configRevision": 2,
+  "concurrency": 3,
+  "work": [
+    {
+      "title": "Inspect repository maintenance needs",
+      "status": "succeeded",
+      "revision": 1
+    },
+    {
+      "title": "Verify dashboard work intake",
+      "status": "succeeded",
+      "revision": 1
+    },
+    {
+      "title": "Recover a failed implementation and deliver the correct answer",
+      "status": "succeeded",
+      "revision": 1
+    }
+  ],
+  "automationCount": 1,
+  "backups": 1
+}

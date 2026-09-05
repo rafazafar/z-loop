@@ -1,0 +1,8 @@
+{
+  "title": "Describe one required outcome",
+  "specification": "State the exact scope. Include the affected behavior and constraints.",
+  "acceptance": ["An objective condition that the implementation and review must prove."],
+  "workflow": "code",
+  "priority": 0,
+  "dependencies": []
+}

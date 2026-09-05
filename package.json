@@ -1,0 +1,16 @@
+{
+  "name": "z-loop-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Durable repository automation for a single host",
+  "engines": { "node": ">=22.18.0" },
+  "bin": { "z-loop": "bin/z-loop" },
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli.ts serve",
+    "check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "demo": "node --experimental-strip-types scripts/demo.ts"
+  },
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.9.0" }
+}

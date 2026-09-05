@@ -1,0 +1,12 @@
+{
+  "name": "Daily repository maintenance",
+  "enabled": true,
+  "trigger": "interval",
+  "intervalMs": 86400000,
+  "work": {
+    "title": "Inspect repository maintenance needs",
+    "workflow": "plan",
+    "specification": "Identify one demonstrated defect or recurring maintenance problem. Propose a bounded repair with evidence. Avoid speculative refactoring. Return no proposals if no useful work exists.",
+    "acceptance": ["Each proposal cites a concrete cause and defines an objective check."]
+  }
+}

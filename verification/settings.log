@@ -1,0 +1,42 @@
+TAP version 13
+# (node:72186) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: configuration drains attempts, fences concurrent edits, and survives restart
+ok 1 - configuration drains attempts, fences concurrent edits, and survives restart
+  ---
+  duration_ms: 180.301708
+  type: 'test'
+  ...
+# Subtest: integration settings cannot change under open work and pending changes can be cancelled
+ok 2 - integration settings cannot change under open work and pending changes can be cancelled
+  ---
+  duration_ms: 179.259042
+  type: 'test'
+  ...
+# Subtest: work history includes each run and its attempts
+ok 3 - work history includes each run and its attempts
+  ---
+  duration_ms: 183.756667
+  type: 'test'
+  ...
+# Subtest: standard defaults create refinement work only after the main outcome passes
+ok 4 - standard defaults create refinement work only after the main outcome passes
+  ---
+  duration_ms: 180.553292
+  type: 'test'
+  ...
+# Subtest: maximum-size specifications still produce a bounded diagnosis on failure
+ok 5 - maximum-size specifications still produce a bounded diagnosis on failure
+  ---
+  duration_ms: 180.722375
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 958.531875

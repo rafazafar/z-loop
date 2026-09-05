@@ -1,0 +1,13 @@
+{
+  "name": "Ready GitHub issues",
+  "enabled": true,
+  "trigger": "github",
+  "label": "ready-for-worker",
+  "intervalMs": 60000,
+  "work": {
+    "title": "Implement the ready issue",
+    "workflow": "code",
+    "specification": "Implement exactly the supplied ready issue. Its label indicates that scope and dependencies were already qualified. Do not expand its scope.",
+    "acceptance": ["Prove every acceptance criterion in the source issue. Do not infer completion from a green test suite alone."]
+  }
+}
