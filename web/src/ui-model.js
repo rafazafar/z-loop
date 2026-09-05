@@ -14,8 +14,8 @@ export function workflowState(ticket) {
   if (ticket.status === "container") return { label: "Parent context", tone: "waiting" };
   if (ticket.status === "deferred") return { label: "Waiting", tone: "waiting" };
   if (ticket.status === "done") return { label: "Ready to merge", tone: "success" };
+  if (ticket.session?.status === "awaiting harvest") return { label: "Finalizing", tone: "running" };
   if (
-    ticket.session?.status === "awaiting harvest" ||
     ticket.retryableRuntimeFailure ||
     ["parked", "blocked-decision", "merged-unverified"].includes(ticket.status)
   ) return { label: "Needs action", tone: "attention" };
@@ -29,7 +29,7 @@ export function workflowState(ticket) {
 export function ticketSubtitle(ticket) {
   if (ticket.status === "container") return ticket.reason || "Implementation is delegated to sub-issues";
   if (ticket.status === "deferred") return ticket.reason || "Waiting for GitHub eligibility conditions";
-  if (ticket.session?.status === "awaiting harvest") return "Review finished · result not collected";
+  if (ticket.session?.status === "awaiting harvest") return "Run finished · auto-collecting on next tick";
   if (ticket.retryableRuntimeFailure) return "Automation stopped · retry is available";
   if (ticket.status === "done") return "All checks passed";
   if (ticket.status === "merged-unverified") return "Merge needs an audit record";

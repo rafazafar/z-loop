@@ -42,7 +42,13 @@ for field_name in goal trigger discover act verify persist exit; do
   }
 done
 
-domain_active "$domain" || { echo "$domain paused"; exit 75; }
+manual_spec=0
+spec_retry_round=0
+if [ "$domain" = spec-sync ] && [ -n "${SPEC_SYNC_CLAIM:-}" ]; then
+  manual_spec="$(jq -r 'if .manual == true then 1 else 0 end' "$SPEC_SYNC_CLAIM")"
+  spec_retry_round="$(jq -r '.retry_round // 0' "$SPEC_SYNC_CLAIM")"
+fi
+domain_active "$domain" || [ "$manual_spec" = 1 ] || { echo "$domain paused"; exit 75; }
 [ "$domain" != "spec-sync" ] || [ -n "$operation_hint" ] || {
   echo "spec-sync requires a trigger-provided operation key" >&2
   exit 78
@@ -58,6 +64,7 @@ verify_variant="$(route_variant reviewer)"
 }
 
 stamp="$(date +%Y%m%d-%H%M%S)"
+[ "$domain" != spec-sync ] || stamp="$stamp-$$"
 sid="loop-${domain}-${stamp}"
 actor_prompt="$SESSIONS/$sid.prompt"
 actor_result="$SESSIONS/$sid.result"
@@ -67,6 +74,8 @@ verifier_result="$SESSIONS/$verifier_sid.result"
 workdir="$LOOP_ROOT"
 clone=""
 stage="$STATE/staging/$sid"
+evidence_dir="$STATE/evidence/$sid"
+verifier_workdir="$workdir"
 
 if [ "$domain" = "spec-sync" ]; then
   clone="$CLONES/$sid"
@@ -132,8 +141,10 @@ write_cycle() { # state outcome summary work-unit operation actor verifier
     --arg outcome "$outcome_name" --arg summary "$summary_text" \
     --arg workUnit "$work_unit" --arg operation "$operation" \
     --arg actor "$actor" --arg verifier "$verifier" \
+    --arg artifacts "${artifacts:-none}" \
+    --argjson retryRound "$spec_retry_round" \
     --arg started "$started" --arg updated "$(date -u +%FT%TZ)" \
-    '{id:$id,domain:$domain,state:$state,outcome:$outcome,summary:$summary,work_unit:$workUnit,operation:$operation,actor_session:$actor,verifier_session:$verifier,started_at:$started,updated_at:$updated}' \
+    '{id:$id,domain:$domain,state:$state,outcome:$outcome,summary:$summary,work_unit:$workUnit,operation:$operation,artifacts:$artifacts,retry_round:$retryRound,actor_session:$actor,verifier_session:$verifier,started_at:$started,updated_at:$updated}' \
     > "$temporary" && mv "$temporary" "$cycle_file" || {
       echo "cannot persist cycle state: $cycle_file" >&2
       exit 1
@@ -161,12 +172,11 @@ terminal() { # outcome summary work-unit operation exit-code
 }
 
 if [ -n "$clone" ]; then
-  git clone -q "$KOKOLOG_REPO" "$clone" || terminal FAIL "client clone failed" none none 1
-  client_remote="$(git -C "$KOKOLOG_REPO" remote get-url origin 2>/dev/null || true)"
-  [ -n "$client_remote" ] || terminal FAIL "client GitHub remote unavailable" none none 1
-  git -C "$clone" remote set-url origin "$client_remote" || terminal FAIL "client remote setup failed" none none 1
-  cycle_branch="${domain}/${stamp}"
-  git -C "$clone" checkout -q -b "$cycle_branch" || terminal FAIL "client branch failed" none none 1
+  mkdir -p "$evidence_dir"
+  if ! check_output="$(python3 "$LOOP_ROOT/run/spec_sync/evidence.py" prepare "$clone" "$operation_hint" 2>&1)"; then
+    printf '%s\n' "$check_output" > "$evidence_dir/runtime-error.txt"
+    terminal FAIL "${check_output:-claimed source or PR reconciliation failed}" none "$operation_hint" 1
+  fi
 fi
 
 case "$domain" in
@@ -188,8 +198,17 @@ esac
     printf 'Derive a stable operation key from the source and reconcile live files before writing.\n'
   fi
   printf 'Write new loop artifacts only under %s, preserving their final decisions/ or signals/ relative path. Use one bash printf redirection command per staged file. Do not modify canonical loop artifacts.\n' "$stage"
-  printf 'Staging budget: PASS stages at most one artifact (spec-sync: one decision card when a human decision is parked); BLOCKED exactly one decision card; NOOP stages nothing. Never stage signal files; the runtime writes the cycle record.\n'
+  if [ "$domain" = spec-sync ]; then
+    printf 'Staging budget: PASS and NOOP stage nothing. BLOCKED stages exactly one combined decision card. Never stage signal files; the runtime writes the cycle record.\n'
+  else
+    printf 'Staging budget: PASS stages at most one artifact; BLOCKED exactly one decision card; NOOP stages nothing. Never stage signal files; the runtime writes the cycle record.\n'
+  fi
   printf 'Client-repo changes belong only under %s.\n' "$workdir"
+  if [ "$domain" = spec-sync ]; then
+    printf 'Read the selected source claim at %s and prior PR metadata at %s. Use the exact source path, revision, and hash.\n' "$SPEC_SYNC_CLAIM" "${SPEC_SYNC_CLAIM%.json}.prs.json"
+    printf 'Read any retry_card and previous_failure verdict named in the claim before acting. Resolve prior findings without making a human decision silently. Reuse the operation key. Use conventional commits. Keep the prepared zafar/spec-sync-<hash> branch for new PRs.\n'
+    printf 'If questions remain, return BLOCKED with one combined decision card and the exact operation key in its body. PASS must have no unresolved questions or staged cards.\n'
+  fi
   [ -n "$context" ] && printf 'Trigger context: %s\n' "$context"
   printf 'Write the complete result with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$actor_result" "$actor_result"
   printf 'OUTCOME: PASS | NOOP | BLOCKED | FAIL\nSUMMARY: <one sentence>\nWORK_UNIT: <stable source id or none>\nOPERATION: <stable idempotency key or none>\nARTIFACTS: <paths and URLs or none>\n'
@@ -250,13 +269,42 @@ while IFS= read -r staged_file; do
   [ ! -e "$LOOP_ROOT/$relative" ] || terminal FAIL "staged artifact already exists" "$work_unit" "$operation" 1
 done < <(find "$stage" -type f)
 
+verifier_instructions="$LOOP_ROOT/AGENTS.md"
+verifier_contract="$contract"
+verifier_actor_result="$actor_result"
+if [ "$domain" = spec-sync ]; then
+  if [ "$actor_outcome" = PASS ] && [ "$stage_count" != 0 ]; then
+    terminal FAIL "unresolved transcript questions require BLOCKED" "$work_unit" "$operation" 1
+  fi
+  if [ "$actor_outcome" = BLOCKED ]; then
+    card="$(find "$stage/decisions" -maxdepth 1 -name '*.card.md' -type f -print -quit)"
+    [ -n "$card" ] && grep -Fxq 'status: open' "$card" && grep -Fq "$operation" "$card" || terminal FAIL "BLOCKED requires an open operation-linked decision card" "$work_unit" "$operation" 1
+  fi
+  mkdir -p "$evidence_dir"
+  if ! check_output="$(python3 "$LOOP_ROOT/run/spec_sync/evidence.py" collect "$clone" "$evidence_dir" "$actor_result" "$stage" 2>&1)"; then
+    printf '%s\n' "$check_output" > "$evidence_dir/runtime-error.txt"
+    terminal FAIL "${check_output:-transcript evidence checks failed}" "$work_unit" "$operation" 1
+  fi
+  verifier_workdir="$evidence_dir"
+  verifier_instructions="$evidence_dir/loop-instructions.md"
+  verifier_contract="$evidence_dir/contract.md"
+  verifier_actor_result="$evidence_dir/actor.result"
+fi
+
 {
   printf 'You are a fresh read-only verifier for one %s cycle. Do not edit files, GitHub, state, or artifacts.\n' "$domain"
   printf 'Read %s, %s, and the actor result %s.\n' \
-    "$LOOP_ROOT/AGENTS.md" "$contract" "$actor_result"
+    "$verifier_instructions" "$verifier_contract" "$verifier_actor_result"
   printf 'Actor session: %s. Work unit: %s. Operation: %s.\n' "$sid" "$work_unit" "$operation"
   printf 'Independently inspect every listed artifact and the live source. Confirm the domain Verify field, the one-work-unit limit, the human boundary, and that the operation key did not duplicate a side effect.\n'
-  printf 'For NOOP, independently prove discovery is empty. For BLOCKED, prove a human decision is necessary and the parked artifact exists.\n'
+  if [ "$domain" = spec-sync ]; then
+    printf 'For NOOP, independently prove no change remains for the selected transcript. For BLOCKED, prove a human decision is necessary and the parked artifact exists.\n'
+    printf 'Read runtime.json, transcript.txt, pr.diff, checks.json, claim.json, source/, and staging/ in your current directory. These are runtime snapshots of the selected revision and PR head. Do not follow actor paths outside this evidence directory.\n'
+    printf 'Check every citation against transcript lines. Check approved decisions against the existing specs and architecture records. Report absent or pending CI honestly; this review does not authorize merge.\n'
+    printf 'Your EVIDENCE header must list runtime.json, transcript.txt, pr.diff, checks.json, separated by comma-space. Add specific source paths after those four entries.\n'
+  else
+    printf 'For NOOP, independently prove discovery is empty. For BLOCKED, prove a human decision is necessary and the parked artifact exists.\n'
+  fi
   printf 'Do not use shell commands. Use read and search tools on the contract, source, staged artifacts, and result records.\n'
   printf 'Write the complete verdict with one bash printf redirection to %s.tmp, then use a separate mv command to rename it to %s. Use exactly these required headers:\n' "$verifier_result" "$verifier_result"
   printf 'VERDICT: PASS | FAIL\nACTOR: %s\nSUMMARY: <one sentence>\nEVIDENCE: <checked paths, URLs, and records>\n' "$sid"
@@ -264,7 +312,7 @@ done < <(find "$stage" -type f)
 } > "$verifier_prompt"
 
 write_cycle verifier-running "$actor_outcome" "$actor_summary" "$work_unit" "$operation" "$sid" "$verifier_sid"
-if ! "$LOOP_ROOT/run/spawn" start "$verifier_sid" "$verify_model" "$verify_variant" "$workdir" "$verifier_prompt" >/dev/null; then
+if ! "$LOOP_ROOT/run/spawn" start "$verifier_sid" "$verify_model" "$verify_variant" "$verifier_workdir" "$verifier_prompt" >/dev/null; then
   terminal FAIL "verifier spawn failed" "$work_unit" "$operation" 1
 fi
 active_session="$verifier_sid"
@@ -288,15 +336,24 @@ case "$verdict" in PASS|FAIL) ;; *) valid_verifier=0 ;; esac
 [ "$verifier_actor" = "$sid" ] && [ -n "$verifier_summary" ] && [ -n "$evidence" ] || valid_verifier=0
 [ "$valid_verifier" = 1 ] || terminal FAIL "invalid verifier result contract" "$work_unit" "$operation" 1
 [ "$verifier_exit" = 0 ] || terminal FAIL "verifier OpenCode exited $verifier_exit" "$work_unit" "$operation" 1
+if [ "$domain" = spec-sync ] && [ "$verdict" = PASS ]; then
+  case "$evidence" in
+    'runtime.json, transcript.txt, pr.diff, checks.json'*) ;;
+    *) terminal FAIL "verifier omitted required transcript evidence" "$work_unit" "$operation" 1 ;;
+  esac
+  python3 "$LOOP_ROOT/run/spec_sync/evidence.py" recheck "$clone" "$evidence_dir" || terminal FAIL "PR changed after evidence capture" "$work_unit" "$operation" 1
+fi
 if [ "$verdict" != PASS ]; then
   # an independent verifier found substance — park an OPEN decision card so
   # the failure is answerable, not just a timeline line
   slug="$(printf '%s' "${work_unit:-$sid}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' | sed 's/-\{2,\}/-/g; s/^-//; s/-$//' | cut -c1-60)"
   [ -n "$slug" ] || slug="none-$sid"
+  staged_evidence="$stage"
+  [ "$domain" != spec-sync ] || staged_evidence="$evidence_dir/staging"
   evidence="- cycle record: $cycle_file
 - verifier result: $SESSIONS/$verifier_sid.result
 - actor result: $actor_result
-- staging: $stage"
+- staging: $staged_evidence"
   if park_auto_card "$domain-$slug" "$domain" \
     "Cycle $sid failed independent verification — retry, drop, or take over?" \
     "Verifier summary: $verifier_summary. Work unit: ${work_unit:-none}. Operation: ${operation:-none}. The verifier is independent and read-only; its findings stand until a human decides." \

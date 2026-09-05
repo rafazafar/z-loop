@@ -14,6 +14,7 @@ import {
 test("the dashboard maps workflow states to operator language", () => {
   assert.deepEqual(workflowState({ status: "done" }), { label: "Ready to merge", tone: "success" });
   assert.deepEqual(workflowState({ status: "in-progress", session: { status: "running" } }), { label: "In progress", tone: "running" });
+  assert.deepEqual(workflowState({ status: "in-progress", session: { status: "awaiting harvest" } }), { label: "Finalizing", tone: "running" });
   assert.deepEqual(workflowState({ status: "parked" }), { label: "Needs action", tone: "attention" });
   assert.deepEqual(workflowState({ status: "container" }), { label: "Parent context", tone: "waiting" });
   assert.deepEqual(workflowState({ status: "deferred" }), { label: "Waiting", tone: "waiting" });

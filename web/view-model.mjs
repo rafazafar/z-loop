@@ -1,5 +1,5 @@
 export const LOOP_NAMES = {
-  "spec-sync": "Write Specs",
+  "spec-sync": "Meeting Notes → Draft Spec PR",
   "ticket-factory": "Plan Tickets",
   "decision-desk": "Queue Decisions",
   implement: "Build & Verify",
@@ -191,7 +191,7 @@ export function ticketStages(ticket) {
 
 export function ticketDisplayStatus(ticket) {
   if (ticket.session?.status === "running") return { key: "running", label: "RUNNING" };
-  if (ticket.session?.status === "awaiting harvest") return { key: "attention", label: "RESULT READY" };
+  if (ticket.session?.status === "awaiting harvest") return { key: "running", label: "FINALIZING" };
   if (ticket.status === "container") return { key: "active", label: "PARENT CONTEXT" };
   if (ticket.status === "deferred") return { key: "blocked", label: "WAITING ON GITHUB" };
   if (ticket.status === "merged") return { key: "resolved", label: "MERGED" };

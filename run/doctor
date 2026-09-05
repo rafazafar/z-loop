@@ -18,7 +18,7 @@ bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
 soft() { printf '  warn  %s\n' "$1"; warn=$((warn+1)); }
 
 echo "== binaries =="
-required_bins=(gh git jq shasum tmux)
+required_bins=(gh git jq shasum tmux python3)
 [ "$require_model_runtime" = 0 ] || required_bins=(opencode "${required_bins[@]}")
 for b in "${required_bins[@]}"; do
   command -v "$b" >/dev/null 2>&1 && ok "$b ($(command -v $b))" || bad "$b missing from PATH"
@@ -119,7 +119,7 @@ echo "       (models resolve via your GLOBAL opencode providers: 9router, openai
 echo "== local setup =="
 ok "all local configuration: $CONFIG"
 tmux list-sessions >/dev/null 2>&1 && ok "tmux server up" || ok "tmux server will start on first spawn"
-spec_sync_enabled="$(jq -r '.domains.spec_sync.enabled // true' "$CONFIG" 2>/dev/null)"
+spec_sync_enabled="$(jq -r '(.domains.spec_sync // {}) | if has("enabled") then .enabled else true end | if type == "boolean" then . else error("enabled must be boolean") end' "$CONFIG" 2>/dev/null)" || bad "spec_sync.enabled must be boolean"
 if [ "$spec_sync_enabled" = "true" ]; then
   rel_transcripts="$(jq -r '.domains.spec_sync.transcripts_path // "docs/meeting-transcripts"' "$CONFIG" 2>/dev/null)"
   [ -d "$PROJECT_REPO/$rel_transcripts" ] && ok "transcripts dir found: $rel_transcripts" || soft "no $rel_transcripts in repo (spec-sync idle)"

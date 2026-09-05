@@ -181,7 +181,12 @@ Each domain has an executable contract with seven fields: Goal, Trigger,
 Discover, Act, Verify, Persist, and Exit.
 
 - `implement` turns ready issues into assured pull requests.
-- `spec-sync` converts new meeting transcripts into staged project updates.
+- **Meeting Notes → Draft Spec PR** (`spec-sync`): drop a transcript into the client
+  `docs/meeting-transcripts/` folder. The job snapshots the file and proposes the
+  required spec, CMP, ARD, PRD, and other document changes in one draft PR.
+  No input commit is required. The PR includes the source transcript.
+  Review the draft PR before merge. The timer remains paused until the proof run.
+  See `domains/spec-sync/README.md` for manual runs and decided-card retries.
 - `ticket-factory` creates bounded tickets from accepted project work.
 - `gardener` finds recurring maintenance evidence and prepares follow-up work.
 - `decision-desk` assembles questions that require owner judgment.

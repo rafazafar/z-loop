@@ -48,6 +48,284 @@ the bench flow has run once for real.
   (loop-tick re-queues up to max_impl_attempts, then parks with an auto card)
 
 ## Timeline
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-06 | ticket 72 | clean retry started as 72-impl-a1-retry1
+2026-09-06 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-06 | ticket 72 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-06 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-06 | ticket 72 | implementer spawned (frontier)
+2026-09-06 | ticket 70 | merged-unverified: PR merged before assurance completed (1/1 reviews passed)
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-06 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 65 | merged after unified assurance PASS at f8fe0a38656c
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 65 | auto-merged PR #129 at f8fe0a38656c (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 65 | unified assurance PASS on revision 2 — PR awaits owner merge
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 65 | unified assurance review for revision 2 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 65 | revision 2 classified for unified assurance at f8fe0a38656c
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 65 | P0/P1 BLOCK -> repair 0 spawned
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 65 | rebase worker spawn deferred
+2026-09-05 | ticket 65 | merge conflicts detected on PR; starting rebase reconciliation
+2026-09-05 | ticket 62 | merged after unified assurance PASS at 85b7c66d46b5
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 62 | auto-merged PR #128 at 85b7c66d46b5 (assurance PASS, gates green, squash)
+2026-09-05 | ticket 61 | merged after unified assurance PASS at a94d8392ca69
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 61 | auto-merged PR #127 at a94d8392ca69 (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 65 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | ticket 62 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | ticket 61 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | collect | 3 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 3/3 model sessions started
+2026-09-05 | ticket 65 | unified assurance review for revision 1 spawned
+2026-09-05 | ticket 62 | unified assurance review for revision 1 spawned
+2026-09-05 | ticket 61 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 3 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 65 | revision 1 classified for unified assurance at bf7a656f23ee
+2026-09-05 | ticket 62 | revision 1 classified for unified assurance at 85b7c66d46b5
+2026-09-05 | ticket 61 | revision 1 classified for unified assurance at a94d8392ca69
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 120 | merged after unified assurance PASS at b8ceade4ee67
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 120 | auto-merged PR #126 at b8ceade4ee67 (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 3/3 model sessions started
+2026-09-05 | ticket 65 | implementer spawned (frontier)
+2026-09-05 | ticket 62 | implementer spawned (frontier)
+2026-09-05 | ticket 61 | implementer spawned (frontier)
+2026-09-05 | ticket 120 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 120 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 120 | revision 1 classified for unified assurance at b8ceade4ee67
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 70 | unified assurance PASS on revision 1 — PR awaits owner merge and bench validation
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 70 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 70 | revision 1 classified for unified assurance at e0f760aa690a
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 60 | merged after unified assurance PASS at 7ab35d3c8f30
+2026-09-05 | ticket 120 | clean retry started as 120-impl-a1-retry1
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 120 | implementer operational failure: worker wrote no result; clean retry status: retry-ready
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 60 | auto-merged PR #124 at 7ab35d3c8f30 (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 60 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 60 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 60 | revision 1 classified for unified assurance at 7ab35d3c8f30
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 54 | merged after unified assurance PASS at d8ef763d6193
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 71 | merged after unified assurance PASS at 02e4341dc573
+2026-09-05 | ticket 54 | auto-merged PR #123 at d8ef763d6193 (assurance PASS, gates green, squash)
+2026-09-05 | dispatch | scheduled work: 3/3 model sessions started
+2026-09-05 | ticket 120 | implementer spawned (frontier)
+2026-09-05 | ticket 70 | implementer spawned (frontier)
+2026-09-05 | ticket 60 | implementer spawned (frontier)
+2026-09-05 | ticket 71 | auto-merged PR #122 at 02e4341dc573 (assurance PASS, gates green, squash)
+2026-09-05 | ticket 59 | merged after unified assurance PASS at e292e0839c06
+2026-09-05 | ticket 54 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 1/3 model sessions started
+2026-09-05 | ticket 59 | auto-merged PR #121 at e292e0839c06 (assurance PASS, gates green, squash)
+2026-09-05 | ticket 54 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 1 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 54 | revision 1 classified for unified assurance at d8ef763d6193
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | ticket 71 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | ticket 59 | unified assurance PASS on revision 1 — PR awaits owner merge
+2026-09-05 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 2/3 model sessions started
+2026-09-05 | ticket 71 | unified assurance review for revision 1 spawned
+2026-09-05 | ticket 59 | unified assurance review for revision 1 spawned
+2026-09-05 | collect | 2 completed result(s) updated; no model sessions started
+2026-09-05 | ticket 71 | revision 1 classified for unified assurance at 02e4341dc573
+2026-09-05 | ticket 59 | revision 1 classified for unified assurance at e292e0839c06
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
+2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | dispatch | scheduled work: 0/3 model sessions started
 2026-09-05 | ticket 53 | merged after unified assurance PASS at afaf46e41e0d

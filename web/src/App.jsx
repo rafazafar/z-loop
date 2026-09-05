@@ -440,6 +440,8 @@ function WorkPage({ state, ticket, busy, runAction, onAudit, onParked, onLog }) 
   const relatedSessions = (state.sessions || []).filter((session) => session.ticket === ticket.id);
 
   let action = null;
+  let actionCaption = null;
+  let actionVariant = "button--primary";
   if (state.circuitBreaker?.active) {
     action = { label: "Clear cooldown and retry", onClick: () => runAction("clear-cooldown", "implement", "Clear cooldown and retry") };
   } else if (ticket.status === "merged-unverified") {
@@ -447,7 +449,9 @@ function WorkPage({ state, ticket, busy, runAction, onAudit, onParked, onLog }) 
   } else if (["parked", "blocked-decision"].includes(ticket.status) || ticket.retryableRuntimeFailure) {
     action = { label: ticket.retryableRuntimeFailure ? "Retry automation" : "Choose next step", onClick: () => onParked(ticket) };
   } else if (ticket.session?.status === "awaiting harvest") {
-    action = { label: "Collect result", onClick: () => runAction("collect", "implement", "Collect result") };
+    action = { label: "Collect now", onClick: () => runAction("collect", "implement", "Collect result") };
+    actionVariant = "button--secondary";
+    actionCaption = "Loop collects automatically on schedule, or click to collect now.";
   } else if (ticket.status === "done" && ticket.pr) {
     action = { label: "Open pull request", href: ticket.pr };
   } else if (recommendation.action && ["run", "advance", "collect"].includes(recommendation.action)) {
@@ -473,8 +477,13 @@ function WorkPage({ state, ticket, busy, runAction, onAudit, onParked, onLog }) 
           <h3>{nextTitle}</h3>
           <p>{nextDetail}</p>
         </div>
-        {action?.href && <a className="button button--primary" href={action.href} target="_blank" rel="noreferrer">{action.label}<ExternalLink size={15} /></a>}
-        {action?.onClick && <button className="button button--primary" disabled={busy} onClick={action.onClick}>{action.label}</button>}
+        {action && (
+          <div className="action-panel-actions">
+            {action.href && <a className={`button ${actionVariant}`} href={action.href} target="_blank" rel="noreferrer">{action.label}<ExternalLink size={15} /></a>}
+            {action.onClick && <button className={`button ${actionVariant}`} disabled={busy} onClick={action.onClick}>{action.label}</button>}
+            {actionCaption && <span className="action-panel-caption">{actionCaption}</span>}
+          </div>
+        )}
       </section>
 
       <ol className="stepper" aria-label="Workflow progress">

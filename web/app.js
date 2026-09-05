@@ -55,7 +55,7 @@ const LOOP_ROUTES = {
     { id: "role:repairer", label: "P0/P1 repair", note: "Updates PR only for blocking issues from the unified review." }
   ],
   "spec-sync": [
-    { id: "role:distiller", label: "Specification work", note: "Turns a new transcript into cited controlled-document changes." },
+    { id: "role:distiller", label: "Draft spec PR", note: "Reads new meeting transcripts and proposes cited documentation changes in one draft PR." },
     { id: "role:reviewer", label: "Independent verification", note: "Checks citations, scope, and controlled-document boundaries." }
   ],
   "ticket-factory": [

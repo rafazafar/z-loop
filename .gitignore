@@ -13,3 +13,4 @@ lock
 .DS_Store
 .openchamber/
 web/dist/
+__pycache__/

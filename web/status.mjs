@@ -15,7 +15,7 @@ export const definitions = {
     runner: "controller-heartbeat", scheduledCommand: "controller-heartbeat", cadence: "Every minute", timerSuffix: "tick", timer: "dev.kokolog.loop.tick",
     consumes: "Ready GitHub issues", produces: "PRs and verdicts", maintenance: []
   },
-  "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, scheduledCommand: "spec-sync-trigger", cadence: "Every 10m", timerSuffix: "specsync", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Doc PRs and decisions" },
+  "spec-sync": { runner: "spec-sync-trigger", role: "distiller", background: true, scheduledCommand: "spec-sync-trigger", cadence: "Every 10m", timerSuffix: "specsync", timer: "dev.kokolog.loop.specsync", consumes: "New transcripts", produces: "Draft spec PRs and decisions" },
   "ticket-factory": { runner: "domain-loop", role: "ticketer", args: ["ticket-factory"], background: true, cadence: "On demand", consumes: "Approved specs and epics", produces: "Breakdown cards" },
   gardener: { runner: "domain-loop", role: "gardener", args: ["gardener"], background: true, cadence: "Weekly", consumes: "Signals and verdicts", produces: "Signals and proposal cards" },
   "decision-desk": { runner: "decision-batch", role: "decision-desk", background: true, scheduledCommand: "decision-batch", cadence: "09:00 and 17:00", timerSuffix: "decisions", timer: "dev.kokolog.loop.decisions", consumes: "Explicit human decision cards", produces: "Owner decision queues" }

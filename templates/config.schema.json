@@ -141,6 +141,12 @@
             "transcripts_path": {
               "type": "string",
               "default": "docs/meeting-transcripts"
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Failed transcript attempts per explicitly authorized retry round."
             }
           }
         },
