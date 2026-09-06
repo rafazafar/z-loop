@@ -5,6 +5,7 @@ import { StepError, WaitError } from './types.ts';
 import { Store, hash } from './store.ts';
 import { execute, type ProcessResult } from './process.ts';
 import { atomic, inside, jsonFile, sha256 } from './files.ts';
+import { selectChecks } from './checks.ts';
 import { checkDigest } from './config.ts';
 import { runAgent, validateProposals } from './agent.ts';
 
@@ -84,6 +85,10 @@ export class RepositoryWorkflow {
     if (!c.workspace || !/^[0-9a-f]{40,64}$/.test(c.head || '') || !/^[0-9a-f]{40,64}$/.test(c.base || '')) throw new StepError('contract', 'Missing candidate identity');
     await inside(this.home, c.workspace); return c;
   }
+  private queueContext(workId: string) {
+    return this.store.all(`SELECT w.id,w.title,w.specification,r.status FROM work_items w JOIN runs r ON r.work_id=w.id WHERE w.id<>? AND r.revision=(SELECT max(revision) FROM runs WHERE work_id=w.id) ORDER BY (r.status IN ('active','waiting')) DESC,w.created_at DESC LIMIT 100`, workId)
+      .map(w => ({ id: w.id, title: w.title, scope: w.specification.slice(0, 1500), status: w.status }));
+  }
   async run(claim: Claim, signal: AbortSignal): Promise<StepResult> {
     const dir = join(this.home, 'attempts', claim.attempt.id);
     await mkdir(dir, { recursive: true });
@@ -94,7 +99,7 @@ export class RepositoryWorkflow {
         try { result = await runAgent(this.config, claim, candidate.workspace, dir, { checks: this.config.checks, base: candidate.base }, signal); }
         finally {
           // A missing model result must not discard useful edits. This checkpoint is not verification evidence.
-          if (!signal.aborted) await this.saveCandidate(claim, candidate, signal);
+          await this.saveCandidate(claim, candidate, signal.aborted ? AbortSignal.timeout(15000) : signal);
         }
         const context = { ...candidate, verification: null, review: null };
         if (result.outcome === 'needs_external') return { summary: result.summary, context, need: result.need };
@@ -123,7 +128,7 @@ export class RepositoryWorkflow {
       case 'plan': {
         const candidate = await this.fresh(claim, signal, false);
         const failures = claim.work.metadata?.failedRun ? this.store.all(`SELECT s.kind,a.failure_json FROM attempts a JOIN steps s ON s.id=a.step_id WHERE s.run_id=? AND a.failure_json IS NOT NULL ORDER BY a.started_at DESC LIMIT 8`, String(claim.work.metadata.failedRun)) : [];
-        const result = await runAgent(this.config, claim, candidate.workspace, dir, { mode: 'Read the repository. Produce bounded work proposals. Return zero proposals when no justified work exists. Runtime or account defects must not be disguised as product changes.', failures }, signal);
+        const result = await runAgent(this.config, claim, candidate.workspace, dir, { mode: 'Read the repository. Produce bounded work proposals. Return zero proposals when no justified work exists. Runtime or account defects must not be disguised as product changes.', failures, existingWork: this.queueContext(claim.work.id) }, signal);
         await this.assertReadOnly(candidate.workspace, candidate.head, signal);
         if (result.outcome === 'needs_external') return { summary: result.summary, need: result.need };
         if (result.outcome !== 'plan') throw new StepError('contract', 'Expected plan');
@@ -131,7 +136,7 @@ export class RepositoryWorkflow {
       }
       case 'check_plan': {
         const candidate = await this.fresh(claim, signal, false);
-        const result = await runAgent(this.config, claim, candidate.workspace, dir, { proposals: JSON.parse(claim.run.context_json).proposals, instruction: 'Check scope, evidence, duplicate work, and dependency order. Do not demand human approval for routine decomposition.' }, signal);
+        const result = await runAgent(this.config, claim, candidate.workspace, dir, { proposals: JSON.parse(claim.run.context_json).proposals, existingWork: this.queueContext(claim.work.id), instruction: 'Check scope, evidence, duplicate work, and dependency order. Do not demand human approval for routine decomposition.' }, signal);
         await this.assertReadOnly(candidate.workspace, candidate.head, signal);
         if (result.outcome === 'needs_external') return { summary: result.summary, need: result.need };
         if (result.outcome === 'repair') return { summary: result.summary, repair: result.findings };
@@ -161,8 +166,12 @@ export class RepositoryWorkflow {
     const candidate = await this.candidate(claim);
     const workspace = join(this.home, 'workspaces', claim.attempt.id);
     await this.clone(candidate.workspace, workspace, candidate.head, signal);
+    const changed = (await this.git(workspace, ['diff', '--name-only', '-z', candidate.base, candidate.head], signal)).stdout.split('\0').filter(Boolean);
+    let checks;
+    try { checks = selectChecks(this.config.checks, changed); } catch(e) { throw new StepError('environment', (e as Error).message); }
     const records = [];
-    for (const [i, check] of this.config.checks.entries()) {
+    for (const check of checks) {
+      const i = this.config.checks.indexOf(check);
       const cwd = await inside(workspace, check.cwd);
       const log = join(this.home, 'attempts', claim.attempt.id, `check-${i}.log`);
       let result;

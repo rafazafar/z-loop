@@ -12,6 +12,7 @@ import { atomic } from './files.ts';
 import { execute } from './process.ts';
 import { backupState } from './backup.ts';
 import { discoverChecks } from './initialize.ts';
+import { needsSetup, startOnboarding } from './onboarding.ts';
 
 const args = process.argv.slice(2);
 function option(name: string): string | undefined { const i = args.indexOf(name); if (i < 0) return; if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error(`Missing value for ${name}`); return args[i + 1]; }
@@ -21,7 +22,7 @@ const print = (x: unknown) => console.log(typeof x === 'string' ? x : JSON.strin
 async function readJson(file: string | undefined) { if (!file) throw new Error('Use --file with a JSON file'); return JSON.parse(await readFile(resolve(file), 'utf8')); }
 async function main() {
   if (action === 'help' || args.includes('--help')) {
-    print(`z-loop — durable repository automation\n\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH]\nstatus | doctor | console\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See README.md and examples/.`); return;
+    print(`z-loop — durable repository automation\n\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH] [--port PORT] [--no-open]\nstatus | doctor | console\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See README.md and examples/.`); return;
   }
   if (action === 'init') {
     try { await access(join(home, 'config.json')); throw new Error('State directory is already initialized'); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
@@ -35,6 +36,16 @@ async function main() {
     await atomic(join(home, 'token'), randomBytes(32).toString('hex'));
     const store = new Store(join(home, 'state.db'), c); store.close();
     print(`Initialized ${home}\nRepository: ${c.repository}\n${c.checks.length ? `Detected ${c.checks.length} checks from the repository.` : 'No checks detected. Configure mandatory checks before code work.'}\nConfig: ${join(home, 'config.json')}\nStart: z-loop serve --home ${home}`); return;
+  }
+  if (action === 'serve' && needsSetup(home)) {
+    const setup=await startOnboarding(home,Number(option('--port') || 4188));
+    const url=`http://127.0.0.1:${setup.port}`;
+    print(`First-run setup: ${url}\n${args.includes('--no-open')?'Open this address to use the three-step guide.':'Your browser will open a three-step guide.'}\nIf needed, use the access token in ${join(home,'setup-token')}.`);
+    if (!args.includes('--no-open')) {
+      const child=spawn(process.platform==='darwin'?'open':process.platform==='win32'?'explorer':'xdg-open',[`${url}/#token=${setup.token}`],{stdio:'ignore'});
+      child.on('error',()=>print(`Open ${url} to complete setup.`));child.unref();
+    }
+    await setup.finished;
   }
   const config = loadConfig(home);
   if (action === 'doctor') {

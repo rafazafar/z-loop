@@ -1,6 +1,6 @@
 import { saveConfiguration } from './settings.ts';
 import { Store } from './store.ts';
-import { defineAutomation } from './automations.ts';
+import { defineAutomation, deleteAutomation } from './automations.ts';
 
 export function command(store: Store, input: any): unknown {
   if (!input || typeof input.type !== 'string') throw new Error('Command type is required');
@@ -20,6 +20,7 @@ export function command(store: Store, input: any): unknown {
     case 'controller.resume': store.setPaused(false); return { paused: false };
     case 'decision.answer': store.answer(input.id, input.answer); return { answered: true };
     case 'automation.save': return { id: defineAutomation(store, input.automation) };
+    case 'automation.delete': return { deleted: deleteAutomation(store, input.id) };
     case 'automation.enable': {
       if (typeof input.enabled !== 'boolean') throw new Error('enabled must be boolean');
       return store.tx(() => {

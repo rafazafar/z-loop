@@ -246,7 +246,7 @@ export class Store {
   defer(claim: Claim, kind: string, reason: string, delayMs: number) {
     return this.tx(() => {
       if (!this.current(claim.attempt.id, claim.attempt.owner)) return false;
-      this.exec("UPDATE attempts SET status='succeeded',ended_at=?,result_json=? WHERE id=?", this.now(), JSON.stringify({ waiting: kind, reason }), claim.attempt.id);
+      this.exec("UPDATE attempts SET status=?,ended_at=?,result_json=? WHERE id=?", kind === 'restart' ? 'cancelled' : 'succeeded', this.now(), JSON.stringify({ waiting: kind, reason }), claim.attempt.id);
       this.exec('DELETE FROM resources WHERE attempt_id=?', claim.attempt.id);
       this.exec("UPDATE steps SET state='waiting',wait_kind=?,error=?,next_at=? WHERE id=?", kind, reason, this.now() + delayMs, claim.step.id);
       this.event('step.waiting', claim.step.id, { kind, reason, nextAt: this.now() + delayMs }); return true;

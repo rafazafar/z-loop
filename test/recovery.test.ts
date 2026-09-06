@@ -110,3 +110,22 @@ test('the independent process supervisor stops work when its controller is absen
     assert.notEqual(result.code,0);assert.ok(result.elapsedMs<2500);
   }finally{await f.close();}
 });
+
+test('graceful shutdown saves edited work without marking the interrupted attempt successful',async()=>{
+ const f=await fixture();
+ try{
+  f.config.worker={kind:'command',command:[process.execPath,'-e',"require('node:fs').writeFileSync('answer.mjs','export const answer = 42;\\n');setTimeout(()=>{},10000)"]};
+  const item=f.store.createWork(work());await f.controller.start();
+  await until(async()=>{
+   const a=f.store.one("SELECT id FROM attempts WHERE status='running'");if(!a)return false;
+   try{return (await readFile(join(f.home,'workspaces',a.id,'answer.mjs'),'utf8')).includes('42');}catch{return false;}
+  });
+  await f.controller.stop();
+  const checkpoint=JSON.parse(await readFile(join(f.home,'checkpoints',`${item.runId}.json`),'utf8'));
+  const saved=await execute(['git','show',`${checkpoint.head}:answer.mjs`],{cwd:checkpoint.workspace});
+  assert.match(saved.stdout,/42/);
+  assert.equal(f.store.one('SELECT status FROM attempts')!.status,'cancelled');
+  assert.equal(f.store.one('SELECT state FROM steps')!.state,'waiting');
+  assert.match(await readFile(join(f.repo,'answer.mjs'),'utf8'),/= 0/);
+ }finally{await f.close();}
+});

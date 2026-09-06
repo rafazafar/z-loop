@@ -1,0 +1,124 @@
+{
+  "model": "10router/combo-coding",
+  "variant": "default (not supplied)",
+  "results": [
+    {
+      "workflow": "code",
+      "status": "succeeded",
+      "repairRounds": 0,
+      "steps": [
+        {
+          "kind": "implement",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "verify",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "review",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "publish",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "integrate",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "observe",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        }
+      ]
+    },
+    {
+      "workflow": "plan",
+      "status": "succeeded",
+      "repairRounds": 0,
+      "steps": [
+        {
+          "kind": "plan",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "check_plan",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        },
+        {
+          "kind": "apply_plan",
+          "state": "succeeded",
+          "attempt_count": 1,
+          "failure_class": null
+        }
+      ]
+    }
+  ],
+  "stateDirectory": "/Users/zafar/dev/z-loop-v2/.loop/live-1788642692708/state",
+  "attempts": [
+    {
+      "status": "succeeded",
+      "started_at": 1788642692898,
+      "ended_at": 1788642709622
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642709917,
+      "ended_at": 1788642710262
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642710918,
+      "ended_at": 1788642722144
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642722930,
+      "ended_at": 1788642722942
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642723931,
+      "ended_at": 1788642724211
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642724930,
+      "ended_at": 1788642725007
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642725933,
+      "ended_at": 1788642738894
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642738943,
+      "ended_at": 1788642761004
+    },
+    {
+      "status": "succeeded",
+      "started_at": 1788642761965,
+      "ended_at": 1788642761978
+    }
+  ],
+  "harnessVersion": "1.18.25",
+  "independentAcceptance": "passed; check.mjs unchanged"
+}

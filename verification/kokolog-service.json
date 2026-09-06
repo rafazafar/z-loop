@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-09-05T21:49:32.562Z",
+  "health": {
+    "healthy": true,
+    "running": 1
+  },
+  "paused": false,
+  "repository": "/Users/zafar/dev/kokolog-monitor",
+  "worker": {
+    "kind": "opencode",
+    "model": "10router/combo-coding",
+    "timeoutMs": 300000
+  },
+  "variant": "default (not supplied)",
+  "checks": 35,
+  "configRevision": 3,
+  "limits": {
+    "concurrency": 1,
+    "leaseMs": 30000,
+    "attemptMs": 1200000,
+    "retryBaseMs": 30000,
+    "maxAttempts": 3,
+    "maxRepairs": 3,
+    "dailyAttempts": 24,
+    "maxOutputBytes": 8000000
+  },
+  "automations": [
+    {
+      "name": "Repository maintenance watch",
+      "enabled": true,
+      "intervalMs": 60000,
+      "watchHead": true,
+      "lastError": null
+    }
+  ],
+  "work": [
+    {
+      "id": "f0a6a93e-1d43-4c2e-875f-dfb34f48b0e6",
+      "title": "Inspect kokolog-monitor for actionable maintenance",
+      "status": "active",
+      "step": "plan",
+      "state": "queued"
+    },
+    {
+      "id": "09b0616e-813a-4b92-85cd-07a3d535bd02",
+      "title": "Correct the lab relay startup instruction",
+      "status": "active",
+      "step": "implement",
+      "state": "running"
+    },
+    {
+      "id": "a97c83f4-d426-4293-b27c-85cd8034f8ea",
+      "title": "Restore explicit SDK CI gate identifiers",
+      "status": "active",
+      "step": "review",
+      "state": "retry_scheduled"
+    }
+  ],
+  "runtimeError": null
+}

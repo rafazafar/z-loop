@@ -44,6 +44,8 @@ Only request essential external facts, authority, or physical actions that autom
 Mocks and simulation must be identified as such. Never claim physical evidence from a simulation.
 The implement role may change the checkout. Other roles must only inspect it and write their result.
 Return a JSON object to the outputFile in the request. A normal final message is not a result.
+The outputFile is writable with the write tool in every role. This result file is the only edit exception for read-only roles.
+Do not use the question tool. Return a typed needs_external result for the resolver when essential external input is missing.
 Use version:1 and summary. implement: outcome complete or needs_external.
 review/check_plan: outcome pass with advisories:[], or repair with findings:[concrete blockers].
 plan: outcome plan with proposals:[{key,title,specification,acceptance:[...],dependsOn:[]}]. Maximum eight coherent proposals.
@@ -52,6 +54,10 @@ Only confirm needs_external when no valid default exists. Include need:{category
 Reviews must prove acceptance and examine the supplied diff and check evidence. Restrict repair findings to demonstrated blocking defects.
 Read-only reviews cannot execute new commands to obtain a pass; identify missing mandatory evidence.
 If a prior attempt stopped, preserve correct work and finish the missing part. Always write the result.`;
+
+export function workerPermissions(kind: string, outputFile: string) {
+  return { edit: kind === 'implement' ? 'allow' : { '*': 'deny', '.git/z-loop/result.json': 'allow', [outputFile]: 'allow' }, question: 'deny', task: 'deny', external_directory: 'deny', bash: { '*': 'allow', 'git push*': 'deny', 'gh *': 'deny' } };
+}
 
 export async function runAgent(config: Config, claim: Claim, workspace: string, attemptDir: string, evidence: unknown, signal: AbortSignal): Promise<AgentResult> {
   const privateDir = join(workspace, '.git', 'z-loop');
@@ -73,9 +79,9 @@ export async function runAgent(config: Config, claim: Claim, workspace: string, 
     if (config.worker.model) argv.push('--model', config.worker.model);
     if (config.worker.variant) argv.push('--variant', config.worker.variant);
     argv.push('--', 'Execute the attached versioned worker request. Write the required result JSON. Finish all authorized steps without a permission question.');
-    Object.assign(env, { OPENCODE_PERMISSION: JSON.stringify({ edit: claim.step.kind === 'implement' ? 'allow' : 'deny', task: 'deny', external_directory: 'deny', bash: { '*': 'allow', 'git push*': 'deny', 'gh *': 'deny' } }) });
+    Object.assign(env, { OPENCODE_PERMISSION: JSON.stringify(workerPermissions(claim.step.kind, outputFile)) });
   }
-  const result = await execute(argv, { cwd: workspace, signal, timeoutMs: config.limits.attemptMs, maxBytes: config.limits.maxOutputBytes, log: join(attemptDir, 'worker.log'), env });
+  const result = await execute(argv, { cwd: workspace, signal, timeoutMs: Math.min(config.worker.timeoutMs ?? config.limits.attemptMs, config.limits.attemptMs), maxBytes: config.limits.maxOutputBytes, log: join(attemptDir, 'worker.log'), env });
   if (result.code !== 0) {
     const provider = /429|rate.?limit|quota|overloaded|503/i.test(result.stderr);
     throw new StepError(provider ? 'provider' : 'transient', `Worker exited ${result.code}: ${redact(result.stderr.slice(-1000))}`, { log: join(attemptDir, 'worker.log') });

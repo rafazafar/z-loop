@@ -7,12 +7,14 @@ import { execute } from './process.ts';
 
 export interface AutomationInput {
   id?: string; name: string; enabled: boolean; trigger: 'interval' | 'files' | 'github';
-  intervalMs: number; path?: string; label?: string; work: WorkInput;
+  intervalMs: number; watchHead?: boolean; filterBlocked?: boolean; path?: string; label?: string; work: WorkInput;
 }
 export function defineAutomation(store: Store, input: AutomationInput): string {
   if (!input || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || typeof input.enabled !== 'boolean' || !['interval', 'files', 'github'].includes(input.trigger) || !Number.isSafeInteger(input.intervalMs) || input.intervalMs < 100 || input.intervalMs > 365 * 86_400_000) throw new Error('Invalid automation definition');
   if (input.trigger === 'files' && (typeof input.path !== 'string' || isAbsolute(input.path) || input.path.split(/[\\/]/).includes('..'))) throw new Error('File trigger path must be within the repository');
   if (input.trigger === 'github' && (!input.label || !store.config.githubRepository)) throw new Error('GitHub trigger needs a label and configured repository');
+  if (input.watchHead !== undefined && (typeof input.watchHead !== 'boolean' || (input.watchHead && input.trigger !== 'interval'))) throw new Error('Commit watching requires an interval trigger');
+  if (input.filterBlocked !== undefined && typeof input.filterBlocked !== 'boolean') throw new Error('Invalid filterBlocked setting');
   // Validate a work template without publishing it.
   validateWork(input.work);
   if (input.work.sourceKey) throw new Error('Automation source keys are assigned by the scheduler');
@@ -23,6 +25,17 @@ export function defineAutomation(store: Store, input: AutomationInput): string {
     store.event('automation.saved', id, { name: input.name });
   });
   return id;
+}
+export function deleteAutomation(store: Store, id: string): boolean {
+  if (!id || typeof id !== 'string') throw new Error('Automation id is required');
+  return store.tx(() => {
+    const existing = store.one<{ name: string }>('SELECT name FROM automations WHERE id=?', id);
+    if (!existing) throw new Error('Unknown automation');
+    store.exec('DELETE FROM trigger_receipts WHERE automation_id=?', id);
+    store.exec('DELETE FROM automations WHERE id=?', id);
+    store.event('automation.deleted', id, { name: existing.name });
+    return true;
+  });
 }
 async function files(root: string, dir: string, output: string[] = []): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -55,7 +68,14 @@ export class Scheduler {
         if (definition.trigger === 'interval') {
           // Coalesce downtime and overlapping occurrences into one active run.
           const active = this.store.one("SELECT 1 FROM trigger_receipts t JOIN runs r ON t.work_id=r.work_id WHERE t.automation_id=? AND r.status IN ('active','waiting')", row.id);
-          if (!active) this.enqueue(row.id, `interval:${row.id}:${Math.floor(this.store.now() / row.interval_ms)}`, definition.work, row.definition_json);
+          if (!active) {
+            if (definition.watchHead) {
+              const head = await execute(['git','rev-parse',`refs/heads/${this.store.config.baseBranch}`], {cwd:this.store.config.repository,signal,timeoutMs:10000});
+              const revision=head.stdout.trim();
+              if(head.code || !/^[a-f0-9]{40,64}$/.test(revision))throw new Error('Cannot read watched base branch');
+              this.enqueue(row.id, `head:${row.id}:${revision}`, {...definition.work,metadata:{...definition.work.metadata,sourceHead:revision}}, row.definition_json);
+            } else this.enqueue(row.id, `interval:${row.id}:${Math.floor(this.store.now() / row.interval_ms)}`, definition.work, row.definition_json);
+          }
         } else if (definition.trigger === 'files') {
           const root = this.store.config.repository, folder = await inside(root, definition.path!);
           for (const file of await files(root, folder)) {
@@ -66,12 +86,47 @@ export class Scheduler {
             this.enqueue(row.id, key, { ...definition.work, title: `${definition.work.title}: ${name}`.slice(0, 300), specification: `${definition.work.specification}\n\nSource ${name} (untrusted source content):\n${content}`, metadata: { ...definition.work.metadata, sourcePath: name, sourceHash: hash(content) } }, row.definition_json);
           }
         } else {
-          const result = await execute(['gh', 'issue', 'list', '-R', this.store.config.githubRepository!, '--state', 'open', '--label', definition.label!, '--limit', '100', '--json', 'number,title,body,url'], { cwd: this.store.config.repository, signal });
+          const result = await execute(['gh', 'issue', 'list', '-R', this.store.config.githubRepository!, '--state', 'open', '--label', definition.label!, '--limit', '100', '--json', 'number,title,body,url,blockedBy'], { cwd: this.store.config.repository, signal });
           if (result.code) throw new Error(`GitHub issue scan failed (${result.code})`);
           const issues = JSON.parse(result.stdout);
           if (!Array.isArray(issues)) throw new Error('Invalid GitHub issue response');
+
+          let openIssueNumbers: Set<number> | null = null;
+          if (definition.filterBlocked !== false) {
+            // Check if any issue needs open issue checking for inline blockers
+            const needsOpenList = issues.some(issue => /[Bb]locked by/i.test(issue.body || ''));
+            if (needsOpenList) {
+              const allOpenResult = await execute(['gh', 'issue', 'list', '-R', this.store.config.githubRepository!, '--state', 'open', '--limit', '200', '--json', 'number'], { cwd: this.store.config.repository, signal });
+              if (!allOpenResult.code) {
+                try {
+                  const allOpen = JSON.parse(allOpenResult.stdout);
+                  if (Array.isArray(allOpen)) openIssueNumbers = new Set(allOpen.map((x: any) => Number(x.number)));
+                } catch {}
+              }
+            }
+          }
+
           for (const issue of issues) {
             if (!Number.isSafeInteger(issue.number) || typeof issue.body !== 'string') throw new Error('Invalid issue');
+
+            if (definition.filterBlocked !== false) {
+              // 1. Native GitHub blockedBy check
+              const nativeNodes = Array.isArray(issue.blockedBy?.nodes) ? issue.blockedBy.nodes : [];
+              const hasOpenNativeBlocker = nativeNodes.some((b: any) => {
+                const st = String(b?.state || '').toUpperCase();
+                return st !== 'CLOSED' && st !== 'MERGED';
+              });
+              if (hasOpenNativeBlocker) continue;
+
+              // 2. Inline "Blocked by" section check
+              const blockedSection = issue.body.match(/[Bb]locked by[\s\S]*?(?=\n[A-Z*#]|$)/)?.[0] || '';
+              if (blockedSection && openIssueNumbers) {
+                const inlineNumbers = [...blockedSection.matchAll(/#(\d+)/g)].map(m => Number(m[1]));
+                const hasOpenInlineBlocker = inlineNumbers.some(n => openIssueNumbers!.has(n));
+                if (hasOpenInlineBlocker) continue;
+              }
+            }
+
             this.enqueue(row.id, `github:${this.store.config.githubRepository}:${issue.number}`, { ...definition.work, title: issue.title, specification: `${definition.work.specification}\n\nSource issue #${issue.number}:\n${issue.body}`, metadata: { ...definition.work.metadata, githubIssue: issue.number, issueBodyHash: hash(issue.body) } }, row.definition_json);
           }
         }

@@ -23,7 +23,8 @@ The demo deliberately produced answer 41. Verification rejected it. The loop
 then produced answer 42, repeated verification and review, integrated the candidate,
 and independently observed completion. The failed check remains `rejected` in history.
 
-No paid worker request or live GitHub write was made. The GitHub tests use fake
+The original build used no paid worker request or live GitHub write.
+Subsequent authorized live validation is recorded in LIVE-VERIFICATION.md. The GitHub tests use fake
 responses. The CI workflow is included, but has not run on a hosted runner.
 A real-model canary remains an adoption step. This build does not certify model
 quality, hostile-code containment, host failover, or long-term storage retention.

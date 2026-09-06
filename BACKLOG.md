@@ -7,4 +7,4 @@ These are local issues. They do not gate a repository workflow.
 - **UI-01 — Large history.** Add server pagination and search across all historical work and events. The console shows the latest 200 work items and 100 events. Full run history is available per work ID.
 - **ADAPTER-01 — GitHub issue lifecycle.** Add qualified dependency import, specification revisions, and publication of local refinement issues. Current source imports are immutable snapshots.
 - **ADAPTER-02 — Provider routes.** Add measured fallback routes and token-cost accounting. Current controls bound model attempts and provider retries.
-- **VALIDATION-01 — Real worker canary.** Run a bounded task in a disposable repository with the intended model and credentials. Record request, result, cost, and independent acceptance evidence before continuous client use.
+- **VALIDATION-01 — Complete.** OpenCode 1.18.25 with `10router/combo-coding` and no variant override passed live code and planning workflows. See LIVE-VERIFICATION.md. Remote GitHub integration still needs a separate live canary.

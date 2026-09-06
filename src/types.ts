@@ -2,14 +2,14 @@ export type Workflow = 'code' | 'plan';
 export type StepKind = 'implement' | 'verify' | 'review' | 'publish' | 'integrate' | 'observe' | 'plan' | 'check_plan' | 'apply_plan' | 'resolve';
 export type StepState = 'queued' | 'running' | 'waiting' | 'retry_scheduled' | 'succeeded' | 'rejected' | 'failed' | 'cancelled';
 export type FailureClass = 'transient' | 'provider' | 'contract' | 'verification' | 'review' | 'revision' | 'environment' | 'external' | 'cancelled';
-export interface Check { name: string; command: string[]; cwd: string; timeoutMs: number }
+export interface Check { paths?: string[]; setup?: boolean; name: string; command: string[]; cwd: string; timeoutMs: number }
 export interface Config {
   version: 1;
   repository: string;
   baseBranch: string;
   integration: 'local' | 'github';
   githubRepository?: string;
-  worker: { kind: 'opencode' | 'command'; command?: string[]; model?: string; variant?: string };
+  worker: { timeoutMs?: number; kind: 'opencode' | 'command'; command?: string[]; model?: string; variant?: string };
   checks: Check[];
   limits: { concurrency: number; leaseMs: number; attemptMs: number; retryBaseMs: number; maxAttempts: number; maxRepairs: number; dailyAttempts: number; maxOutputBytes: number };
   server: { host: '127.0.0.1'; port: number };

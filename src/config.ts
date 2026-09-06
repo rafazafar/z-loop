@@ -19,11 +19,14 @@ export function validateConfig(value: unknown): Config {
   if (!['local', 'github'].includes(c.integration)) throw new Error('Invalid integration mode');
   if (c.integration === 'github' && !/^[\w.-]+\/[\w.-]+$/.test(c.githubRepository ?? '')) throw new Error('GitHub mode needs owner/repository');
   if (!c.worker || !['opencode', 'command'].includes(c.worker.kind)) throw new Error('Invalid worker');
+  if (c.worker.timeoutMs !== undefined && (!Number.isSafeInteger(c.worker.timeoutMs) || c.worker.timeoutMs < 1000 || c.worker.timeoutMs > 86400000)) throw new Error('Invalid worker timeout');
   if (c.worker.kind === 'command' && !validCommand(c.worker.command)) throw new Error('Worker command must be an argv array');
   if (!Array.isArray(c.checks)) throw new Error('checks must be an array');
   const names = new Set();
   for (const check of c.checks) {
     if (!check.name || names.has(check.name) || !validCommand(check.command) || typeof check.cwd !== 'string' || isAbsolute(check.cwd) || check.cwd.split(/[\\/]/).includes('..') || !Number.isSafeInteger(check.timeoutMs) || check.timeoutMs < 1) throw new Error('Invalid or duplicate check');
+    if (check.setup !== undefined && typeof check.setup !== 'boolean') throw new Error('Invalid check setup flag');
+    if (check.paths !== undefined && (!Array.isArray(check.paths) || check.paths.some(p => typeof p !== 'string' || !p || isAbsolute(p) || p.split('/').includes('..') || p.includes('\\')))) throw new Error('Invalid check paths');
     names.add(check.name);
   }
   for (const [key, min, max] of [

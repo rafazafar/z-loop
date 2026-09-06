@@ -57,3 +57,30 @@ test('missing checks fail closed instead of certifying an untested change',async
     assert.equal(f.store.all('SELECT * FROM operations').length,0);
   }finally{await f.close();}
 });
+
+test('path-scoped verification runs setup and matching checks, with immutable evidence',async()=>{
+  const f=await fixture();
+  try{
+    f.config.checks[0].paths=['answer.mjs'];
+    f.config.checks.unshift({name:'setup',setup:true,command:[process.execPath,'-e','process.exit(0)'],cwd:'.',timeoutMs:5000});
+    f.config.checks.push({name:'unrelated',paths:['unrelated/**'],command:[process.execPath,'-e','process.exit(1)'],cwd:'.',timeoutMs:5000});
+    const item=f.store.createWork(work());await f.controller.start();
+    await until(()=>f.store.one('SELECT status FROM runs WHERE id=?',item.runId)!.status==='succeeded');
+    const artifact=f.store.one("SELECT * FROM artifacts WHERE kind='verification'")!;
+    const {readFile}=await import('node:fs/promises');const {join}=await import('node:path');
+    const proof=JSON.parse(await readFile(join(f.home,artifact.path),'utf8'));
+    assert.deepEqual(proof.records.map((r:any)=>r.name),['setup','answer']);
+  }finally{await f.close();}
+});
+
+test('a worker timeout is independent of the longer verification deadline',async()=>{
+ const f=await fixture();
+ try{
+  f.config.worker={kind:'command',command:[process.execPath,'-e','setTimeout(()=>{},10000)'],timeoutMs:1000};
+  f.store.createWork(work());f.store.acquireController('test');const claim=f.store.claim('test')!;
+  const {runAgent}=await import('../src/agent.ts');const {mkdir}=await import('node:fs/promises');const {join}=await import('node:path');
+  const dir=join(f.home,'attempts',claim.attempt.id);await mkdir(dir,{recursive:true});
+  const started=Date.now();await assert.rejects(runAgent(f.config,claim,f.repo,dir,{},new AbortController().signal),/Process stopped: timeout/);
+  assert.ok(Date.now()-started<5000);
+ }finally{await f.close();}
+});

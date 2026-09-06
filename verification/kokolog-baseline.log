@@ -1,0 +1,70 @@
+(node:30747) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Baseline: /Users/zafar/dev/z-loop-v2/.loop/kokolog-monitor/baseline-1788643591121
+START flutter-dependencies
+EXIT 0 flutter-dependencies
+START apps/hrm_soak_tester:analyze
+EXIT 0 apps/hrm_soak_tester:analyze
+START apps/hrm_soak_tester:test
+EXIT 0 apps/hrm_soak_tester:test
+START apps/local_platform:analyze
+EXIT 0 apps/local_platform:analyze
+START apps/local_platform:test
+EXIT 0 apps/local_platform:test
+START apps/graph_ui_demo:analyze
+EXIT 0 apps/graph_ui_demo:analyze
+START apps/graph_ui_demo:test
+EXIT 0 apps/graph_ui_demo:test
+START apps/mobile_monitor:analyze
+EXIT 0 apps/mobile_monitor:analyze
+START apps/mobile_monitor:test
+EXIT 0 apps/mobile_monitor:test
+START apps/mobile_viewer:analyze
+EXIT 0 apps/mobile_viewer:analyze
+START apps/mobile_viewer:test
+EXIT 0 apps/mobile_viewer:test
+START apps/central_admin:analyze
+EXIT 0 apps/central_admin:analyze
+START apps/central_admin:test
+EXIT 0 apps/central_admin:test
+START packages/dart/hrm_protocol:analyze
+EXIT 0 packages/dart/hrm_protocol:analyze
+START packages/dart/hrm_protocol:test
+EXIT 0 packages/dart/hrm_protocol:test
+START packages/dart/hrm_observability:analyze
+EXIT 0 packages/dart/hrm_observability:analyze
+START packages/dart/hrm_observability:test
+EXIT 0 packages/dart/hrm_observability:test
+START packages/flutter/hrm_app_transforms:analyze
+EXIT 0 packages/flutter/hrm_app_transforms:analyze
+START packages/flutter/hrm_app_transforms:test
+EXIT 0 packages/flutter/hrm_app_transforms:test
+START packages/flutter/hrm_graphs:analyze
+EXIT 0 packages/flutter/hrm_graphs:analyze
+START packages/flutter/hrm_graphs:test
+EXIT 0 packages/flutter/hrm_graphs:test
+START packages/flutter/hrm_runtime:analyze
+EXIT 0 packages/flutter/hrm_runtime:analyze
+START packages/flutter/hrm_runtime:test
+EXIT 0 packages/flutter/hrm_runtime:test
+START packages/flutter/hrm_sdk:analyze
+EXIT 0 packages/flutter/hrm_sdk:analyze
+START packages/flutter/hrm_sdk:test
+EXIT 1 packages/flutter/hrm_sdk:test
+START packages/flutter/hrm_sdk/example:analyze
+EXIT 0 packages/flutter/hrm_sdk/example:analyze
+START packages/flutter/hrm_sdk/example:test
+EXIT 0 packages/flutter/hrm_sdk/example:test
+START tools/nrf_macro_generator:analyze
+EXIT 0 tools/nrf_macro_generator:analyze
+START tools/nrf_macro_generator:test
+EXIT 0 tools/nrf_macro_generator:test
+START node-dependencies
+EXIT 0 node-dependencies
+START lab-tests
+EXIT 1 lab-tests
+START tooling-tests
+EXIT 0 tooling-tests
+START release-docs
+EXIT 0 release-docs
+31/33 checks passed
