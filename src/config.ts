@@ -67,3 +67,23 @@ export function loadConnection(home: string, config: Config, managerHome: string
   }
   return {base:`http://127.0.0.1:${config.server.port}`,token:readFileSync(resolve(home,'token'),'utf8').trim()};
 }
+
+// Open the manager dashboard even when the manager runs as a service with --no-open.
+export function loadManagerConnection(managerHome: string) {
+  let port=4188;
+  const file=resolve(managerHome,'manager.db');
+  if(existsSync(file)) {
+    const db=new DatabaseSync(file,{readOnly:true});
+    try {
+      if(db.prepare("SELECT 1 FROM sqlite_master WHERE name='endpoint'").get()) {
+        const endpoint=db.prepare('SELECT port FROM endpoint WHERE id=1').get();
+        if(endpoint && Number.isInteger(endpoint.port) && Number(endpoint.port)>0 && Number(endpoint.port)<=65535) port=Number(endpoint.port);
+      }
+    } finally {db.close();}
+  }
+  const tokenPath=resolve(managerHome,'token');
+  let token:string;
+  try { token=readFileSync(tokenPath,'utf8').trim(); }
+  catch { throw new Error(`No manager token at ${tokenPath}. Start the manager first.`); }
+  return {base:`http://127.0.0.1:${port}`,token};
+}

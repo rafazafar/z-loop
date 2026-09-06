@@ -11,7 +11,14 @@ The installed service targets `~/dev/kokolog-monitor`, branch `main`.
 Its state is in `~/dev/z-loop-v2/.loop/kokolog-monitor`.
 The dashboard is at http://127.0.0.1:4188/.
 
-Open the authenticated dashboard:
+Open the manager dashboard without typing the token:
+
+```sh
+cd ~/dev/z-loop-v2
+./bin/z-loop console --manager
+```
+
+Open an authenticated repository dashboard:
 
 ```sh
 cd ~/dev/z-loop-v2

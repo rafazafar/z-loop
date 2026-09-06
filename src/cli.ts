@@ -3,7 +3,7 @@ import { resolve, join, dirname } from 'node:path';
 import { mkdir, readFile, access, chmod } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { defaults, loadConfig, loadConnection, validateConfig } from './config.ts';
+import { defaults, loadConfig, loadConnection, loadManagerConnection, validateConfig } from './config.ts';
 import { Store } from './store.ts';
 import { Controller } from './controller.ts';
 import { RepositoryWorkflow } from './repository.ts';
@@ -24,7 +24,7 @@ const print = (x: unknown) => console.log(typeof x === 'string' ? x : JSON.strin
 async function readJson(file: string | undefined) { if (!file) throw new Error('Use --file with a JSON file'); return JSON.parse(await readFile(resolve(file), 'utf8')); }
 async function main() {
   if (action === 'help' || args.includes('--help')) {
-    print(`z-loop — durable repository automation\n\nmanage [--home PATH] [--port PORT] [--no-open]\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH] [--port PORT] [--no-open]\nstatus | doctor | console\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See examples/.`); return;
+    print(`z-loop — durable repository automation\n\nmanage [--home PATH] [--port PORT] [--no-open]\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH] [--port PORT] [--no-open]\nconsole [--manager]\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See examples/.`); return;
   }
   if (action === 'manage') {
     const managerHome=resolve(option('--home') || process.env.Z_LOOP_MANAGER_HOME || '.loop-manager');
@@ -42,6 +42,15 @@ async function main() {
     let stopping=false;
     const stop=async()=>{if(stopping)return;stopping=true;server.close();await manager.stop();};
     process.once('SIGINT',()=>void stop());process.once('SIGTERM',()=>void stop());return;
+  }
+  if (action === 'console' && args.includes('--manager')) {
+    const managerHome = resolve(option('--home') || process.env.Z_LOOP_MANAGER_HOME || '.loop-manager');
+    const { base, token } = loadManagerConnection(managerHome);
+    const url = `${base}/#token=${encodeURIComponent(token)}`;
+    const executable = process.platform === 'darwin' ? 'open' : 'xdg-open';
+    const child = spawn(executable, [url], { stdio: 'ignore' });
+    child.on('error', () => print(`Open ${base} and use the token stored in ${join(managerHome, 'token')}`));
+    child.unref(); return;
   }
   if (action === 'init') {
     try { await access(join(home, 'config.json')); throw new Error('State directory is already initialized'); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
