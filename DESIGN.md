@@ -79,3 +79,14 @@ browser receives only the manager token. The server resolves repository targets
 from its registry; it does not accept arbitrary destination URLs. Search reads
 use read-only SQLite connections. No schema migration or runtime restart is
 required to attach an existing session.
+
+## Single dashboard address
+
+The manager now defaults to port 4188. `npm start` starts the manager. Managed
+repository APIs bind operating-system-assigned loopback ports, so their saved
+server settings do not conflict with the public dashboard address.
+
+The manager records its public port in its own database. Repository CLI commands
+use a repository-scoped route through that address while the manager lease is
+active. A custom manager state path can be selected with `--manager-home` or
+`Z_LOOP_MANAGER_HOME` for repository commands.
