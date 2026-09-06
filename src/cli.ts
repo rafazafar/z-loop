@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { resolve, join, dirname } from 'node:path';
 import { mkdir, readFile, access, chmod } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { defaults, loadConfig, validateConfig } from './config.ts';
+import { defaults, loadConfig, loadConnection, validateConfig } from './config.ts';
 import { Store } from './store.ts';
 import { Controller } from './controller.ts';
 import { RepositoryWorkflow } from './repository.ts';
@@ -12,6 +12,8 @@ import { atomic } from './files.ts';
 import { execute } from './process.ts';
 import { backupState } from './backup.ts';
 import { discoverChecks } from './initialize.ts';
+import { Manager } from './manager.ts';
+import { serveManager } from './manager-server.ts';
 import { needsSetup, startOnboarding } from './onboarding.ts';
 
 const args = process.argv.slice(2);
@@ -22,7 +24,24 @@ const print = (x: unknown) => console.log(typeof x === 'string' ? x : JSON.strin
 async function readJson(file: string | undefined) { if (!file) throw new Error('Use --file with a JSON file'); return JSON.parse(await readFile(resolve(file), 'utf8')); }
 async function main() {
   if (action === 'help' || args.includes('--help')) {
-    print(`z-loop — durable repository automation\n\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH] [--port PORT] [--no-open]\nstatus | doctor | console\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See README.md and examples/.`); return;
+    print(`z-loop — durable repository automation\n\nmanage [--home PATH] [--port PORT] [--no-open]\ninit --repo PATH [--config JSON] [--home PATH]\nserve [--home PATH] [--port PORT] [--no-open]\nstatus | doctor | console\nadd --file work.json\nautomation --file automation.json\ncommand --file command.json\npause | resume\ncancel --run ID\nretry --work ID\nanswer --decision ID --text TEXT\nbackup\n\nAll commands accept --home PATH. Mutating commands use the running service.\ninit, doctor, and backup can run offline. The default state directory is .loop.\nA code workflow requires configured checks. See examples/.`); return;
+  }
+  if (action === 'manage') {
+    const managerHome=resolve(option('--home') || process.env.Z_LOOP_MANAGER_HOME || '.loop-manager');
+    const port=Number(option('--port') || 4188);
+    if(!Number.isInteger(port)||port<0||port>65535)throw new Error('Invalid manager port');
+    const manager=new Manager(managerHome);await manager.start();
+    let server;
+    try {server=await serveManager(manager,port);}catch(e){await manager.stop();throw e;}
+    const address=server.address() as {port:number},base=`http://127.0.0.1:${address.port}`;
+    print(`Repository manager: ${base}\nAccess token: ${join(managerHome,'token')}\nExisting repository services remain independent.`);
+    if(!args.includes('--no-open')) {
+      const child=spawn(process.platform==='darwin'?'open':'xdg-open',[`${base}/#token=${manager.token}`],{stdio:'ignore'});
+      child.on('error',()=>print(`Open ${base} and enter the manager token.`));child.unref();
+    }
+    let stopping=false;
+    const stop=async()=>{if(stopping)return;stopping=true;server.close();await manager.stop();};
+    process.once('SIGINT',()=>void stop());process.once('SIGTERM',()=>void stop());return;
   }
   if (action === 'init') {
     try { await access(join(home, 'config.json')); throw new Error('State directory is already initialized'); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
@@ -63,12 +82,13 @@ async function main() {
     const store = new Store(join(home, 'state.db'), config);
     try { print(await backupState(store, home)); } finally { store.close(); } return;
   }
-  const token = (await readFile(join(home, 'token'), 'utf8')).trim();
+  const connection=loadConnection(home,config,resolve(option('--manager-home')||process.env.Z_LOOP_MANAGER_HOME||'.loop-manager'));
+  const {base,token}=connection;
   if (action === 'serve') {
     const store = new Store(join(home, 'state.db'), config);
     const controller = new Controller(store, home, new RepositoryWorkflow(home, config, store));
     let server;
-    try { server = await serve(store, controller, home, token); await controller.start(); }
+    try { server = await serve(store, controller, home, (await readFile(join(home,'token'),'utf8')).trim()); await controller.start(); }
     catch (e) { server?.close(); await controller.stop(); store.close(); throw e; }
     const address = server.address();
     print(`z-loop is running at http://127.0.0.1:${typeof address === 'object' ? address?.port : config.server.port}\nOpen the authenticated console with: z-loop console --home ${home}`);
@@ -79,7 +99,6 @@ async function main() {
     };
     process.once('SIGINT', () => void stop()); process.once('SIGTERM', () => void stop()); return;
   }
-  const base = `http://127.0.0.1:${config.server.port}`;
   if (action === 'console') {
     const url = `${base}/#token=${encodeURIComponent(token)}`;
     const executable = process.platform === 'darwin' ? 'open' : 'xdg-open';
@@ -98,6 +117,7 @@ async function main() {
     case 'answer': body = { type: 'decision.answer', id: option('--decision'), answer: option('--text') }; break;
     default: throw new Error('Unknown command. Run z-loop help.');
   }
+  if(body)body={...(body as object),operationKey:option('--operation-key')||randomUUID()};
   const response = await fetch(`${base}/api/${action === 'status' ? 'state' : 'command'}`, { method: action === 'status' ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(10_000) });
   const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Command failed'); print(data);
 }

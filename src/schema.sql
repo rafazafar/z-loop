@@ -65,3 +65,5 @@ CREATE TABLE IF NOT EXISTS recoveries(
 CREATE INDEX IF NOT EXISTS due_steps ON steps(state,next_at);
 CREATE INDEX IF NOT EXISTS attempts_lease ON attempts(status,lease_until);
 CREATE INDEX IF NOT EXISTS recent_events ON events(at);
+
+CREATE TABLE IF NOT EXISTS command_receipts(key TEXT PRIMARY KEY, input_json TEXT NOT NULL, result_json TEXT NOT NULL);

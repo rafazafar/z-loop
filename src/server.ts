@@ -9,7 +9,7 @@ import type { Controller } from './controller.ts';
 import { command } from './commands.ts';
 import { inside, boundedRead, redact } from './files.ts';
 
-export async function serve(store: Store, controller: Controller, home: string, token: string): Promise<Server> {
+export async function serve(store: Store, controller: Controller, home: string, token: string, port = store.config.server.port): Promise<Server> {
   const server = createServer(async (req, res) => {
     const send = (status: number, body: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
     try {
@@ -29,7 +29,9 @@ export async function serve(store: Store, controller: Controller, home: string, 
       const supplied = (req.headers.authorization || '').replace(/^Bearer /, '');
       if (Buffer.byteLength(supplied) !== Buffer.byteLength(token) || !timingSafeEqual(Buffer.from(supplied), Buffer.from(token))) { send(401, { error: 'Authentication required. Run z-loop console or enter the local access token.' }); return; }
       if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) { send(403, { error: 'Cross-origin commands are disabled' }); return; }
-      if (url.pathname === '/api/state' && req.method === 'GET') { send(200, { ...store.snapshot(), configuration: configuration(store), runtime: { error: controller.lastError, version: '0.1.0' } }); return; }
+      if (url.pathname === '/api/state' && req.method === 'GET') { send(200, { ...store.snapshot(), configuration: configuration(store), runtime: { error: controller.lastError, version: '0.1.0', commandReceipts: true, history: true, backupReceipts: true } }); return; }
+      if (url.pathname === '/api/events' && req.method === 'GET') { send(200, store.eventHistory(url.searchParams.get('search') || '', Number(url.searchParams.get('offset') || 0))); return; }
+      if (url.pathname === '/api/history' && req.method === 'GET') { send(200, store.history(url.searchParams.get('search') || '', url.searchParams.get('status') || 'all', Number(url.searchParams.get('offset') || 0))); return; }
       if (url.pathname === '/api/work' && req.method === 'GET') { send(200, store.detail(url.searchParams.get('id') || '')); return; }
       if (url.pathname === '/api/system' && req.method === 'GET') {
         const disk = await statfs(home);
@@ -51,7 +53,7 @@ export async function serve(store: Store, controller: Controller, home: string, 
         for await (const chunk of req) { size += chunk.length; if (size > 200_000) { send(413, { error: 'Command too large' }); req.resume(); return; } body += chunk.toString(); }
         const input = JSON.parse(body);
         if (input.type === 'system.integrity') { send(200, { results: store.all('PRAGMA integrity_check') }); return; }
-        if (input.type === 'system.backup') { send(200, { path: await backupState(store, home) }); return; }
+        if (input.type === 'system.backup') { send(200, { path: await backupState(store, home, input.operationKey) }); return; }
         const result = command(store, input); send(200, result); return;
       }
       send(404, { error: 'Not found' });
@@ -59,6 +61,6 @@ export async function serve(store: Store, controller: Controller, home: string, 
   });
   server.requestTimeout = 30_000;
   server.headersTimeout = 10_000;
-  await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(store.config.server.port, store.config.server.host, () => { server.off('error', fail); done(); }); });
+  await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(port, store.config.server.host, () => { server.off('error', fail); done(); }); });
   return server;
 }

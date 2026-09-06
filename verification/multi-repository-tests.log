@@ -1,0 +1,404 @@
+
+> z-loop-v2@0.1.0 test
+> node --experimental-strip-types --test test/*.test.ts
+
+TAP version 13
+# (node:10415) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: interval scheduling deduplicates and coalesces overlapping runs
+ok 1 - interval scheduling deduplicates and coalesces overlapping runs
+  ---
+  duration_ms: 330.854834
+  type: 'test'
+  ...
+# Subtest: file scheduling binds work to content and ignores unchanged inputs
+ok 2 - file scheduling binds work to content and ignores unchanged inputs
+  ---
+  duration_ms: 267.902042
+  type: 'test'
+  ...
+# Subtest: file triggers reject paths outside the repository
+ok 3 - file triggers reject paths outside the repository
+  ---
+  duration_ms: 291.939208
+  type: 'test'
+  ...
+# Subtest: agent output rejects malformed verdicts, vague human gates, and cyclic plans
+ok 4 - agent output rejects malformed verdicts, vague human gates, and cyclic plans
+  ---
+  duration_ms: 0.602167
+  type: 'test'
+  ...
+# Subtest: commit watching scans without model work until the base revision changes
+ok 5 - commit watching scans without model work until the base revision changes
+  ---
+  duration_ms: 406.814208
+  type: 'test'
+  ...
+# Subtest: file-source forms can explicitly disable commit watching
+ok 6 - file-source forms can explicitly disable commit watching
+  ---
+  duration_ms: 223.500792
+  type: 'test'
+  ...
+# Subtest: automations can be deleted directly and through the command handler
+ok 7 - automations can be deleted directly and through the command handler
+  ---
+  duration_ms: 223.30775
+  type: 'test'
+  ...
+# Subtest: github issue trigger validates filterBlocked definition
+ok 8 - github issue trigger validates filterBlocked definition
+  ---
+  duration_ms: 230.626041
+  type: 'test'
+  ...
+# Subtest: read-only worker roles can write their result but cannot edit source or ask direct questions
+ok 9 - read-only worker roles can write their result but cannot edit source or ask direct questions
+  ---
+  duration_ms: 0.275542
+  type: 'test'
+  ...
+# Subtest: scoped checks retain setup and all checks for each changed path
+ok 10 - scoped checks retain setup and all checks for each changed path
+  ---
+  duration_ms: 9.449167
+  type: 'test'
+  ...
+# Subtest: setup alone and uncovered changed files fail closed
+ok 11 - setup alone and uncovered changed files fail closed
+  ---
+  duration_ms: 0.228208
+  type: 'test'
+  ...
+# (node:10417) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: publication reuses an existing PR after uncertain creation
+ok 12 - publication reuses an existing PR after uncertain creation
+  ---
+  duration_ms: 391.338292
+  type: 'test'
+  ...
+# Subtest: GitHub merge binds the reviewed SHA and never bypasses protections
+ok 13 - GitHub merge binds the reviewed SHA and never bypasses protections
+  ---
+  duration_ms: 307.120916
+  type: 'test'
+  ...
+# Subtest: an already merged PR is reconciled without another merge
+ok 14 - an already merged PR is reconciled without another merge
+  ---
+  duration_ms: 300.7555
+  type: 'test'
+  ...
+# Subtest: GitHub gate rejects pending
+ok 15 - GitHub gate rejects pending
+  ---
+  duration_ms: 304.373334
+  type: 'test'
+  ...
+# Subtest: GitHub gate rejects headChanged
+ok 16 - GitHub gate rejects headChanged
+  ---
+  duration_ms: 249.341166
+  type: 'test'
+  ...
+# Subtest: GitHub gate rejects baseChanged
+ok 17 - GitHub gate rejects baseChanged
+  ---
+  duration_ms: 268.772458
+  type: 'test'
+  ...
+# Subtest: GitHub gate rejects lookupFailure
+ok 18 - GitHub gate rejects lookupFailure
+  ---
+  duration_ms: 212.922792
+  type: 'test'
+  ...
+# (node:10418) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: manager attaches to an active session without replacing ownership, settings, or attempts
+ok 19 - manager attaches to an active session without replacing ownership, settings, or attempts
+  ---
+  duration_ms: 2150.545667
+  type: 'test'
+  ...
+# Subtest: shared limits allow two repositories, bound model work, and persist on restart
+ok 20 - shared limits allow two repositories, bound model work, and persist on restart
+  ---
+  duration_ms: 2658.566208
+  type: 'test'
+  ...
+# Subtest: complete history retains old open work and command receipts survive response loss
+ok 21 - complete history retains old open work and command receipts survive response loss
+  ---
+  duration_ms: 243.554041
+  type: 'test'
+  ...
+# Subtest: manager setup is authenticated, starts empty, deduplicates retries, and rejects duplicate repositories
+ok 22 - manager setup is authenticated, starts empty, deduplicates retries, and rejects duplicate repositories
+  ---
+  duration_ms: 475.747208
+  type: 'test'
+  ...
+# Subtest: a lost legacy response remains unknown and is not sent twice
+ok 23 - a lost legacy response remains unknown and is not sent twice
+  ---
+  duration_ms: 205.559916
+  type: 'test'
+  ...
+# Subtest: manager ownership excludes a second dispatcher and historical queries remain repository scoped
+ok 24 - manager ownership excludes a second dispatcher and historical queries remain repository scoped
+  ---
+  duration_ms: 418.215792
+  type: 'test'
+  ...
+# Subtest: a recovered lost attempt remains charged to the shared model budget
+ok 25 - a recovered lost attempt remains charged to the shared model budget
+  ---
+  duration_ms: 298.55625
+  type: 'test'
+  ...
+# Subtest: lost responses from receipt-capable runtimes reconcile to one write
+ok 26 - lost responses from receipt-capable runtimes reconcile to one write
+  ---
+  duration_ms: 197.831834
+  type: 'test'
+  ...
+# (node:10419) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: first-run setup inspects without execution, validates, and persists an empty workspace
+ok 27 - first-run setup inspects without execution, validates, and persists an empty workspace
+  ---
+  duration_ms: 761.016417
+  type: 'test'
+  ...
+# Subtest: unfinished setup can restart, and a repository without detected checks can use planning
+ok 28 - unfinished setup can restart, and a repository without detected checks can use planning
+  ---
+  duration_ms: 444.903875
+  type: 'test'
+  ...
+# (node:10420) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a saved receipt is adopted after controller loss without repeating the step
+ok 29 - a saved receipt is adopted after controller loss without repeating the step
+  ---
+  duration_ms: 386.884417
+  type: 'test'
+  ...
+# Subtest: missing and corrupt receipts become retries, never success
+ok 30 - missing and corrupt receipts become retries, never success
+  ---
+  duration_ms: 328.277458
+  type: 'test'
+  ...
+# Subtest: integration reconciles a lost response without another merge
+ok 31 - integration reconciles a lost response without another merge
+  ---
+  duration_ms: 3420.359417
+  type: 'test'
+  ...
+# Subtest: base drift returns to repair and repeats verification
+ok 32 - base drift returns to repair and repeats verification
+  ---
+  duration_ms: 4811.384625
+  type: 'test'
+  ...
+# Subtest: corrupt assurance evidence cannot be integrated
+ok 33 - corrupt assurance evidence cannot be integrated
+  ---
+  duration_ms: 2233.012125
+  type: 'test'
+  ...
+# Subtest: process output is captured and timeouts terminate execution
+ok 34 - process output is captured and timeouts terminate execution
+  ---
+  duration_ms: 798.040542
+  type: 'test'
+  ...
+# Subtest: SQLite rolls back an interrupted transition and retains an acknowledged one
+ok 35 - SQLite rolls back an interrupted transition and retains an acknowledged one
+  ---
+  duration_ms: 354.877458
+  type: 'test'
+  ...
+# Subtest: the independent process supervisor stops work when its controller is absent
+ok 36 - the independent process supervisor stops work when its controller is absent
+  ---
+  duration_ms: 986.951042
+  type: 'test'
+  ...
+# Subtest: graceful shutdown saves edited work without marking the interrupted attempt successful
+ok 37 - graceful shutdown saves edited work without marking the interrupted attempt successful
+  ---
+  duration_ms: 1345.046084
+  type: 'test'
+  ...
+# (node:10421) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: API requires a token and rejects cross-origin commands
+ok 38 - API requires a token and rejects cross-origin commands
+  ---
+  duration_ms: 368.080375
+  type: 'test'
+  ...
+# Subtest: a drained backup retains relational state and passes integrity check
+ok 39 - a drained backup retains relational state and passes integrity check
+  ---
+  duration_ms: 326.967167
+  type: 'test'
+  ...
+# (node:10422) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: configuration drains attempts, fences concurrent edits, and survives restart
+ok 40 - configuration drains attempts, fences concurrent edits, and survives restart
+  ---
+  duration_ms: 365.573667
+  type: 'test'
+  ...
+# Subtest: integration settings cannot change under open work and pending changes can be cancelled
+ok 41 - integration settings cannot change under open work and pending changes can be cancelled
+  ---
+  duration_ms: 304.039
+  type: 'test'
+  ...
+# Subtest: work history includes each run and its attempts
+ok 42 - work history includes each run and its attempts
+  ---
+  duration_ms: 267.87475
+  type: 'test'
+  ...
+# Subtest: standard defaults create refinement work only after the main outcome passes
+ok 43 - standard defaults create refinement work only after the main outcome passes
+  ---
+  duration_ms: 267.761917
+  type: 'test'
+  ...
+# Subtest: maximum-size specifications still produce a bounded diagnosis on failure
+ok 44 - maximum-size specifications still produce a bounded diagnosis on failure
+  ---
+  duration_ms: 231.47625
+  type: 'test'
+  ...
+# (node:10423) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: work deduplication and dependency validation are atomic
+ok 45 - work deduplication and dependency validation are atomic
+  ---
+  duration_ms: 4.078375
+  type: 'test'
+  ...
+# Subtest: one controller owns dispatch and duplicate completion is rejected
+ok 46 - one controller owns dispatch and duplicate completion is rejected
+  ---
+  duration_ms: 3.055791
+  type: 'test'
+  ...
+# Subtest: an expired generation cannot advance a new attempt
+ok 47 - an expired generation cannot advance a new attempt
+  ---
+  duration_ms: 2.560416
+  type: 'test'
+  ...
+# Subtest: dependency waits do not block independent work
+ok 48 - dependency waits do not block independent work
+  ---
+  duration_ms: 1.536375
+  type: 'test'
+  ...
+# Subtest: retry exhaustion creates one bounded recovery task instead of a human gate
+ok 49 - retry exhaustion creates one bounded recovery task instead of a human gate
+  ---
+  duration_ms: 4.726083
+  type: 'test'
+  ...
+# Subtest: external decisions are validated, scoped, and resumable
+ok 50 - external decisions are validated, scoped, and resumable
+  ---
+  duration_ms: 3.161333
+  type: 'test'
+  ...
+# Subtest: cancellation fences the active result and releases resources
+ok 51 - cancellation fences the active result and releases resources
+  ---
+  duration_ms: 2.595292
+  type: 'test'
+  ...
+# Subtest: operation keys reject incompatible repeated writes
+ok 52 - operation keys reject incompatible repeated writes
+  ---
+  duration_ms: 1.375
+  type: 'test'
+  ...
+# Subtest: budget wait has a release time and does not block deterministic steps
+ok 53 - budget wait has a release time and does not block deterministic steps
+  ---
+  duration_ms: 2.781458
+  type: 'test'
+  ...
+# Subtest: successful recovery work resumes the original outcome once
+ok 54 - successful recovery work resumes the original outcome once
+  ---
+  duration_ms: 4.819208
+  type: 'test'
+  ...
+# (node:10450) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: complete repository workflow: normal
+ok 55 - complete repository workflow: normal
+  ---
+  duration_ms: 3216.703375
+  type: 'test'
+  ...
+# Subtest: complete repository workflow: repair
+ok 56 - complete repository workflow: repair
+  ---
+  duration_ms: 3857.422417
+  type: 'test'
+  ...
+# Subtest: complete repository workflow: missing-once
+ok 57 - complete repository workflow: missing-once
+  ---
+  duration_ms: 3322.844291
+  type: 'test'
+  ...
+# Subtest: a review mutation cannot reach integration
+ok 58 - a review mutation cannot reach integration
+  ---
+  duration_ms: 1823.371666
+  type: 'test'
+  ...
+# Subtest: verified planning publishes dependency-ordered work without a human gate
+ok 59 - verified planning publishes dependency-ordered work without a human gate
+  ---
+  duration_ms: 1232.496959
+  type: 'test'
+  ...
+# Subtest: missing checks fail closed instead of certifying an untested change
+ok 60 - missing checks fail closed instead of certifying an untested change
+  ---
+  duration_ms: 966.398833
+  type: 'test'
+  ...
+# Subtest: path-scoped verification runs setup and matching checks, with immutable evidence
+ok 61 - path-scoped verification runs setup and matching checks, with immutable evidence
+  ---
+  duration_ms: 2837.960292
+  type: 'test'
+  ...
+# Subtest: a worker timeout is independent of the longer verification deadline
+ok 62 - a worker timeout is independent of the longer verification deadline
+  ---
+  duration_ms: 1726.149375
+  type: 'test'
+  ...
+1..62
+# tests 62
+# suites 0
+# pass 62
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19226.567167

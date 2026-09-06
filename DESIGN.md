@@ -49,3 +49,33 @@ then execute continuously without per-step confirmation.
 Platform adapters remain separate from the state core. Current GitHub support is
 small and tested with contract fixtures. The local repository workflow is tested
 end to end. Later work is recorded in BACKLOG.md.
+
+## Repository manager
+
+The optional `manage` command keeps one Store, Controller, and RepositoryWorkflow
+per managed repository. Each retains its own SQLite state and integration lock.
+One manager lease owns shared dispatch. A shared tick renews all controller
+leases and offers one claim per repository in turn. Admission reads the durable
+attempt records across managed stores before each claim. Claims are synchronous
+in one process, so another claim cannot race a capacity check. Expired and lost
+model attempts still count toward the rolling budget. Missing managed stores
+block new admission until their usage can be read.
+
+Existing services attach as external endpoints. The manager reads their local
+state for complete history and uses their authenticated API for commands. It
+never changes their state through a second Store. Transfer to managed execution
+requires both an absent listener and an expired controller lease. Existing
+repository identity and state paths remain fixed.
+
+Manager control requests retain an operation key, exact input, and result.
+New runtime command receipts commit with state transitions in the same SQLite
+transaction. Lost responses can replay that key. Legacy responses that cannot
+be reconciled stay unknown and are not replayed automatically. Backup keys bind
+to an atomically published backup directory and manifest. Repository worker
+publication still uses the existing destination reconciliation rules.
+
+Management authentication is local and separate from repository tokens. The
+browser receives only the manager token. The server resolves repository targets
+from its registry; it does not accept arbitrary destination URLs. Search reads
+use read-only SQLite connections. No schema migration or runtime restart is
+required to attach an existing session.

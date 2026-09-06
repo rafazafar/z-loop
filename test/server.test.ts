@@ -25,7 +25,8 @@ test('a drained backup retains relational state and passes integrity check',asyn
   try{
     const item=f.store.createWork(work());
     await assert.rejects(backupState(f.store,f.home),/Pause/);
-    f.store.setPaused(true);const backup=await backupState(f.store,f.home);
+    f.store.setPaused(true);const backup=await backupState(f.store,f.home,'backup-retry-fixture');
+    f.store.setPaused(false);assert.equal(await backupState(f.store,f.home,'backup-retry-fixture'),backup);
     const db=new DatabaseSync(join(backup,'state.db'));
     try{assert.equal(db.prepare('PRAGMA integrity_check').get()!.integrity_check,'ok');assert.equal(db.prepare('SELECT work_id FROM runs').get()!.work_id,item.workId);}finally{db.close();}
   }finally{await f.close();}

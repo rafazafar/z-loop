@@ -1,10 +1,17 @@
 import { DatabaseSync } from 'node:sqlite';
-import { cp, mkdir, rename, rm } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Store, uid } from './store.ts';
+import { Store, uid, hash } from './store.ts';
 import { atomic } from './files.ts';
 
-export async function backupState(store: Store, home: string): Promise<string> {
+export async function backupState(store: Store, home: string, operationKey?: string): Promise<string> {
+  if(operationKey!==undefined && (typeof operationKey!=='string'||!/^[a-zA-Z0-9:_-]{8,200}$/.test(operationKey)))throw new Error('Invalid operation key');
+  const name = operationKey ? `backup-operation-${hash(operationKey)}` : `backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${uid().slice(0, 8)}`;
+  const temp = join(home, 'backups', `.${name}`), target = join(home, 'backups', name);
+  if(operationKey) {
+    try {const manifest=JSON.parse(await readFile(join(target,'manifest.json'),'utf8'));if(manifest.operationKey!==operationKey||manifest.originalHome!==home)throw new Error('Backup receipt does not match');return target;}
+    catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
+  }
   store.tx(() => {
   if (store.one("SELECT count(*) AS n FROM attempts WHERE status='running'")!.n) throw new Error('Backup requires drained workers. Pause dispatch and wait for active attempts to finish.');
   if (store.one("SELECT value FROM settings WHERE key='paused'")?.value !== 'true') throw new Error('Pause dispatch before backup');
@@ -12,8 +19,6 @@ export async function backupState(store: Store, home: string): Promise<string> {
     store.exec("INSERT OR REPLACE INTO settings VALUES('maintenance_until',?)", String(store.now() + 60000));
   });
   const renew = setInterval(() => store.exec("UPDATE settings SET value=? WHERE key='maintenance_until'", String(store.now()+60000)), 10000);
-  const name = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${uid().slice(0, 8)}`;
-  const temp = join(home, 'backups', `.${name}`), target = join(home, 'backups', name);
   try {
     await mkdir(temp, { recursive: true, mode: 0o700 });
     await store.backup(join(temp, 'state.db'));
@@ -24,7 +29,7 @@ export async function backupState(store: Store, home: string): Promise<string> {
       catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
     }
     await atomic(join(temp, 'config.json'), JSON.stringify(store.config, null, 2));
-    await atomic(join(temp, 'manifest.json'), JSON.stringify({ version: 1, createdAt: new Date().toISOString(), originalHome: home, restoreToSamePath: true, includesCredentials: false }));
+    await atomic(join(temp, 'manifest.json'), JSON.stringify({ version: 1, createdAt: new Date().toISOString(), originalHome: home, restoreToSamePath: true, includesCredentials: false, operationKey }));
     await rename(temp, target);
     store.event('backup.created', name); return target;
   } catch (e) { await rm(temp, { recursive: true, force: true }); throw e; }

@@ -1,0 +1,74 @@
+TAP version 13
+# (node:34240) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: manager attaches to an active session without replacing ownership, settings, or attempts
+ok 1 - manager attaches to an active session without replacing ownership, settings, or attempts
+  ---
+  duration_ms: 1745.979417
+  type: 'test'
+  ...
+# Subtest: shared limits allow two repositories, bound model work, and persist on restart
+ok 2 - shared limits allow two repositories, bound model work, and persist on restart
+  ---
+  duration_ms: 2736.191917
+  type: 'test'
+  ...
+# Subtest: complete history retains old open work and command receipts survive response loss
+ok 3 - complete history retains old open work and command receipts survive response loss
+  ---
+  duration_ms: 228.669417
+  type: 'test'
+  ...
+# Subtest: manager setup is authenticated, starts empty, deduplicates retries, and rejects duplicate repositories
+ok 4 - manager setup is authenticated, starts empty, deduplicates retries, and rejects duplicate repositories
+  ---
+  duration_ms: 450.921542
+  type: 'test'
+  ...
+# Subtest: a lost legacy response remains unknown and is not sent twice
+ok 5 - a lost legacy response remains unknown and is not sent twice
+  ---
+  duration_ms: 187.979583
+  type: 'test'
+  ...
+# Subtest: manager ownership excludes a second dispatcher and historical queries remain repository scoped
+ok 6 - manager ownership excludes a second dispatcher and historical queries remain repository scoped
+  ---
+  duration_ms: 397.63075
+  type: 'test'
+  ...
+# Subtest: a recovered lost attempt remains charged to the shared model budget
+ok 7 - a recovered lost attempt remains charged to the shared model budget
+  ---
+  duration_ms: 307.727792
+  type: 'test'
+  ...
+# Subtest: lost responses from receipt-capable runtimes reconcile to one write
+ok 8 - lost responses from receipt-capable runtimes reconcile to one write
+  ---
+  duration_ms: 198.42825
+  type: 'test'
+  ...
+# (node:34241) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: API requires a token and rejects cross-origin commands
+ok 9 - API requires a token and rejects cross-origin commands
+  ---
+  duration_ms: 226.159792
+  type: 'test'
+  ...
+# Subtest: a drained backup retains relational state and passes integrity check
+ok 10 - a drained backup retains relational state and passes integrity check
+  ---
+  duration_ms: 223.916333
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6323.203875

@@ -1,7 +1,8 @@
-import { setupForms } from '/forms.js';
+import { setupForms } from './forms.js';
 const $ = id => document.getElementById(id);
+const scope=location.pathname.match(/^\/r\/[a-f0-9]{24}\//)?.[0] || '/';
 const fragment = new URLSearchParams(location.hash.slice(1));
-if (fragment.has('token')) { sessionStorage.setItem('loop-token', fragment.get('token')); history.replaceState(null, '', location.pathname); }
+if (fragment.has('token')) { sessionStorage.setItem('loop-token', fragment.get('token')); history.replaceState(null, '', location.pathname+location.search); }
 let decisionSignature='';
 const human = value => ({retry_scheduled:'Retry scheduled',queued:'Queued',running:'Running',active:'In progress',waiting:'Waiting',succeeded:'Completed',failed:'Failed',cancelled:'Cancelled'}[value] || value?.replaceAll('_',' '));
 let token = sessionStorage.getItem('loop-token') || '', state;
@@ -9,15 +10,18 @@ const el = (tag, text, className) => { const n = document.createElement(tag); if
 const date = ms => new Date(ms).toLocaleString([], { month:'short',day:'numeric',hour:'2-digit',minute:'2-digit' });
 const empty = (target, title, description) => { const box = el('div', undefined, 'empty'); box.append(el('strong', title), el('span', description)); target.replaceChildren(box); };
 async function api(path, body) {
-  const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { authorization:`Bearer ${token}`, 'content-type':'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  const data = await r.json(); if (!r.ok) { if (r.status === 401) { $('login').hidden = false; $('console').hidden = true; } throw new Error(data.error); } return data;
+  if(body&&!body.operationKey)body={...body,operationKey:crypto.randomUUID()};
+  const r = await fetch(`${scope}api/${path}`, { method: body ? 'POST' : 'GET', headers: { authorization:`Bearer ${token}`, 'content-type':'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json(); if (data.unknown) throw new Error(data.error); if (!r.ok) { if (r.status === 401) { $('login').hidden = false; $('console').hidden = true; } const e=new Error(data.error);e.confirmedFailure=true;throw e; } return data;
 }
 function error(e) { const dialog=document.querySelector('dialog[open]');let target=$('error');if(dialog){target=dialog.querySelector('.form-error');if(!target){target=el('p',undefined,'form-error');target.setAttribute('role','alert');dialog.prepend(target);}}target.hidden=false;target.textContent=e.message; }
 let commandBusy=false;
-async function act(body) { if(commandBusy)return false;commandBusy=true; $('error').hidden=true;document.querySelectorAll('.form-error').forEach(n=>n.remove());try { await api('command', body); await refresh();$('feedback').textContent=({'automation.scan':'Source check requested. New work appears in the queue when a source is ready.','automation.save':'Automation saved.','automation.enable':'Automation status saved.','automation.delete':'Automation deleted. Existing work stays in the queue.','work.create':'Work added to the queue.','decision.answer':'Answer saved. The loop can continue.'}[body.type] || 'Change saved.'); return true; } catch(e) { error(e); return false; } finally {commandBusy=false;} }
-function currentStep(work) { return state.steps.filter(s => s.run_id === work.run_id).sort((a,b) => b.position - a.position)[0]; }
+const pendingCommands=new Map();
+async function act(body) { const signature=JSON.stringify(body);if(!pendingCommands.has(signature))pendingCommands.set(signature,crypto.randomUUID());body={...body,operationKey:pendingCommands.get(signature)}; if(commandBusy)return false;commandBusy=true; $('error').hidden=true;document.querySelectorAll('.form-error').forEach(n=>n.remove());try { await api('command', body);pendingCommands.delete(signature); await refresh();$('feedback').textContent=({'automation.scan':'Source check requested. New work appears in the queue when a source is ready.','automation.save':'Automation saved.','automation.enable':'Automation status saved.','automation.delete':'Automation deleted. Existing work stays in the queue.','work.create':'Work added to the queue.','decision.answer':'Answer saved. The loop can continue.'}[body.type] || 'Change saved.'); return true; } catch(e) { if(e.confirmedFailure)pendingCommands.delete(signature);error(e); return false; } finally {commandBusy=false;} }
+function currentStep(work) { if(work.step_kind)return {kind:work.step_kind,state:work.step_state,wait_kind:work.wait_kind,error:work.error,next_at:work.next_at,attempt_count:work.step_attempt_count};return state.steps.filter(s => s.run_id === work.run_id).sort((a,b) => b.position - a.position)[0]; }
 
 async function detail(work) {
+  window.history.replaceState(null,'',`${location.pathname}?work=${encodeURIComponent(work.id)}`);
   const sameWork=$('detail-dialog').open && $('detail-dialog').dataset.work===work.id;
   const selectedPanel=sameWork?$('detail-body').querySelector('[aria-selected=true]')?.getAttribute('aria-controls'):null;
   const expanded=sameWork?new Map([...$('detail-body').querySelectorAll('details[data-key]')].map(n=>[n.dataset.key,n.open])):new Map();
@@ -73,9 +77,9 @@ async function detail(work) {
   body.append(navigation,overview,timeline);(tabs.find(([,p])=>p.id===selectedPanel)||tabs[0])[0].click();
   const summary=el('div',undefined,`work-outcome outcome-${work.status}`);
   const result=current?.result_json && JSON.parse(current.result_json);
-  const statusText=work.status==='succeeded'?'Work completed':work.status==='failed'?'Run stopped':work.status==='cancelled'?'Run cancelled':current?.wait_kind==='external'?'External input required':current?.state==='retry_scheduled'?'Retry scheduled':current?.state==='running'?`${stepNames[current.kind] || human(current.kind)} in progress`:state.paused?'Dispatch is paused':`Next step: ${human(current?.kind) || 'Queued'}`;
+  const statusText=work.status==='succeeded'?'Work completed':work.status==='failed'?'Run stopped':work.status==='cancelled'?'Run cancelled':current?.wait_kind==='external'?'External input required':current?.state==='retry_scheduled'?'Retry scheduled':current?.state==='running'?`${stepNames[current.kind] || human(current.kind)} in progress`:state.manager?.reason?state.manager.reason:state.paused?'Dispatch is paused':`Next step: ${human(current?.kind) || 'Queued'}`;
   summary.append(el('h3',statusText));
-  summary.append(el('p',work.status==='failed'?(current?.error?.split('\n')[0]||'Open run history for the failure evidence.'):(work.status==='cancelled'?'This run will not continue. Start a new run to try again.':current?.wait_kind==='external'?'Open External input from the dashboard to provide the required answer.':current?.state==='waiting'?(current.error?.split('\n')[0]||'The loop is waiting for a required condition.'):current?.state==='running'?(activeAttempt?`Attempt ${activeAttempt.generation} · Started ${date(activeAttempt.started_at)}`:'The worker is executing this step.'):result?.summary) || (state.paused?'Resume dispatch from the queue to start the next attempt.':'The loop will run the next available step.')));
+  summary.append(el('p',work.status==='failed'?(current?.error?.split('\n')[0]||'Open run history for the failure evidence.'):(work.status==='cancelled'?'This run will not continue. Start a new run to try again.':current?.wait_kind==='external'?'Open External input from the dashboard to provide the required answer.':current?.state==='waiting'?(current.error?.split('\n')[0]||'The loop is waiting for a required condition.'):current?.state==='running'?(activeAttempt?`Attempt ${activeAttempt.generation} · Started ${date(activeAttempt.started_at)}`:'The worker is executing this step.'):result?.summary) || (state.manager?.reason || (state.paused?'Resume dispatch from the queue to start the next attempt.':'The loop will run the next available step.'))));
   if(current?.state==='retry_scheduled')summary.append(el('p',`Next attempt: ${date(current.next_at)}`,'help'));
   if(context.integrated){const commit=el('code',`Commit ${context.integrated.slice(0,12)}`,'integrated-commit');commit.title=context.integrated;summary.append(commit);}
   overview.append(summary);
@@ -187,21 +191,28 @@ async function detail(work) {
   if(!dialog.open)dialog.showModal();
 }
 function render() {
+  document.querySelector('.eyebrow').textContent=state.configuration.config.repository;
+  document.title=`${state.configuration.config.repository.split('/').at(-1)} · z-loop`;
+  if(state.manager){
+    if(!$('repository-switch')){const label=el('label','Repository '),select=el('select');select.id='repository-switch';select.onchange=()=>{location.href=`/r/${select.value}/`;};label.append(select);document.querySelector('.intro').before(label);}
+    $('repository-switch').replaceChildren(...state.manager.repositories.map(p=>{const o=el('option',p.name);o.value=p.id;return o;}));$('repository-switch').value=state.manager.id;
+  }
   const count=status=>state.metrics.find(x=>x.status===status)?.count||0;
   const activeCount=count('active')+count('waiting');
-  const running = state.attempts.filter(a => a.status === 'running').length;
+  const running = state.operational?.running ?? state.attempts.filter(a => a.status === 'running').length;
   const decisions = state.decisions.filter(d => d.status === 'needs_external');
   const succeeded = count('succeeded');
-  $('summary').textContent = state.paused ? 'Dispatch is paused. Active work can finish.' : `${activeCount} work item${activeCount===1?'':'s'} in progress. The runtime handles each next step.`;
+  $('summary').textContent = state.manager?.reason || (state.paused ? 'Dispatch is paused. Active work can finish.' : `${activeCount} work item${activeCount===1?'':'s'} in progress. The runtime handles each next step.`);
   $('pause').textContent = state.paused ? 'Resume work' : 'Pause new work';
   $('stats').replaceChildren(...[['In progress',activeCount,'work items'],['Running now',running,'attempts'],['Completed',succeeded,'work items'],['External input',decisions.length,'required']].map(([label,n,note]) => { const box=el('div',undefined,'stat'); box.append(el('span',label,'stat-label'),el('span',String(n),'stat-value'),el('small',note)); return box; }));
   $('decision-count').textContent = decisions.length || '';
   const list=$('work-list'); list.replaceChildren();
   if (!state.work.length) empty(list,'Ready for the first work item','Add a bounded outcome, or enable an automation to create work.');
-  const visible=state.work.filter(w=>($('filter').value==='all'||($('filter').value==='open'?['active','waiting'].includes(w.status):['queued','retry_scheduled','running'].includes($('filter').value)?w.status==='active'&&currentStep(w)?.state===$('filter').value:w.status===$('filter').value))&&`${w.id} ${w.title} ${w.specification}`.toLowerCase().includes($('search').value.toLowerCase()));
+  const visible=queuePage?.work || state.work.filter(w=>($('filter').value==='all'||($('filter').value==='open'?['active','waiting'].includes(w.status):['queued','retry_scheduled','running'].includes($('filter').value)?w.status==='active'&&currentStep(w)?.state===$('filter').value:w.status===$('filter').value))&&`${w.id} ${w.title} ${w.specification}`.toLowerCase().includes($('search').value.toLowerCase()));
   visible.sort((a,b)=>(['active','waiting'].includes(b.status)-['active','waiting'].includes(a.status)) || b.priority-a.priority || b.created_at-a.created_at);
-  $('work-count').textContent=`${visible.length} of ${state.work.length} loaded`;
-  $('queue-note').textContent=state.work.length>=200?'Search covers the newest 200 items. Open work appears first within this list.':'Open work appears first, then highest priority. Select an item to see its evidence.';
+  $('work-count').textContent=queuePage?`${queuePage.total?queuePage.offset+1:0}–${queuePage.offset+visible.length} of ${queuePage.total}`:`${visible.length} of ${state.work.length} loaded`;
+  $('queue-prev').disabled=!queueOffset;$('queue-next').disabled=!queuePage || queueOffset+50>=queuePage.total;
+  $('queue-note').textContent=queuePage?'Search covers all stored work. Open work appears first.':state.work.length>=200?'Search covers the newest 200 items. Open work appears first within this list.':'Open work appears first, then highest priority. Select an item to see its evidence.';
   if(state.work.length&&!visible.length)empty(list,'No matching work','Change the search or state filter.');
   for (const work of visible) {
     const step=currentStep(work), card=el('div',undefined,'work-card'); card.tabIndex=0; card.setAttribute('role','button'); card.setAttribute('aria-label',`Inspect ${work.title}`);
@@ -277,17 +288,24 @@ function render() {
   if(!$('settings-view').hidden)forms.loadSettings();
   $('updated').textContent=`Updated ${new Date().toLocaleTimeString()}`;
 }
+let queueOffset=0,queuePage=null,openedLink=false,refreshSequence=0,eventOffset=0;
 async function refresh() {
   if(!token) { $('login').hidden=false;$('console').hidden=true;return; }
-  try { state=await api('state');$('login').hidden=true;$('console').hidden=false;$('connection').textContent=state.runtime.error?'Needs attention':'Connected';if(state.runtime.error)error(new Error(state.runtime.error));render(); }
+  const sequence=++refreshSequence;
+  try { const next=await api('state'),page=next.runtime.history?await api(`history?search=${encodeURIComponent($('search').value)}&status=${$('filter').value}&offset=${queueOffset}`):null;if(sequence!==refreshSequence)return;state=next;queuePage=page;if(state.runtime.history&&!$('activity-view').hidden){const events=await api(`events?search=${encodeURIComponent($('event-search').value)}&offset=${eventOffset}`);if(sequence!==refreshSequence)return;state.events=events.events;$('event-count').textContent=`${events.total?eventOffset+1:0}–${eventOffset+events.events.length} of ${events.total} events`;$('event-prev').disabled=!eventOffset;$('event-next').disabled=eventOffset+50>=events.total;}$('login').hidden=true;$('console').hidden=false;$('connection').textContent=state.runtime.error?'Needs attention':'Connected';if(state.runtime.error)error(new Error(state.runtime.error));render();if(!openedLink){openedLink=true;const id=new URLSearchParams(location.search).get('work');const view=new URLSearchParams(location.search).get('view');if(['work','automations','decisions','activity','settings','system'].includes(view))document.querySelector(`[data-tab="${view}"]`)?.click();if(id)await detail({id});} }
   catch(e) { $('connection').textContent='Disconnected';error(e); }
 }
 $('login-form').onsubmit=e=>{e.preventDefault();token=$('token').value.trim();sessionStorage.setItem('loop-token',token);refresh();};
 $('pause').onclick=()=>act({type:state.paused?'controller.resume':'controller.pause'});
 $('add').onclick=()=>{$('dependencies').replaceChildren(...state.work.map(w=>{const option=el('option',w.title);option.value=w.id;return option;}));$('create-dialog').showModal();};
 document.querySelectorAll('.close').forEach(button=>button.onclick=()=>button.closest('dialog').close());
-document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==`${button.dataset.tab}-view`);$('stats').hidden=button.dataset.tab!=='work';document.querySelector('.intro h1').textContent={work:'Work queue',automations:'Automations',decisions:'External input',activity:'Activity',settings:'Settings',system:'System health'}[button.dataset.tab];document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-current',b===button?'page':'false'));if(button.dataset.tab==='settings')forms.loadSettings();if(button.dataset.tab==='system')forms.system();$('feedback').textContent='';});
+document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==`${button.dataset.tab}-view`);$('stats').hidden=button.dataset.tab!=='work';document.querySelector('.intro h1').textContent={work:'Work queue',automations:'Automations',decisions:'External input',activity:'Activity',settings:'Settings',system:'System health'}[button.dataset.tab];document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-current',b===button?'page':'false'));if(button.dataset.tab==='activity'&&state)refresh();if(button.dataset.tab==='settings')forms.loadSettings();if(button.dataset.tab==='system')forms.system();$('feedback').textContent='';});
 $('create-form').onsubmit=async e=>{e.preventDefault();const ok=await act({type:'work.create',work:{title:$('title').value,specification:$('specification').value,acceptance:$('acceptance').value.split('\n').map(x=>x.trim()).filter(Boolean),workflow:$('workflow').value,priority:Number($('priority').value),dependencies:[...$('dependencies').selectedOptions].map(x=>x.value)}});if(ok){$('create-dialog').close();e.target.reset();}};
 const forms=setupForms({$,el,api,act,error,getState:()=>state});
-$('search').oninput=render;$('filter').onchange=render;
+let searchTimer;const searchQueue=()=>{queueOffset=0;clearTimeout(searchTimer);searchTimer=setTimeout(refresh,180);};$('search').oninput=searchQueue;$('filter').onchange=searchQueue;
+$('event-search').oninput=()=>{eventOffset=0;clearTimeout(searchTimer);searchTimer=setTimeout(refresh,180);};$('event-prev').onclick=()=>{eventOffset=Math.max(0,eventOffset-50);refresh();};$('event-next').onclick=()=>{eventOffset+=50;refresh();};
+$('queue-prev').onclick=()=>{queueOffset=Math.max(0,queueOffset-50);refresh();};$('queue-next').onclick=()=>{queueOffset+=50;refresh();};
+$('detail-dialog').addEventListener('close',()=>history.replaceState(null,'',location.pathname));
+if(scope!=='/'){const link=el('a','← All repositories','work-link');link.href='/';document.querySelector('.intro').prepend(link);}
+const initial=new URLSearchParams(location.search);if(initial.has('status'))$('filter').value=initial.get('status');
 refresh();setInterval(()=>{if(!document.hidden&&!document.querySelector('dialog[open]'))refresh();},3000);

@@ -19,12 +19,15 @@ export class Controller {
   private abort = new AbortController();
   lastError: string | null = null;
   constructor(store: Store, home: string, executor: Executor) { this.store = store; this.home = home; this.executor = executor; this.scheduler = new Scheduler(store); }
-  async start() {
+  private managed = false;
+  admission?: (modelStep: boolean) => boolean;
+  async start(managed = false) {
+    this.managed = managed;
     if (!this.store.acquireController(this.owner)) throw new Error('Another controller owns this database');
-    await this.tick();
-    this.resetTimer();
+    if (!managed) { await this.tick(); this.resetTimer(); }
   }
   private resetTimer() {
+    if (this.managed) return;
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => void this.tick().catch(e => { this.lastError = (e as Error).message; }), Math.max(50, Math.min(1000, this.store.config.limits.leaseMs / 4)));
   }
@@ -42,11 +45,12 @@ export class Controller {
       // Discovery must not block lease renewal while a remote scan is slow.
       this.scheduleScan();
       while (!this.shuttingDown) {
-        const claim = this.store.claim(this.owner);
+        const claim = this.store.claim(this.owner, this.admission);
         if (!claim) break;
         const abort = new AbortController();
         const promise = this.run(claim, abort).catch(e => { this.lastError = (e as Error).message; }).finally(() => this.active.delete(claim.attempt.id));
         this.active.set(claim.attempt.id, { abort, promise });
+        if (this.managed) break; // One claim per turn lets other repositories use shared capacity.
       }
       this.lastError = null;
     } finally { this.ticking = false; }

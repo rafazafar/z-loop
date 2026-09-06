@@ -7,7 +7,9 @@
   "engines": { "node": ">=22.18.0" },
   "bin": { "z-loop": "bin/z-loop" },
   "scripts": {
-    "start": "node --experimental-strip-types src/cli.ts serve",
+    "start": "node --experimental-strip-types src/cli.ts manage",
+    "manage": "node --experimental-strip-types src/cli.ts manage",
+    "demo:manager": "node --experimental-strip-types scripts/manager-demo.ts",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "demo": "node --experimental-strip-types scripts/demo.ts"

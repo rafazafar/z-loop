@@ -85,7 +85,7 @@ export class Store {
   dispatchBlocked() {
     return this.one("SELECT value FROM settings WHERE key='paused'")?.value === 'true' || !!this.one("SELECT 1 FROM settings WHERE key='pending_config' OR (key='maintenance_until' AND CAST(value AS INTEGER)>?)", this.now());
   }
-  claim(owner: string): Claim | null {
+  claim(owner: string, admission?: (modelStep: boolean) => boolean): Claim | null {
     return this.tx(() => {
       if (!this.isOwner(owner) || this.dispatchBlocked()) return null;
       if (this.one("SELECT count(*) AS n FROM attempts WHERE status='running'")!.n >= this.config.limits.concurrency) return null;
@@ -102,6 +102,7 @@ export class Store {
         ORDER BY (w.priority + ((? - w.created_at) / 3600000)) DESC,w.created_at,s.position`, this.now(), this.now());
       for (const step of steps) {
         const modelStep = ['implement', 'review', 'plan', 'check_plan', 'resolve'].includes(step.kind);
+        if (admission && !admission(modelStep)) continue;
         if (modelStep && paidToday >= this.config.limits.dailyAttempts) {
           const first = this.one("SELECT min(a.started_at) AS at FROM attempts a JOIN steps s ON a.step_id=s.id WHERE a.started_at>=? AND s.kind IN ('implement','review','plan','check_plan','resolve')", day)!.at;
           this.exec("UPDATE steps SET state='waiting',wait_kind='budget',error='Daily model attempt budget reached',next_at=? WHERE id=?", first + 86_400_001, step.id); continue;
@@ -314,13 +315,43 @@ export class Store {
       this.event('operation.confirmed', key);
     });
   }
+  eventHistory(search = '', offset = 0) {
+    if(typeof search!=='string'||search.length>1000||!Number.isSafeInteger(offset)||offset<0)throw new Error('Invalid event query');
+    const where="WHERE (?='' OR instr(lower(type || ' ' || entity || ' ' || data_json),lower(?))>0)";
+    return {total:this.one(`SELECT count(*) AS n FROM events ${where}`,search,search)!.n,offset,limit:50,
+      events:this.all(`SELECT * FROM events ${where} ORDER BY id DESC LIMIT 50 OFFSET ?`,search,search,offset)};
+  }
+  operational() {
+    const latest = "r.revision=(SELECT max(revision) FROM runs WHERE work_id=r.work_id)";
+    return {
+      running: this.one("SELECT count(*) AS n FROM attempts WHERE status='running'")!.n,
+      queued: this.one(`SELECT count(*) AS n FROM runs r WHERE ${latest} AND r.status='active' AND NOT EXISTS(SELECT 1 FROM steps s WHERE s.run_id=r.id AND s.state='running')`)!.n,
+      failed: this.one(`SELECT count(*) AS n FROM runs r WHERE ${latest} AND r.status='failed'`)!.n,
+      waiting: this.one(`SELECT count(*) AS n FROM runs r WHERE ${latest} AND r.status IN ('active','waiting') AND EXISTS(SELECT 1 FROM steps s WHERE s.run_id=r.id AND s.state IN ('waiting','retry_scheduled'))`)!.n,
+      decisions: this.one("SELECT count(*) AS n FROM decisions WHERE status='needs_external'")!.n,
+      oldestOpen: this.one(`SELECT min(w.created_at) AS at FROM work_items w JOIN runs r ON r.work_id=w.id WHERE ${latest} AND r.status IN ('active','waiting')`)!.at,
+    };
+  }
+  history(search = '', status = 'all', offset = 0, limit = 50) {
+    if (typeof search !== 'string' || search.length > 1000 || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid history query');
+    const states = ['all','open','active','waiting','succeeded','failed','cancelled','queued','running','retry_scheduled'];
+    if (!states.includes(status)) throw new Error('Invalid work state');
+    const filter = status === 'all' ? '1' : status === 'waiting' ? "r.status IN ('active','waiting') AND s.state='waiting'" : status === 'open' ? "r.status IN ('active','waiting')" : ['queued','running','retry_scheduled'].includes(status) ? "r.status='active' AND s.state=?" : 'r.status=?';
+    const args = [search, search, ...(['all','open','waiting'].includes(status) ? [] : [status])];
+    const from = `FROM work_items w JOIN runs r ON r.work_id=w.id LEFT JOIN steps s ON s.id=(SELECT id FROM steps WHERE run_id=r.id ORDER BY position DESC LIMIT 1)
+      WHERE r.revision=(SELECT max(revision) FROM runs WHERE work_id=w.id) AND (?='' OR instr(lower(w.id || ' ' || w.title || ' ' || w.specification),lower(?))>0) AND ${filter}`;
+    return { total: this.one(`SELECT count(*) AS n ${from}`, ...args)!.n, offset, limit,
+      work: this.all(`SELECT w.*,r.id AS run_id,r.status,r.revision,r.repair_count,s.kind AS step_kind,s.state AS step_state,s.attempt_count AS step_attempt_count,s.wait_kind,s.error,s.next_at ${from}
+        ORDER BY (r.status IN ('active','waiting')) DESC,w.priority DESC,w.created_at DESC,w.id LIMIT ? OFFSET ?`, ...args, limit, offset) };
+  }
   snapshot() {
     return this.tx(() => ({
+      operational: this.operational(),
       paused: this.one("SELECT value FROM settings WHERE key='paused'")?.value === 'true',
       metrics: this.all(`SELECT r.status,count(*) AS count FROM runs r WHERE r.revision=(SELECT max(revision) FROM runs WHERE work_id=r.work_id) GROUP BY r.status`),
       budgetUsed: this.one("SELECT count(*) AS n FROM attempts a JOIN steps s ON s.id=a.step_id WHERE a.started_at>=? AND s.kind IN ('implement','review','plan','check_plan','resolve')", this.now()-86400000)!.n,
       controller: this.one('SELECT owner,lease_until FROM controller WHERE id=1') || null,
-      work: this.all(`SELECT w.*,r.id AS run_id,r.status,r.revision,r.repair_count FROM work_items w JOIN runs r ON r.work_id=w.id WHERE r.revision=(SELECT max(revision) FROM runs WHERE work_id=w.id) ORDER BY w.created_at DESC LIMIT 200`),
+      work: this.all(`SELECT w.*,r.id AS run_id,r.status,r.revision,r.repair_count FROM work_items w JOIN runs r ON r.work_id=w.id WHERE r.revision=(SELECT max(revision) FROM runs WHERE work_id=w.id) ORDER BY (r.status IN ('active','waiting')) DESC,w.created_at DESC LIMIT 200`),
       steps: this.all('SELECT * FROM steps ORDER BY rowid DESC LIMIT 500'),
       attempts: this.all('SELECT * FROM attempts ORDER BY started_at DESC LIMIT 100'),
       decisions: this.all("SELECT * FROM decisions ORDER BY (status='needs_external') DESC,created_at DESC LIMIT 500"),

@@ -3,6 +3,18 @@ import { Store } from './store.ts';
 import { defineAutomation, deleteAutomation } from './automations.ts';
 
 export function command(store: Store, input: any): unknown {
+  if (input?.operationKey !== undefined) {
+    if (typeof input.operationKey !== 'string' || !/^[a-zA-Z0-9:_-]{8,200}$/.test(input.operationKey)) throw new Error('Invalid operation key');
+    const { operationKey, ...body } = input;
+    return store.tx(() => {
+      const encoded = JSON.stringify(body);
+      const old = store.one('SELECT * FROM command_receipts WHERE key=?', operationKey);
+      if (old) { if (old.input_json !== encoded) throw new Error('Operation key reused with different input'); return JSON.parse(old.result_json); }
+      const result = command(store, body);
+      store.exec('INSERT INTO command_receipts VALUES(?,?,?)', operationKey, encoded, JSON.stringify(result));
+      return result;
+    });
+  }
   if (!input || typeof input.type !== 'string') throw new Error('Command type is required');
   if (store.one("SELECT 1 FROM settings WHERE key='maintenance_until' AND CAST(value AS INTEGER)>?", store.now())) throw new Error('Backup is in progress. Try again after it finishes.');
   switch (input.type) {

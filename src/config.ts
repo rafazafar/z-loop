@@ -49,3 +49,21 @@ export function loadConfig(home: string): Config {
   return validateConfig(JSON.parse(readFileSync(resolve(home, 'config.json'), 'utf8')));
 }
 export function checkDigest(c: Config): string { return createHash('sha256').update(JSON.stringify(c.checks)).digest('hex'); }
+
+// CLI commands for managed repositories use the same public address as the dashboard.
+export function loadConnection(home: string, config: Config, managerHome: string) {
+  const file=resolve(managerHome,'manager.db');
+  if(existsSync(file)) {
+    const db=new DatabaseSync(file,{readOnly:true});
+    try {
+      const project=db.prepare("SELECT id FROM projects WHERE home=? AND mode='managed'").get(realpathSync(home));
+      if(project && db.prepare('SELECT 1 FROM owner WHERE until_at>?').get(Date.now()) && db.prepare("SELECT 1 FROM sqlite_master WHERE name='endpoint'").get()) {
+        const endpoint=db.prepare('SELECT port FROM endpoint WHERE id=1').get();
+        if(endpoint && Number.isInteger(endpoint.port) && Number(endpoint.port)>0 && Number(endpoint.port)<=65535) {
+          return {base:`http://127.0.0.1:${endpoint.port}/r/${project.id}`,token:readFileSync(resolve(managerHome,'token'),'utf8').trim()};
+        }
+      }
+    } finally {db.close();}
+  }
+  return {base:`http://127.0.0.1:${config.server.port}`,token:readFileSync(resolve(home,'token'),'utf8').trim()};
+}
